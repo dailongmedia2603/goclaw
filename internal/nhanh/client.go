@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -39,7 +40,7 @@ func NewClient(appID, businessID, accessToken string) *Client {
 
 // ListProducts fetches products with optional filters and pagination.
 func (c *Client) ListProducts(ctx context.Context, filters *ProductFilters, page *PaginatorInput) ([]Product, *Paginator, error) {
-	req := ListRequest{Filters: filters, Paginator: page}
+	req := buildListRequest(filters, page)
 	resp, err := c.post(ctx, "/v3.0/product/list", req)
 	if err != nil {
 		return nil, nil, err
@@ -53,7 +54,7 @@ func (c *Client) ListProducts(ctx context.Context, filters *ProductFilters, page
 
 // ListOrders fetches orders with optional filters and pagination.
 func (c *Client) ListOrders(ctx context.Context, filters *OrderFilters, page *PaginatorInput) ([]Order, *Paginator, error) {
-	req := ListRequest{Filters: filters, Paginator: page}
+	req := buildListRequest(filters, page)
 	resp, err := c.post(ctx, "/v3.0/order/list", req)
 	if err != nil {
 		return nil, nil, err
@@ -67,7 +68,7 @@ func (c *Client) ListOrders(ctx context.Context, filters *OrderFilters, page *Pa
 
 // ListCustomers fetches customers with optional filters and pagination.
 func (c *Client) ListCustomers(ctx context.Context, filters *CustomerFilters, page *PaginatorInput) ([]Customer, *Paginator, error) {
-	req := ListRequest{Filters: filters, Paginator: page}
+	req := buildListRequest(filters, page)
 	resp, err := c.post(ctx, "/v3.0/customer/list", req)
 	if err != nil {
 		return nil, nil, err
@@ -77,6 +78,24 @@ func (c *Client) ListCustomers(ctx context.Context, filters *CustomerFilters, pa
 		return nil, nil, fmt.Errorf("nhanh: parse customers: %w", err)
 	}
 	return customers, resp.Paginator, nil
+}
+
+// buildListRequest creates a ListRequest, ensuring filters is never null in JSON.
+// Nhanh.vn API rejects "filters":null — must be {} or a valid object.
+func buildListRequest(filters any, page *PaginatorInput) ListRequest {
+	if isNilFilter(filters) {
+		filters = struct{}{}
+	}
+	return ListRequest{Filters: filters, Paginator: page}
+}
+
+// isNilFilter checks if a filter pointer is nil (handles typed nil interface values).
+func isNilFilter(v any) bool {
+	if v == nil {
+		return true
+	}
+	rv := reflect.ValueOf(v)
+	return rv.Kind() == reflect.Ptr && rv.IsNil()
 }
 
 // post sends a POST request to the Nhanh.vn API and returns the parsed response.
