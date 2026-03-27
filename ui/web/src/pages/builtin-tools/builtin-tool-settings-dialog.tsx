@@ -15,10 +15,12 @@ import type { BuiltinToolData } from "./hooks/use-builtin-tools";
 import { MEDIA_TOOLS } from "./media-provider-params-schema";
 import { MediaProviderChainForm } from "./media-provider-chain-form";
 import { KGSettingsForm } from "./kg-settings-form";
+import { NhanhSettingsForm } from "./nhanh-settings-form";
 import { WebFetchExtractorChainForm } from "./web-fetch-extractor-chain-form";
 
 const KG_TOOL = "knowledge_graph_search";
 const WEB_FETCH_TOOL = "web_fetch";
+const NHANH_TOOLS = new Set(["nhanh_products", "nhanh_orders", "nhanh_customers", "nhanh_inventory", "nhanh_sync"]);
 
 interface Props {
   tool: BuiltinToolData | null;
@@ -31,7 +33,8 @@ export function BuiltinToolSettingsDialog({ tool, open, onOpenChange, onSave }: 
   const isMedia = tool ? MEDIA_TOOLS.has(tool.name) : false;
   const isKG = tool?.name === KG_TOOL;
   const isWebFetch = tool?.name === WEB_FETCH_TOOL;
-  const wide = isMedia || isKG || isWebFetch;
+  const isNhanh = tool ? NHANH_TOOLS.has(tool.name) : false;
+  const wide = isMedia || isKG || isWebFetch || isNhanh;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -45,6 +48,12 @@ export function BuiltinToolSettingsDialog({ tool, open, onOpenChange, onSave }: 
         ) : isMedia && tool ? (
           <MediaProviderChainForm
             toolName={tool.name}
+            initialSettings={tool.settings ?? {}}
+            onSave={(settings) => onSave(tool.name, settings).then(() => onOpenChange(false))}
+            onCancel={() => onOpenChange(false)}
+          />
+        ) : isNhanh && tool ? (
+          <NhanhSettingsForm
             initialSettings={tool.settings ?? {}}
             onSave={(settings) => onSave(tool.name, settings).then(() => onOpenChange(false))}
             onCancel={() => onOpenChange(false)}

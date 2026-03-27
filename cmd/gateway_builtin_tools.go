@@ -72,7 +72,7 @@ func builtinToolSeedData() []store.BuiltinToolDef {
 		},
 
 		// browser
-		{Name: "browser", DisplayName: "Browser", Description: "Automate browser interactions: navigate pages, click elements, fill forms, take screenshots", Category: "browser", Enabled: true,
+		{Name: "browser", DisplayName: "Cloak Browser", Description: "Stealth browser automation: navigate pages, click elements, fill forms, take screenshots — powered by CloakBrowser", Category: "browser", Enabled: true,
 			Requires: []string{"browser"},
 			Metadata: json.RawMessage(`{"config_hint":"Config → Tools → Browser"}`),
 		},
@@ -106,6 +106,15 @@ func builtinToolSeedData() []store.BuiltinToolDef {
 		{Name: "team_tasks", DisplayName: "Team Tasks", Description: "View, create, update, and complete tasks on the team task board", Category: "teams", Enabled: true,
 			Requires: []string{"managed_mode", "teams"},
 		},
+
+		// nhanh.vn e-commerce
+		{Name: "nhanh_products", DisplayName: "Nhanh Products", Description: "Search and list products from Nhanh.vn e-commerce platform", Category: "nhanh", Enabled: false,
+			Settings: json.RawMessage(`{"app_id":"","business_id":"","access_token":"","auto_kg_ingest":true}`),
+		},
+		{Name: "nhanh_orders", DisplayName: "Nhanh Orders", Description: "List and search orders from Nhanh.vn", Category: "nhanh", Enabled: false},
+		{Name: "nhanh_customers", DisplayName: "Nhanh Customers", Description: "Search and list customers from Nhanh.vn", Category: "nhanh", Enabled: false},
+		{Name: "nhanh_inventory", DisplayName: "Nhanh Inventory", Description: "Check product stock levels across Nhanh.vn warehouses", Category: "nhanh", Enabled: false},
+		{Name: "nhanh_sync", DisplayName: "Nhanh Sync", Description: "Bulk sync products, orders, and customers from Nhanh.vn to Knowledge Graph", Category: "nhanh", Enabled: false},
 	}
 }
 

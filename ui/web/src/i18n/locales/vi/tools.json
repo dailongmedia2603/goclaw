@@ -100,7 +100,8 @@
       "subagents": "Agent",
       "skills": "Skill",
       "delegation": "Ủy quyền",
-      "teams": "Nhóm"
+      "teams": "Nhóm",
+      "nhanh": "Nhanh.vn"
     },
     "settingsDialog": {
       "title": "Cài đặt — {{name}}",
@@ -135,6 +136,22 @@
       "minConfidenceHint": "Các thực thể dưới điểm tin cậy này sẽ bị loại bỏ (0,0–1,0).",
       "autoExtract": "Tự động trích xuất khi ghi bộ nhớ",
       "autoExtractHint": "Tự động trích xuất thực thể khi agent ghi vào tệp bộ nhớ.",
+      "cancel": "Hủy",
+      "save": "Lưu",
+      "saving": "Đang lưu..."
+    },
+    "nhanhSettings": {
+      "title": "Cài đặt Nhanh.vn",
+      "description": "Cấu hình thông tin xác thực API Nhanh.vn để đồng bộ dữ liệu thương mại điện tử (sản phẩm, đơn hàng, khách hàng).",
+      "appId": "App ID",
+      "appIdHint": "Lấy từ open.nhanh.vn → Ứng dụng",
+      "businessId": "Business ID",
+      "businessIdHint": "ID doanh nghiệp của bạn trên Nhanh.vn",
+      "accessToken": "Access Token",
+      "accessTokenHint": "Token xác thực OAuth (có hiệu lực 1 năm)",
+      "autoKgIngest": "Tự động lưu vào Knowledge Graph",
+      "autoKgIngestHint": "Tự động lưu dữ liệu đã tải về dưới dạng thực thể trong Knowledge Graph để truy vấn.",
+      "helpLink": "Lấy thông tin xác thực tại open.nhanh.vn",
       "cancel": "Hủy",
       "save": "Lưu",
       "saving": "Đang lưu..."
@@ -205,7 +222,12 @@
       "spawn": "Tạo subagent cho công việc nền",
       "skill_search": "Tìm kiếm skill khả dụng theo từ khóa hoặc mô tả để tìm khả năng phù hợp",
       "use_skill": "Kích hoạt skill để sử dụng khả năng chuyên biệt (đánh dấu tracing)",
-      "team_tasks": "Xem, tạo, cập nhật và hoàn thành tác vụ trên bảng tác vụ nhóm"
+      "team_tasks": "Xem, tạo, cập nhật và hoàn thành tác vụ trên bảng tác vụ nhóm",
+      "nhanh_products": "Tìm kiếm và liệt kê sản phẩm từ Nhanh.vn",
+      "nhanh_orders": "Liệt kê và tìm kiếm đơn hàng từ Nhanh.vn",
+      "nhanh_customers": "Tìm kiếm và liệt kê khách hàng từ Nhanh.vn",
+      "nhanh_inventory": "Kiểm tra tồn kho sản phẩm trên các kho Nhanh.vn",
+      "nhanh_sync": "Đồng bộ hàng loạt sản phẩm, đơn hàng, khách hàng từ Nhanh.vn vào Knowledge Graph"
     }
   }
 }

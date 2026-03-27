@@ -87,6 +87,14 @@ func setupToolRegistry(
 	toolsReg.Register(tools.NewKnowledgeGraphSearchTool())
 	slog.Info("memory + knowledge graph tools registered (PG-backed)")
 
+	// Nhanh.vn e-commerce tools
+	toolsReg.Register(tools.NewNhanhProductsTool())
+	toolsReg.Register(tools.NewNhanhOrdersTool())
+	toolsReg.Register(tools.NewNhanhCustomersTool())
+	toolsReg.Register(tools.NewNhanhInventoryTool())
+	toolsReg.Register(tools.NewNhanhSyncTool())
+	slog.Info("nhanh.vn tools registered")
+
 	// Browser automation tool
 	if cfg.Tools.Browser.Enabled {
 		var opts []browser.Option

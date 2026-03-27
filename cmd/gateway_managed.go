@@ -295,6 +295,26 @@ func wireExtras(
 			}
 		}
 		slog.Info("knowledge graph tool wired (Postgres)")
+
+		// Wire Nhanh.vn tools with KG store
+		for _, name := range []string{"nhanh_products", "nhanh_orders", "nhanh_customers", "nhanh_inventory", "nhanh_sync"} {
+			if t, ok := toolsReg.Get(name); ok {
+				if nt, ok := t.(interface{ SetKGStore(store.KnowledgeGraphStore) }); ok {
+					nt.SetKGStore(stores.KnowledgeGraph)
+				}
+			}
+		}
+	}
+
+	// Wire Nhanh.vn tools with BuiltinToolStore (for credential loading, independent of KG)
+	if stores.BuiltinTools != nil {
+		for _, name := range []string{"nhanh_products", "nhanh_orders", "nhanh_customers", "nhanh_inventory", "nhanh_sync"} {
+			if t, ok := toolsReg.Get(name); ok {
+				if nt, ok := t.(interface{ SetBuiltinToolStore(store.BuiltinToolStore) }); ok {
+					nt.SetBuiltinToolStore(stores.BuiltinTools)
+				}
+			}
+		}
 	}
 
 	// --- Cache invalidation event subscribers ---

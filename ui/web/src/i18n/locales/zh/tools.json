@@ -13,6 +13,7 @@
       "skills": "Skill",
       "subagents": "Agent",
       "teams": "Team",
+      "nhanh": "Nhanh.vn",
       "web": "网页"
     },
     "categoryCount": "{{count}} 个分类",
@@ -52,6 +53,22 @@
       "save": "保存",
       "saving": "保存中...",
       "title": "知识图谱设置"
+    },
+    "nhanhSettings": {
+      "title": "Nhanh.vn 设置",
+      "description": "配置 Nhanh.vn API 凭据以同步电商数据（产品、订单、客户）。",
+      "appId": "App ID",
+      "appIdHint": "从 open.nhanh.vn → 应用 获取",
+      "businessId": "Business ID",
+      "businessIdHint": "您在 Nhanh.vn 上的企业ID",
+      "accessToken": "Access Token",
+      "accessTokenHint": "OAuth 访问令牌（有效期1年）",
+      "autoKgIngest": "自动保存到知识图谱",
+      "autoKgIngestHint": "自动将获取的数据作为实体存储到知识图谱中以供查询。",
+      "helpLink": "在 open.nhanh.vn 获取凭据",
+      "cancel": "取消",
+      "save": "保存",
+      "saving": "保存中..."
     },
     "extractorChain": {
       "title": "Web Fetch — 提取器链",
@@ -141,7 +158,12 @@
       "spawn": "生成子Agent进行后台工作",
       "skill_search": "按关键字或描述搜索可用Skill以找到相关能力",
       "use_skill": "激活Skill以使用其专业能力（追踪标记）",
-      "team_tasks": "查看、创建、更新和完成团队任务板上的任务"
+      "team_tasks": "查看、创建、更新和完成团队任务板上的任务",
+      "nhanh_products": "从Nhanh.vn电商平台搜索和列出产品",
+      "nhanh_orders": "从Nhanh.vn列出和搜索订单",
+      "nhanh_customers": "从Nhanh.vn搜索和列出客户",
+      "nhanh_inventory": "检查Nhanh.vn各仓库的产品库存水平",
+      "nhanh_sync": "批量同步Nhanh.vn的产品、订单、客户到知识图谱"
     }
   },
   "custom": {

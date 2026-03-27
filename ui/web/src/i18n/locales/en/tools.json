@@ -100,7 +100,8 @@
       "subagents": "Agents",
       "skills": "Skills",
       "delegation": "Delegation",
-      "teams": "Teams"
+      "teams": "Teams",
+      "nhanh": "Nhanh.vn"
     },
     "settingsDialog": {
       "title": "Settings — {{name}}",
@@ -135,6 +136,22 @@
       "minConfidenceHint": "Entities below this confidence score are discarded (0.0–1.0).",
       "autoExtract": "Auto-extract on memory write",
       "autoExtractHint": "Automatically extract entities when agents write to memory files.",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving..."
+    },
+    "nhanhSettings": {
+      "title": "Nhanh.vn Settings",
+      "description": "Configure Nhanh.vn API credentials to sync e-commerce data (products, orders, customers).",
+      "appId": "App ID",
+      "appIdHint": "Get from open.nhanh.vn → Apps",
+      "businessId": "Business ID",
+      "businessIdHint": "Your business/enterprise ID on Nhanh.vn",
+      "accessToken": "Access Token",
+      "accessTokenHint": "OAuth access token (valid for 1 year)",
+      "autoKgIngest": "Auto-save to Knowledge Graph",
+      "autoKgIngestHint": "Automatically store fetched data as entities in Knowledge Graph for querying.",
+      "helpLink": "Get credentials at open.nhanh.vn",
       "cancel": "Cancel",
       "save": "Save",
       "saving": "Saving..."
@@ -205,7 +222,12 @@
       "spawn": "Spawn a subagent to handle a task in the background",
       "skill_search": "Search for available skills by keyword or description to find relevant capabilities",
       "use_skill": "Activate a skill to use its specialized capabilities (tracing marker)",
-      "team_tasks": "View, create, update, and complete tasks on the team task board"
+      "team_tasks": "View, create, update, and complete tasks on the team task board",
+      "nhanh_products": "Search and list products from Nhanh.vn e-commerce platform",
+      "nhanh_orders": "List and search orders from Nhanh.vn",
+      "nhanh_customers": "Search and list customers from Nhanh.vn",
+      "nhanh_inventory": "Check product stock levels across Nhanh.vn warehouses",
+      "nhanh_sync": "Bulk sync products, orders, and customers from Nhanh.vn to Knowledge Graph"
     }
   }
 }
