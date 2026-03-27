@@ -1,0 +1,29 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          script: |
+            cd /opt/goclaw
+            git pull origin main
+            docker compose \
+              -f docker-compose.yml \
+              -f docker-compose.postgres.yml \
+              -f docker-compose.selfservice.yml \
+              -f docker-compose.browser.yml \
+              -f docker-compose.override.yml \
+              up -d --build
+            echo "Deploy completed at $(date)"
