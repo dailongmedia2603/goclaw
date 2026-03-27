@@ -62,7 +62,7 @@ func (t *NhanhSyncTool) Execute(ctx context.Context, args map[string]any) *Resul
 	}
 
 	resource, _ := args["resource"].(string)
-	maxPages := intArg(args, "max_pages")
+	maxPages := intArg(args, "max_pages", 0)
 	if maxPages <= 0 {
 		maxPages = 5
 	}

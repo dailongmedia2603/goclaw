@@ -89,18 +89,6 @@ func stringArg(args map[string]any, key string) string {
 	return v
 }
 
-func intArg(args map[string]any, key string) int {
-	switch v := args[key].(type) {
-	case float64:
-		return int(v)
-	case string:
-		n, _ := strconv.Atoi(v)
-		return n
-	default:
-		return 0
-	}
-}
-
 func intFromString(s string) int {
 	n, _ := strconv.Atoi(s)
 	return n

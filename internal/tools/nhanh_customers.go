@@ -78,7 +78,7 @@ func (t *NhanhCustomersTool) search(ctx context.Context, client *nhanh.Client, a
 	}
 
 	filters := &nhanh.CustomerFilters{Mobile: query}
-	pageSize := nhanh.ClampPageSize(intArg(args, "page_size"), 50)
+	pageSize := nhanh.ClampPageSize(intArg(args, "page_size", 0), 50)
 	customers, _, err := client.ListCustomers(ctx, filters, &nhanh.PaginatorInput{Size: pageSize})
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("failed to search customers: %v", err))
@@ -112,7 +112,7 @@ func (t *NhanhCustomersTool) get(ctx context.Context, client *nhanh.Client, args
 }
 
 func (t *NhanhCustomersTool) list(ctx context.Context, client *nhanh.Client, args map[string]any) *Result {
-	pageSize := nhanh.ClampPageSize(intArg(args, "page_size"), 50)
+	pageSize := nhanh.ClampPageSize(intArg(args, "page_size", 0), 50)
 	customers, _, err := client.ListCustomers(ctx, nil, &nhanh.PaginatorInput{Size: pageSize})
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("failed to list customers: %v", err))

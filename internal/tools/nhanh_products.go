@@ -82,7 +82,7 @@ func (t *NhanhProductsTool) search(ctx context.Context, client *nhanh.Client, ar
 	}
 
 	filters := &nhanh.ProductFilters{Name: query}
-	pageSize := nhanh.ClampPageSize(intArg(args, "page_size"), nhanh.MaxPageSize)
+	pageSize := nhanh.ClampPageSize(intArg(args, "page_size", 0), nhanh.MaxPageSize)
 	products, _, err := client.ListProducts(ctx, filters, &nhanh.PaginatorInput{Size: pageSize})
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("failed to search products: %v", err))
@@ -125,7 +125,7 @@ func (t *NhanhProductsTool) list(ctx context.Context, client *nhanh.Client, args
 		}
 	}
 
-	pageSize := nhanh.ClampPageSize(intArg(args, "page_size"), nhanh.MaxPageSize)
+	pageSize := nhanh.ClampPageSize(intArg(args, "page_size", 0), nhanh.MaxPageSize)
 	products, pag, err := client.ListProducts(ctx, filters, &nhanh.PaginatorInput{Size: pageSize})
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("failed to list products: %v", err))

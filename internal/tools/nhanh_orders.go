@@ -128,7 +128,7 @@ func (t *NhanhOrdersTool) list(ctx context.Context, client *nhanh.Client, args m
 		}
 	}
 
-	pageSize := nhanh.ClampPageSize(intArg(args, "page_size"), 50)
+	pageSize := nhanh.ClampPageSize(intArg(args, "page_size", 0), 50)
 	orders, _, err := client.ListOrders(ctx, filters, &nhanh.PaginatorInput{Size: pageSize})
 	if err != nil {
 		return ErrorResult(fmt.Sprintf("failed to list orders: %v", err))
