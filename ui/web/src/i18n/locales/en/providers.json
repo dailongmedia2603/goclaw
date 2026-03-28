@@ -53,7 +53,14 @@
     "alreadyAdded": "(already added)",
     "nameFixed": "Name",
     "configure": "Configure an LLM provider connection.",
-    "lowercaseHint": "Lowercase, numbers, hyphens"
+    "lowercaseHint": "Lowercase, numbers, hyphens",
+    "modelId": "Model ID",
+    "modelIdPlaceholder": "e.g. gemini-2.5-pro, gpt-4o, claude-sonnet-4",
+    "modelIdHint": "Default model ID for this provider. Used for testing connection.",
+    "testConnection": "Test Connection",
+    "testing": "Testing...",
+    "testSuccess": "Connection successful! Provider is working.",
+    "testFailed": "Connection test failed"
   },
   "delete": {
     "title": "Delete Provider",

@@ -26,7 +26,8 @@ import { PROVIDER_TYPES } from "@/constants/providers";
 import { OAuthSection } from "./provider-oauth-section";
 import { CLISection } from "./provider-cli-section";
 import { ACPSection } from "./provider-acp-section";
-import { Loader2 } from "lucide-react";
+import { useHttp } from "@/hooks/use-ws";
+import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 
 interface ProviderFormDialogProps {
   open: boolean;
@@ -38,14 +39,20 @@ interface ProviderFormDialogProps {
 export function ProviderFormDialog({ open, onOpenChange, onSubmit, existingProviders = [] }: ProviderFormDialogProps) {
   const { t } = useTranslation("providers");
   const queryClient = useQueryClient();
+  const http = useHttp();
   const [name, setName] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [providerType, setProviderType] = useState("openai_compat");
   const [apiBase, setApiBase] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [modelId, setModelId] = useState("");
   const [enabled, setEnabled] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Test connection state
+  const [testLoading, setTestLoading] = useState(false);
+  const [testResult, setTestResult] = useState<{ valid: boolean; error?: string } | null>(null);
 
   // ACP fields
   const [acpBinary, setAcpBinary] = useState("");
@@ -68,7 +75,10 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, existingProvi
       setProviderType("openai_compat");
       setApiBase("");
       setApiKey("");
+      setModelId("");
       setEnabled(true);
+      setTestLoading(false);
+      setTestResult(null);
       setAcpBinary("");
       setAcpArgs("");
       setAcpIdleTTL("");
@@ -103,6 +113,11 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, existingProvi
         }
       }
 
+      // Save default model ID in settings
+      if (modelId.trim()) {
+        data.settings = { ...data.settings, default_model: modelId.trim() };
+      }
+
       if (apiKey && apiKey !== "***") {
         data.api_key = apiKey;
       }
@@ -113,6 +128,51 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, existingProvi
       setError(err instanceof Error ? err.message : t("form.saving"));
     } finally {
       setLoading(false);
+    }
+  };
+
+  // handleTestConnection: create provider → verify → if failed, delete it
+  const handleTestConnection = async () => {
+    if (!modelId.trim() || !name.trim() || !providerType) return;
+    setTestLoading(true);
+    setTestResult(null);
+    let createdId: string | null = null;
+    try {
+      const data: ProviderInput = {
+        name: name.trim(),
+        display_name: displayName.trim() || undefined,
+        provider_type: providerType,
+        api_base: apiBase.trim() || undefined,
+        enabled,
+      };
+      if (apiKey && apiKey !== "***") data.api_key = apiKey;
+      if (modelId.trim()) data.settings = { default_model: modelId.trim() };
+
+      const created = await http.post<{ id: string }>("/v1/providers", data);
+      createdId = created.id;
+
+      const result = await http.post<{ valid: boolean; error?: string }>(
+        `/v1/providers/${created.id}/verify`,
+        { model: modelId.trim() },
+      );
+      setTestResult(result);
+
+      if (result.valid) {
+        // Success — keep provider, close dialog
+        queryClient.invalidateQueries({ queryKey: ["providers"] });
+        onOpenChange(false);
+      } else {
+        // Failed — delete the temp provider
+        try { await http.delete(`/v1/providers/${created.id}`); } catch {}
+      }
+    } catch (err) {
+      setTestResult({ valid: false, error: err instanceof Error ? err.message : String(err) });
+      // Clean up provider if created
+      if (createdId) {
+        try { await http.delete(`/v1/providers/${createdId}`); } catch {}
+      }
+    } finally {
+      setTestLoading(false);
     }
   };
 
@@ -224,6 +284,18 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, existingProvi
                       className="text-base md:text-sm"
                     />
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="modelId">{t("form.modelId")}</Label>
+                    <Input
+                      id="modelId"
+                      value={modelId}
+                      onChange={(e) => { setModelId(e.target.value); setTestResult(null); }}
+                      placeholder={t("form.modelIdPlaceholder")}
+                      className="text-base md:text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">{t("form.modelIdHint")}</p>
+                  </div>
                 </>
               )}
 
@@ -231,6 +303,14 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, existingProvi
                 <Label htmlFor="enabled">{t("form.enabled")}</Label>
                 <Switch id="enabled" checked={enabled} onCheckedChange={setEnabled} />
               </div>
+              {/* Test connection result */}
+              {testResult && (
+                <div className={`flex items-center gap-2 rounded-md border p-3 text-sm ${testResult.valid ? "border-green-500/30 bg-green-500/10 text-green-400" : "border-destructive/30 bg-destructive/10 text-destructive"}`}>
+                  {testResult.valid ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
+                  <span>{testResult.valid ? t("form.testSuccess") : testResult.error || t("form.testFailed")}</span>
+                </div>
+              )}
+
               {error && (
                 <p className="text-sm text-destructive">{error}</p>
               )}
@@ -238,18 +318,31 @@ export function ProviderFormDialog({ open, onOpenChange, onSubmit, existingProvi
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading || testLoading}>
             {isOAuth ? t("form.close") : t("form.cancel")}
           </Button>
           {!isOAuth && (
-            <Button
-              onClick={handleSubmit}
-              disabled={!name.trim() || !isValidSlug(name) || !providerType || loading}
-              className="gap-1"
-            >
-              {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              {loading ? t("form.creating") : t("form.create")}
-            </Button>
+            <div className="flex gap-2">
+              {!isCLI && !isACP && modelId.trim() && (
+                <Button
+                  variant="outline"
+                  onClick={handleTestConnection}
+                  disabled={!name.trim() || !isValidSlug(name) || !providerType || !modelId.trim() || loading || testLoading}
+                  className="gap-1"
+                >
+                  {testLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {testLoading ? t("form.testing") : t("form.testConnection")}
+                </Button>
+              )}
+              <Button
+                onClick={handleSubmit}
+                disabled={!name.trim() || !isValidSlug(name) || !providerType || loading || testLoading}
+                className="gap-1"
+              >
+                {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {loading ? t("form.creating") : t("form.create")}
+              </Button>
+            </div>
           )}
         </DialogFooter>
       </DialogContent>

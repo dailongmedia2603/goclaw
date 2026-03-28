@@ -53,7 +53,14 @@
     "alreadyAdded": "（已添加）",
     "nameFixed": "名称",
     "configure": "配置 LLM Provider连接。",
-    "lowercaseHint": "小写字母、数字、连字符"
+    "lowercaseHint": "小写字母、数字、连字符",
+    "modelId": "模型 ID",
+    "modelIdPlaceholder": "例如 gemini-2.5-pro, gpt-4o, claude-sonnet-4",
+    "modelIdHint": "此Provider的默认模型ID。用于测试连接。",
+    "testConnection": "测试连接",
+    "testing": "测试中...",
+    "testSuccess": "连接成功！Provider工作正常。",
+    "testFailed": "连接测试失败"
   },
   "delete": {
     "title": "删除Provider",

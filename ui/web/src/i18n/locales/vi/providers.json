@@ -53,7 +53,14 @@
     "alreadyAdded": "(đã thêm)",
     "nameFixed": "Tên",
     "configure": "Cấu hình kết nối provider LLM.",
-    "lowercaseHint": "Chữ thường, số, dấu gạch ngang"
+    "lowercaseHint": "Chữ thường, số, dấu gạch ngang",
+    "modelId": "Model ID",
+    "modelIdPlaceholder": "vd: gemini-2.5-pro, gpt-4o, claude-sonnet-4",
+    "modelIdHint": "Model ID mặc định cho provider này. Dùng để kiểm tra kết nối.",
+    "testConnection": "Kiểm tra kết nối",
+    "testing": "Đang kiểm tra...",
+    "testSuccess": "Kết nối thành công! Provider hoạt động bình thường.",
+    "testFailed": "Kiểm tra kết nối thất bại"
   },
   "delete": {
     "title": "Xóa provider",
