@@ -30,10 +30,14 @@
     "apiBaseHint": "URL endpoint cho các yêu cầu API. Tự động điền theo loại provider. Chỉ ghi đè nếu dùng proxy tùy chỉnh.",
     "creating": "Đang tạo...",
     "create": "Tạo provider",
+    "testConnection": "Kiểm tra kết nối",
+    "testing": "Đang kiểm tra...",
+    "testSuccess": "Kết nối thành công! Provider hoạt động tốt.",
     "errors": {
       "apiKeyRequired": "API key là bắt buộc",
       "oauthProviderNotFound": "Xác thực OAuth thành công nhưng không tìm thấy provider. Vui lòng thử lại.",
-      "failedCreate": "Không thể tạo provider"
+      "failedCreate": "Không thể tạo provider",
+      "testFailed": "Kiểm tra kết nối thất bại"
     }
   },
   "model": {

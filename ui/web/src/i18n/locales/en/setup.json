@@ -30,10 +30,14 @@
     "apiBaseHint": "The endpoint URL for API requests. Auto-filled based on provider type. Override only if using a custom proxy.",
     "creating": "Creating...",
     "create": "Create Provider",
+    "testConnection": "Test Connection",
+    "testing": "Testing...",
+    "testSuccess": "Connection successful! Provider is working.",
     "errors": {
       "apiKeyRequired": "API key is required",
       "oauthProviderNotFound": "OAuth authentication succeeded, but the provider could not be found. Please try again.",
-      "failedCreate": "Failed to create provider"
+      "failedCreate": "Failed to create provider",
+      "testFailed": "Connection test failed"
     }
   },
   "model": {

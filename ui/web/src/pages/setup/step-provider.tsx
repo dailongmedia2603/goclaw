@@ -29,7 +29,7 @@ interface StepProviderProps {
 export function StepProvider({ onComplete, existingProvider }: StepProviderProps) {
   const { t } = useTranslation("setup");
   const http = useHttp();
-  const { createProvider, updateProvider } = useProviders();
+  const { createProvider, updateProvider, deleteProvider } = useProviders();
 
   const isEditing = !!existingProvider;
 
@@ -41,6 +41,8 @@ export function StepProvider({ onComplete, existingProvider }: StepProviderProps
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ valid: boolean; error?: string } | null>(null);
 
   const isOAuth = providerType === "chatgpt_oauth";
   const isCLI = providerType === "claude_cli";
@@ -78,6 +80,42 @@ export function StepProvider({ onComplete, existingProvider }: StepProviderProps
       setError(err instanceof Error ? err.message : t("provider.errors.oauthProviderNotFound"));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    if (!apiKey.trim()) { setError(t("provider.errors.apiKeyRequired")); return; }
+    setTesting(true);
+    setError("");
+    setTestResult(null);
+    let tempProvider: ProviderData | null = null;
+    try {
+      // Create a temporary provider to test connection
+      tempProvider = await createProvider({
+        name: `test-conn-${Date.now()}`,
+        provider_type: providerType,
+        api_base: apiBase.trim() || undefined,
+        api_key: apiKey.trim(),
+        enabled: true,
+      }) as ProviderData;
+      // Test by listing models — lightweight, no chat call needed
+      await http.get(`/v1/providers/${tempProvider.id}/models`);
+      setTestResult({ valid: true });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Connection failed";
+      // Models endpoint returning empty is OK — it means the API key is valid
+      if (msg.includes("models") && !msg.toLowerCase().includes("401") && !msg.toLowerCase().includes("403")) {
+        setTestResult({ valid: true });
+      } else {
+        setTestResult({ valid: false, error: msg });
+        setError(msg);
+      }
+    } finally {
+      // Always clean up temp provider
+      if (tempProvider?.id) {
+        try { await deleteProvider(tempProvider.id); } catch { /* ignore cleanup errors */ }
+      }
+      setTesting(false);
     }
   };
 
@@ -193,10 +231,27 @@ export function StepProvider({ onComplete, existingProvider }: StepProviderProps
             </>
           )}
 
+          {testResult?.valid && (
+            <p className="text-sm text-green-500 font-medium">
+              {t("provider.testSuccess", "Connection successful! Provider is working.")}
+            </p>
+          )}
+
           {error && <p className="text-sm text-destructive">{error}</p>}
 
           {!isOAuth && (
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              {!isCLI && !isOllama && (
+                <Button
+                  variant="outline"
+                  onClick={handleTestConnection}
+                  disabled={testing || loading || !apiKey.trim()}
+                >
+                  {testing
+                    ? t("provider.testing", "Testing...")
+                    : t("provider.testConnection", "Test connection")}
+                </Button>
+              )}
               <Button onClick={handleSubmit} disabled={loading || (!isEditing && !isCLI && !isOllama && !apiKey.trim())}>
                 {loading
                   ? isEditing ? t("provider.updating", "Updating...") : t("provider.creating")

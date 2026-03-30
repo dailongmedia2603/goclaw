@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -47,6 +48,11 @@ func SendMessage(ctx context.Context, sess *Session, threadID string, threadType
 	} else {
 		payload["toid"] = threadID
 		payload["imei"] = sess.IMEI
+	}
+
+	// DEBUG: log the outgoing payload for mention troubleshooting (temporary)
+	if debugJSON, err := json.Marshal(payload); err == nil {
+		slog.Info("zalo_personal: outgoing payload DEBUG", "json", string(debugJSON))
 	}
 
 	// Encrypt payload with session secret key

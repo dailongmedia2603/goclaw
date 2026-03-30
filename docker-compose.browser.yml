@@ -1,29 +1,26 @@
-# Browser sidecar overlay — adds headless Chrome for the browser automation tool.
+# Browser sidecar overlay — adds CloakBrowser (stealth Chromium) for the browser automation tool.
 #
 # Usage:
 #   docker compose -f docker-compose.yml -f docker-compose.postgres.yml -f docker-compose.browser.yml up -d --build
 #
-# The Chrome sidecar exposes CDP (Chrome DevTools Protocol) on port 9222.
+# CloakBrowser exposes CDP (Chrome DevTools Protocol) on port 9222.
 # GoClaw connects to it automatically via GOCLAW_BROWSER_REMOTE_URL.
 
 services:
   chrome:
-    image: zenika/alpine-chrome:124
-    command:
-      - --no-sandbox
-      - --remote-debugging-address=0.0.0.0
-      - --remote-debugging-port=9222
-      - --remote-allow-origins=*
-      - --disable-gpu
-      - --disable-dev-shm-usage
+    image: cloakhq/cloakbrowser:latest
+    command: ["cloakserve", "--host", "0.0.0.0", "--port", "9222"]
+    environment:
+      - DISPLAY=:99
     ports:
       - "${CHROME_CDP_PORT:-9222}:9222"
     shm_size: 2gb
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9222/json/version >/dev/null 2>&1"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:9222/json/version >/dev/null 2>&1 || wget -qO- http://127.0.0.1:9222/json/version >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     deploy:
       resources:
         limits:
