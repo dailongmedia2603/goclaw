@@ -198,6 +198,12 @@ func processNormalMessage(
 		if mid := msg.Metadata["message_id"]; mid != "" {
 			outMeta["reply_to_message_id"] = mid
 		}
+		// Pass sender info so channels can @mention the sender in group replies.
+		for _, k := range []string{"sender_id", "sender_name"} {
+			if v := msg.Metadata[k]; v != "" {
+				outMeta[k] = v
+			}
+		}
 	}
 	for _, k := range []string{"message_thread_id", "local_key", "placeholder_key", "group_id"} {
 		if v := msg.Metadata[k]; v != "" {

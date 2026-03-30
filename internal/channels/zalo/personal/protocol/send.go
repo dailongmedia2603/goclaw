@@ -11,7 +11,8 @@ import (
 
 // SendMessage sends a text message to a user or group.
 // threadID: user UID (DM) or group ID (group).
-func SendMessage(ctx context.Context, sess *Session, threadID string, threadType ThreadType, text string) (string, error) {
+// mentions: optional @mention metadata for group messages (nil for DMs or no mentions).
+func SendMessage(ctx context.Context, sess *Session, threadID string, threadType ThreadType, text string, mentions []TMention) (string, error) {
 	if text == "" {
 		return "", fmt.Errorf("zalo_personal: message text cannot be empty")
 	}
@@ -37,6 +38,9 @@ func SendMessage(ctx context.Context, sess *Session, threadID string, threadType
 	if threadType == ThreadTypeGroup {
 		payload["grid"] = threadID
 		payload["visibility"] = 0
+		if len(mentions) > 0 {
+			payload["mentions"] = mentions
+		}
 	} else {
 		payload["toid"] = threadID
 		payload["imei"] = sess.IMEI

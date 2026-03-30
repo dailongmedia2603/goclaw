@@ -147,9 +147,11 @@ func (c *Channel) handleGroupMessage(msg protocol.GroupMessage) {
 	}
 
 	metadata := map[string]string{
-		"message_id": msg.Data.MsgID,
-		"platform":   channels.TypeZaloPersonal,
-		"group_id":   threadID,
+		"message_id":  msg.Data.MsgID,
+		"platform":    channels.TypeZaloPersonal,
+		"group_id":    threadID,
+		"sender_id":   senderID,
+		"sender_name": senderName,
 	}
 	c.HandleMessage(senderID, threadID, finalContent, allMedia, metadata, "group")
 

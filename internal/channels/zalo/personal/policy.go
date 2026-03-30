@@ -88,7 +88,7 @@ func (c *Channel) sendPairingReply(ctx context.Context, senderID, chatID string)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if _, err := protocol.SendMessage(ctx, sess, chatID, threadType, replyText); err != nil {
+	if _, err := protocol.SendMessage(ctx, sess, chatID, threadType, replyText, nil); err != nil {
 		slog.Warn("zalo_personal: failed to send pairing reply", "error", err)
 	} else {
 		c.pairingDebounce.Store(senderID, time.Now())

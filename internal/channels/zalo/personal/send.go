@@ -52,9 +52,28 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 		}
 	}
 
+	// Build auto-mention for group replies: @tag the sender at the start of the reply.
+	var mentions []protocol.TMention
+	if threadType == protocol.ThreadTypeGroup && msg.Content != "" && msg.Metadata != nil {
+		if senderID := msg.Metadata["sender_id"]; senderID != "" {
+			senderName := msg.Metadata["sender_name"]
+			if senderName == "" {
+				senderName = senderID
+			}
+			mentionText := "@" + senderName
+			mentions = []protocol.TMention{{
+				UID:  senderID,
+				Pos:  0,
+				Len:  len(mentionText),
+				Type: protocol.MentionEach,
+			}}
+			msg.Content = mentionText + " " + msg.Content
+		}
+	}
+
 	// Send text content (if any remains after media).
 	if msg.Content != "" {
-		return c.sendChunkedText(ctx, sess, msg.ChatID, threadType, msg.Content)
+		return c.sendChunkedText(ctx, sess, msg.ChatID, threadType, msg.Content, mentions)
 	}
 	return nil
 }
@@ -85,7 +104,8 @@ func (c *Channel) sendFile(ctx context.Context, sess *protocol.Session, chatID s
 	return err
 }
 
-func (c *Channel) sendChunkedText(ctx context.Context, sess *protocol.Session, chatID string, threadType protocol.ThreadType, text string) error {
+func (c *Channel) sendChunkedText(ctx context.Context, sess *protocol.Session, chatID string, threadType protocol.ThreadType, text string, mentions []protocol.TMention) error {
+	first := true
 	for len(text) > 0 {
 		chunk := text
 		if len(chunk) > maxTextLength {
@@ -99,7 +119,14 @@ func (c *Channel) sendChunkedText(ctx context.Context, sess *protocol.Session, c
 			text = ""
 		}
 
-		if _, err := protocol.SendMessage(ctx, sess, chatID, threadType, chunk); err != nil {
+		// Attach mentions only to the first chunk (which contains the @name prefix).
+		var chunkMentions []protocol.TMention
+		if first && len(mentions) > 0 {
+			chunkMentions = mentions
+			first = false
+		}
+
+		if _, err := protocol.SendMessage(ctx, sess, chatID, threadType, chunk, chunkMentions); err != nil {
 			return err
 		}
 	}
