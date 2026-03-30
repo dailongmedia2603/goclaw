@@ -21,7 +21,12 @@ func SendMessage(ctx context.Context, sess *Session, threadID string, threadType
 	apiPath := "/api/message/sms"
 	if threadType == ThreadTypeGroup {
 		serviceKey = "group"
-		apiPath = "/api/group/sendmsg"
+		// Zalo uses a separate endpoint for messages with mentions (per zca-js).
+		if len(mentions) > 0 {
+			apiPath = "/api/group/mention"
+		} else {
+			apiPath = "/api/group/sendmsg"
+		}
 	}
 
 	baseURL := getServiceURL(sess, serviceKey)
@@ -39,7 +44,10 @@ func SendMessage(ctx context.Context, sess *Session, threadID string, threadType
 		payload["grid"] = threadID
 		payload["visibility"] = 0
 		if len(mentions) > 0 {
-			payload["mentions"] = mentions
+			// Outgoing mentions use field "mentionInfo" as a JSON string (per zca-js).
+			if mentionJSON, err := json.Marshal(mentions); err == nil {
+				payload["mentionInfo"] = string(mentionJSON)
+			}
 		}
 	} else {
 		payload["toid"] = threadID
