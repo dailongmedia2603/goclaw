@@ -75,9 +75,6 @@ func (ln *Listener) handleGroupMessages(ctx context.Context, data string, encTyp
 	}
 
 	for _, raw := range envelope.Data.GroupMsgs {
-		// DEBUG: log raw incoming group message for mention format analysis (temporary)
-		slog.Info("zalo_personal: incoming group msg raw DEBUG", "json", string(raw))
-
 		var msg TGroupMessage
 		if err := json.Unmarshal(raw, &msg); err != nil {
 			continue
