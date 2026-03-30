@@ -39,7 +39,10 @@ func SendMessage(ctx context.Context, sess *Session, threadID string, threadType
 		payload["grid"] = threadID
 		payload["visibility"] = 0
 		if len(mentions) > 0 {
-			payload["mentions"] = mentions
+			// Zalo expects mentions as a JSON string, not a nested array.
+			if mentionJSON, err := json.Marshal(mentions); err == nil {
+				payload["mentions"] = string(mentionJSON)
+			}
 		}
 	} else {
 		payload["toid"] = threadID

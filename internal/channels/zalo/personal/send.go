@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/typing"
@@ -64,7 +65,7 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 			mentions = []protocol.TMention{{
 				UID:  senderID,
 				Pos:  0,
-				Len:  len(mentionText),
+				Len:  utf8.RuneCountInString(mentionText),
 				Type: protocol.MentionEach,
 			}}
 			msg.Content = mentionText + " " + msg.Content
