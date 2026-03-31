@@ -7,6 +7,15 @@ on:
         description: 'Command to run inside goclaw container'
         required: true
         default: './goclaw onboard'
+        type: choice
+        options:
+          - './goclaw onboard'
+          - './goclaw migrate up'
+          - 'cat /app/data/.env.local'
+          - 'custom'
+      custom_command:
+        description: 'Custom command (only if "custom" selected above)'
+        required: false
 
 jobs:
   run:
@@ -22,14 +31,18 @@ jobs:
           command_timeout: 5m
           script: |
             cd /opt/goclaw
-            set -a && [ -f .env.local ] && source .env.local && set +a
 
-            echo "=== Running: ${{ inputs.command }} ==="
+            CMD="${{ inputs.command }}"
+            if [ "$CMD" = "custom" ]; then
+              CMD="${{ inputs.custom_command }}"
+            fi
+
+            echo "=== Running: ${CMD} ==="
             docker compose \
               -f docker-compose.yml \
               -f docker-compose.postgres.yml \
               -f docker-compose.selfservice.yml \
               -f docker-compose.browser.yml \
               -f docker-compose.override.yml \
-              exec -T goclaw ${{ inputs.command }}
+              exec -T goclaw ${CMD}
             echo "=== Done ==="
