@@ -12,7 +12,7 @@ on:
           - './goclaw onboard'
           - './goclaw migrate up'
           - 'create-tenant'
-          - 'cat /app/data/.env.local'
+          - 'show-token'
           - 'custom'
       custom_command:
         description: 'Custom command (only if "custom" selected above)'
@@ -36,6 +36,13 @@ jobs:
             CMD="${{ inputs.command }}"
             if [ "$CMD" = "custom" ]; then
               CMD="${{ inputs.custom_command }}"
+            fi
+
+            if [ "$CMD" = "show-token" ]; then
+              echo "=== Gateway Token ==="
+              cat /opt/goclaw/.env.local
+              echo "=== Done ==="
+              exit 0
             fi
 
             if [ "$CMD" = "create-tenant" ]; then
