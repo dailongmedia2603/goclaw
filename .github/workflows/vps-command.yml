@@ -47,28 +47,31 @@ jobs:
 
             if [ "$CMD" = "create-tenant" ]; then
               echo "=== Creating default tenant via API ==="
-              set -a && source .env.local && set +a
-              TOKEN="${GOCLAW_GATEWAY_TOKEN}"
 
-              # Create tenant
-              RESULT=$(curl -sf -X POST http://127.0.0.1:18790/v1/tenants \
+              # Read token from .env.local
+              TOKEN=$(grep GOCLAW_GATEWAY_TOKEN /opt/goclaw/.env.local | cut -d'=' -f2 | tr -d ' \r\n')
+              echo "Token length: ${#TOKEN}"
+              echo "Token prefix: ${TOKEN:0:8}..."
+
+              # Test health first
+              echo "--- Health check ---"
+              curl -s http://127.0.0.1:18790/health
+              echo ""
+
+              # List existing tenants
+              echo "--- Existing tenants ---"
+              curl -s http://127.0.0.1:18790/v1/tenants \
+                -H "Authorization: Bearer ${TOKEN}" \
+                -H "Content-Type: application/json"
+              echo ""
+
+              # Create tenant (show full response including errors)
+              echo "--- Creating tenant ---"
+              RESULT=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://127.0.0.1:18790/v1/tenants \
                 -H "Authorization: Bearer ${TOKEN}" \
                 -H "Content-Type: application/json" \
                 -d '{"name":"Default","slug":"default"}')
-              echo "Tenant created: ${RESULT}"
-
-              # Add gateway user as admin to the tenant
-              TENANT_ID=$(echo "${RESULT}" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
-              echo "Tenant ID: ${TENANT_ID}"
-
-              if [ -n "${TENANT_ID}" ]; then
-                echo "=== Tenant ${TENANT_ID} created successfully ==="
-                echo "Refresh https://agent.thekp3.com and login with your gateway token."
-              else
-                echo "=== Tenant may already exist, checking... ==="
-                curl -sf http://127.0.0.1:18790/v1/tenants \
-                  -H "Authorization: Bearer ${TOKEN}" | head -200
-              fi
+              echo "Response: ${RESULT}"
             else
               echo "=== Running: ${CMD} ==="
               docker compose \
