@@ -39,8 +39,17 @@ jobs:
             fi
 
             if [ "$CMD" = "show-token" ]; then
-              echo "=== Gateway Token ==="
+              echo "=== .env.local on host ==="
               cat /opt/goclaw/.env.local
+              echo ""
+              echo "=== .env inside container ==="
+              docker compose \
+                -f docker-compose.yml \
+                -f docker-compose.postgres.yml \
+                -f docker-compose.selfservice.yml \
+                -f docker-compose.browser.yml \
+                -f docker-compose.override.yml \
+                exec -T goclaw env | grep GOCLAW_GATEWAY_TOKEN
               echo "=== Done ==="
               exit 0
             fi
