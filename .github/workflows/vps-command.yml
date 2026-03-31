@@ -67,19 +67,19 @@ jobs:
               curl -s http://127.0.0.1:18790/health
               echo ""
 
+              # X-GoClaw-User-Id: system grants owner role with gateway token
+              AUTH="-H \"Authorization: Bearer ${TOKEN}\" -H \"X-GoClaw-User-Id: system\" -H \"Content-Type: application/json\""
+
               # List existing tenants
               echo "--- Existing tenants ---"
-              curl -s http://127.0.0.1:18790/v1/tenants \
-                -H "Authorization: Bearer ${TOKEN}" \
-                -H "Content-Type: application/json"
+              eval curl -s http://127.0.0.1:18790/v1/tenants ${AUTH}
               echo ""
 
-              # Create tenant (show full response including errors)
+              # Create tenant
               echo "--- Creating tenant ---"
-              RESULT=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://127.0.0.1:18790/v1/tenants \
-                -H "Authorization: Bearer ${TOKEN}" \
-                -H "Content-Type: application/json" \
-                -d '{"name":"Default","slug":"default"}')
+              RESULT=$(eval curl -s -w "\\nHTTP_CODE:%{http_code}" -X POST http://127.0.0.1:18790/v1/tenants \
+                ${AUTH} \
+                -d "'{\"name\":\"Default\",\"slug\":\"default\"}'")
               echo "Response: ${RESULT}"
             else
               echo "=== Running: ${CMD} ==="
