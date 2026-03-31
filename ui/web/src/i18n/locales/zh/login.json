@@ -36,5 +36,12 @@
     "userIdPlaceholder": "您的用户 ID"
   },
   "noAccessHint": "请联系管理员将您添加到租户，或使用其他账号登录。",
-  "logout": "退出登录"
+  "logout": "退出登录",
+  "createTenant": "添加组织",
+  "createTenantDescription": "创建新组织。您将被自动添加为管理员。",
+  "deleteTenant": "删除组织",
+  "confirmDeleteTenant": "确定要删除组织 \"{{name}}\" 吗？所有数据（代理、会话、记忆）将被永久删除。",
+  "tenantName": "组织名称",
+  "tenantSlug": "组织标识",
+  "tenantSlugHelp": "小写字母、数字和连字符。例如：my-org"
 }

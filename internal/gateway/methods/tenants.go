@@ -41,6 +41,7 @@ func (m *TenantsMethods) Register(router *gateway.MethodRouter) {
 	router.Register("tenants.users.list", m.handleUsersList)
 	router.Register("tenants.users.add", m.handleUsersAdd)
 	router.Register("tenants.users.remove", m.handleUsersRemove)
+	router.Register("tenants.delete", m.handleDelete)
 	router.Register("tenants.mine", m.handleMine)
 }
 
@@ -139,6 +140,13 @@ func (m *TenantsMethods) handleCreate(ctx context.Context, client *gateway.Clien
 		return
 	}
 
+	// Auto-add the creating user as admin of the new tenant.
+	if userID := client.UserID(); userID != "" {
+		if err := m.tenantStore.AddUser(ctx, tenant.ID, userID, store.TenantRoleAdmin); err != nil {
+			slog.Warn("tenants.create: failed to auto-add creator", "user", userID, "error", err)
+		}
+	}
+
 	// Create workspace directory for the tenant.
 	if m.workspace != "" {
 		tenantDir := filepath.Join(m.workspace, "tenants", tenant.Slug)
@@ -150,6 +158,40 @@ func (m *TenantsMethods) handleCreate(ctx context.Context, client *gateway.Clien
 	m.emitCacheInvalidate(bus.CacheKindTenantUsers, tenant.ID.String())
 	m.emitCacheInvalidate(bus.CacheKindTenants, "")
 	client.SendResponse(protocol.NewOKResponse(req.ID, tenant))
+}
+
+func (m *TenantsMethods) handleDelete(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
+	locale := store.LocaleFromContext(ctx)
+	if !client.IsOwner() {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrUnauthorized, i18n.T(locale, i18n.MsgPermissionDenied, "tenants.delete")))
+		return
+	}
+
+	var params struct {
+		ID string `json:"id"`
+	}
+	if req.Params != nil {
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidJSON)))
+			return
+		}
+	}
+
+	id, err := uuid.Parse(params.ID)
+	if err != nil {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidID, "tenant")))
+		return
+	}
+
+	if err := m.tenantStore.DeleteTenant(ctx, id); err != nil {
+		slog.Error("tenants.delete failed", "error", err)
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, err.Error()))
+		return
+	}
+
+	m.emitCacheInvalidate(bus.CacheKindTenantUsers, id.String())
+	m.emitCacheInvalidate(bus.CacheKindTenants, "")
+	client.SendResponse(protocol.NewOKResponse(req.ID, map[string]string{"ok": "true"}))
 }
 
 func (m *TenantsMethods) handleUpdate(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {

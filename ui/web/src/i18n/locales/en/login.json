@@ -36,5 +36,12 @@
     "approved": "Access approved! Redirecting..."
   },
   "noAccessHint": "Ask your administrator to add you to a tenant, or use a different account.",
-  "logout": "Sign Out"
+  "logout": "Sign Out",
+  "createTenant": "Add Organization",
+  "createTenantDescription": "Create a new organization. You will be added as admin.",
+  "deleteTenant": "Delete Organization",
+  "confirmDeleteTenant": "Are you sure you want to delete \"{{name}}\"? All data (agents, sessions, memory) will be permanently deleted.",
+  "tenantName": "Organization Name",
+  "tenantSlug": "Organization Slug",
+  "tenantSlugHelp": "Lowercase letters, numbers, and hyphens. e.g. my-org"
 }

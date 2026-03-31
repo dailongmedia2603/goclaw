@@ -36,5 +36,12 @@
     "userIdPlaceholder": "your-user-id"
   },
   "noAccessHint": "Yêu cầu quản trị viên thêm bạn vào tenant, hoặc đăng nhập bằng tài khoản khác.",
-  "logout": "Đăng xuất"
+  "logout": "Đăng xuất",
+  "createTenant": "Thêm tổ chức",
+  "createTenantDescription": "Tạo tổ chức mới. Bạn sẽ được thêm làm quản trị viên.",
+  "deleteTenant": "Xóa tổ chức",
+  "confirmDeleteTenant": "Bạn có chắc muốn xóa tổ chức \"{{name}}\"? Tất cả dữ liệu (agent, session, bộ nhớ) sẽ bị xóa vĩnh viễn.",
+  "tenantName": "Tên tổ chức",
+  "tenantSlug": "Mã tổ chức",
+  "tenantSlugHelp": "Chữ thường, số và gạch ngang. VD: my-org"
 }

@@ -175,6 +175,7 @@ export const Methods = {
   TENANTS_LIST: "tenants.list",
   TENANTS_GET: "tenants.get",
   TENANTS_CREATE: "tenants.create",
+  TENANTS_DELETE: "tenants.delete",
   TENANTS_UPDATE: "tenants.update",
   TENANTS_USERS_LIST: "tenants.users.list",
   TENANTS_USERS_ADD: "tenants.users.add",

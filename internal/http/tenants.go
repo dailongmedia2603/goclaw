@@ -40,6 +40,7 @@ func (h *TenantsHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/tenants/{id}/users", admin(h.handleUsersList))
 	mux.HandleFunc("POST /v1/tenants/{id}/users", admin(h.handleUsersAdd))
 	mux.HandleFunc("DELETE /v1/tenants/{id}/users/{userId}", admin(h.handleUsersRemove))
+	mux.HandleFunc("DELETE /v1/tenants/{id}", admin(h.handleDelete))
 }
 
 func (h *TenantsHandler) handleList(w http.ResponseWriter, r *http.Request) {
@@ -135,6 +136,29 @@ func (h *TenantsHandler) handleGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, tenant)
+}
+
+func (h *TenantsHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
+	locale := extractLocale(r)
+	if !store.IsOwnerRole(r.Context()) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": i18n.T(locale, i18n.MsgPermissionDenied, "tenants.delete")})
+		return
+	}
+
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidID, "tenant")})
+		return
+	}
+
+	if err := h.tenantStore.DeleteTenant(r.Context(), id); err != nil {
+		slog.Error("tenants.delete failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	emitAudit(h.msgBus, r, "tenant.deleted", "tenant", id.String())
+	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
 }
 
 func (h *TenantsHandler) handleUpdate(w http.ResponseWriter, r *http.Request) {
