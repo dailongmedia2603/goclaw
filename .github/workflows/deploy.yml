@@ -16,9 +16,18 @@ jobs:
           username: root
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_SSH_PORT }}
+          command_timeout: 10m
           script: |
+            set -e
             cd /opt/goclaw
-            git pull origin main
+
+            # Fetch and reset to avoid merge conflicts from VPS-local edits
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Load env and rebuild
+            set -a && [ -f .env.local ] && source .env.local && set +a
+
             docker compose \
               -f docker-compose.yml \
               -f docker-compose.postgres.yml \
@@ -26,4 +35,5 @@ jobs:
               -f docker-compose.browser.yml \
               -f docker-compose.override.yml \
               up -d --build
+
             echo "Deploy completed at $(date)"
