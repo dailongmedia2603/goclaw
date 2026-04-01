@@ -105,6 +105,21 @@ func (l *Loop) buildMessages(ctx context.Context, history []providers.Message, s
 	if !lightContext {
 		contextFiles = l.resolveContextFiles(ctx, userID)
 	}
+
+	// Debug: log context files loaded for diagnosis
+	{
+		var names []string
+		for _, cf := range contextFiles {
+			names = append(names, fmt.Sprintf("%s(%d)", cf.Path, len(cf.Content)))
+		}
+		slog.Info("buildHistory: context files resolved",
+			"agent_uuid", l.agentUUID, "agent_type", l.agentType,
+			"user_id", userID, "peer_kind", peerKind,
+			"files", strings.Join(names, ", "),
+			"base_files_count", len(l.contextFiles),
+			"loader_nil", l.contextFileLoader == nil,
+		)
+	}
 	hadBootstrap := false
 	for _, cf := range contextFiles {
 		if cf.Path == bootstrap.BootstrapFile {
