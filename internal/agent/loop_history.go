@@ -673,14 +673,11 @@ func (l *Loop) buildGroupWriterPrompt(ctx context.Context, groupID, senderID str
 		sb.WriteString("- Do NOT attempt write_file, edit, or cron tools — they WILL be rejected.\n")
 		sb.WriteString("- If asked, explain that only file writers can do this. Suggest /addwriter.\n")
 
-		// Remove SOUL.md and AGENTS.md from context files for non-writers
-		filtered := make([]bootstrap.ContextFile, 0, len(files))
-		for _, f := range files {
-			if f.Path != bootstrap.SoulFile && f.Path != bootstrap.AgentsFile {
-				filtered = append(filtered, f)
-			}
-		}
-		files = filtered
+		// All context files (SOUL.md, AGENTS.md, IDENTITY.md) stay in the
+		// system prompt so the agent keeps its personality and rules for every
+		// user. Write protection is enforced at the tool layer (ContextFileInterceptor),
+		// and the safety section already instructs the model to never reveal
+		// context file contents.
 	}
 
 	return sb.String(), files
