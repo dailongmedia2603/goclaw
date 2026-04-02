@@ -34,6 +34,9 @@ func (c *Channel) handleWriterCommand(ctx context.Context, message *telego.Messa
 		return
 	}
 
+	// Inject tenant scope for permission queries.
+	ctx = store.WithTenantID(ctx, c.TenantID())
+
 	agentID, err := c.resolveAgentUUID(ctx)
 	if err != nil {
 		slog.Debug("writer command: agent resolve failed", "error", err)
@@ -125,6 +128,9 @@ func (c *Channel) handleListWriters(ctx context.Context, chatID int64, chatIDStr
 		send("File writer management is not available.")
 		return
 	}
+
+	// Inject tenant scope for permission queries.
+	ctx = store.WithTenantID(ctx, c.TenantID())
 
 	agentID, err := c.resolveAgentUUID(ctx)
 	if err != nil {
