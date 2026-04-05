@@ -64,6 +64,9 @@ func SanitizeAssistantContent(content string) string {
 	// 9. Replace inline LaTeX symbols with Unicode equivalents
 	content = replaceInlineLaTeX(content)
 
+	// 10. Strip raw tool result JSON leaked by LLM
+	content = stripToolResultJSON(content)
+
 	content = strings.TrimSpace(content)
 
 	if content != original {
@@ -381,7 +384,131 @@ func replaceInlineLaTeX(content string) string {
 	return result
 }
 
-// --- 10. Config leak detection (predefined agents) ---
+// --- 10. Strip raw tool result JSON ---
+
+// toolResultJSONSignatures are field combinations that identify raw tool result
+// JSON leaked into assistant text. Each entry is a set of JSON keys that, when
+// ALL present in a single JSON object, indicate a tool result echo.
+var toolResultJSONSignatures = [][]string{
+	{"results", "count"},            // memory_search, skill_search
+	{"score", "snippet"},            // memory_search result item
+	{"path", "startline", "score"},  // memory_search result item (alt keys)
+	{"results", "hint"},             // memory_search with KG hint
+	{"sessions", "count"},           // sessions_list
+	{"messages", "count", "session_key"}, // sessions_history
+}
+
+// stripToolResultJSON uses a simple brace-matching scanner instead of regex
+// to correctly handle nested JSON objects/arrays.
+
+// containsToolResultSignature checks if a string contains enough JSON keys
+// from any known tool result signature.
+func containsToolResultSignature(block string) bool {
+	lower := strings.ToLower(block)
+	for _, sig := range toolResultJSONSignatures {
+		matched := 0
+		for _, key := range sig {
+			// Match "key": pattern (JSON key)
+			if strings.Contains(lower, `"`+key+`"`) {
+				matched++
+			}
+		}
+		if matched == len(sig) {
+			return true
+		}
+	}
+	return false
+}
+
+// stripToolResultJSON removes raw tool result JSON objects that LLMs sometimes
+// echo verbatim in their response text. Only strips blocks that match known
+// tool result signatures to avoid removing intentional JSON in responses.
+// Uses brace-matching to correctly handle nested JSON.
+func stripToolResultJSON(content string) string {
+	if !strings.Contains(content, `"results"`) &&
+		!strings.Contains(content, `"score"`) &&
+		!strings.Contains(content, `"snippet"`) &&
+		!strings.Contains(content, `"sessions"`) {
+		return content
+	}
+
+	var result strings.Builder
+	i := 0
+	changed := false
+
+	for i < len(content) {
+		// Look for start of JSON block: { or [ at start of line (possibly indented)
+		if content[i] == '{' || content[i] == '[' {
+			block, end := extractJSONBlock(content, i)
+			if block != "" && containsToolResultSignature(block) {
+				slog.Warn("stripped raw tool result JSON from assistant response",
+					"block_len", len(block),
+				)
+				changed = true
+				i = end
+				continue
+			}
+		}
+		result.WriteByte(content[i])
+		i++
+	}
+
+	if !changed {
+		return content
+	}
+	return strings.TrimSpace(result.String())
+}
+
+// extractJSONBlock extracts a balanced JSON block starting at pos.
+// Returns the block string and the position after the closing brace/bracket.
+// Returns ("", pos) if no balanced block is found or block is too short.
+func extractJSONBlock(content string, pos int) (string, int) {
+	open := content[pos]
+	var close byte
+	if open == '{' {
+		close = '}'
+	} else {
+		close = ']'
+	}
+
+	depth := 0
+	inString := false
+	escaped := false
+
+	for i := pos; i < len(content); i++ {
+		ch := content[i]
+		if escaped {
+			escaped = false
+			continue
+		}
+		if ch == '\\' && inString {
+			escaped = true
+			continue
+		}
+		if ch == '"' {
+			inString = !inString
+			continue
+		}
+		if inString {
+			continue
+		}
+		if ch == open {
+			depth++
+		} else if ch == close {
+			depth--
+			if depth == 0 {
+				block := content[pos : i+1]
+				if len(block) < 20 {
+					return "", pos
+				}
+				return block, i + 1
+			}
+		}
+	}
+	return "", pos
+}
+
+// --- 11. Config leak detection (predefined agents) ---
 
 // configLeakFileNames are internal file names that should not appear in user-facing output
 // when a predefined agent describes its procedures or configuration.
