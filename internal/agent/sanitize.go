@@ -43,6 +43,9 @@ func SanitizeAssistantContent(content string) string {
 	// 2. Strip downgraded tool call text ([Tool Call: ...], [Tool Result ...])
 	content = stripDowngradedToolCallText(content)
 
+	// 2b. Strip bare function-call-as-text (e.g. take_snapshot(targetId="..."))
+	content = stripBareToolCallText(content)
+
 	// 3. Strip thinking/reasoning tags (<think>, <thinking>, <thought>, <antThinking>)
 	content = stripThinkingTags(content)
 
@@ -169,6 +172,32 @@ func stripDowngradedToolCallText(content string) string {
 	}
 
 	return strings.TrimSpace(strings.Join(result, "\n"))
+}
+
+// --- 2b. Bare function-call-as-text ---
+
+// bareToolCallPattern matches function-call syntax that models sometimes emit
+// as plain text instead of structured tool_calls. Covers patterns like:
+//   - take_snapshot(targetId="70C982...")
+//   - browser(action="snapshot", targetId="...")
+//   - memory_search(query="something")
+// Only matches identifiers that look like tool names (snake_case/camelCase),
+// followed by parenthesized arguments containing at least one key="value" pair.
+var bareToolCallPattern = regexp.MustCompile(
+	`(?m)^\s*[a-z][a-zA-Z0-9_]*\(\s*(?:[a-zA-Z_]+=(?:"[^"]*"|'[^']*'|\d+)(?:\s*,\s*[a-zA-Z_]+=(?:"[^"]*"|'[^']*'|\d+))*)\s*\)\s*$`,
+)
+
+func stripBareToolCallText(content string) string {
+	if !strings.Contains(content, "(") || !strings.Contains(content, "=") {
+		return content
+	}
+	result := bareToolCallPattern.ReplaceAllStringFunc(content, func(match string) string {
+		slog.Warn("stripped bare tool-call text from assistant response",
+			"match", strings.TrimSpace(match),
+		)
+		return ""
+	})
+	return strings.TrimSpace(result)
 }
 
 // --- 3. Thinking/reasoning tags ---
