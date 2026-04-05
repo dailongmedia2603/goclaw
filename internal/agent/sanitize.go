@@ -61,6 +61,9 @@ func SanitizeAssistantContent(content string) string {
 	// 8. Strip leading blank lines (preserve indentation)
 	content = stripLeadingBlankLines(content)
 
+	// 9. Replace inline LaTeX symbols with Unicode equivalents
+	content = replaceInlineLaTeX(content)
+
 	content = strings.TrimSpace(content)
 
 	if content != original {
@@ -317,7 +320,60 @@ func stripLeadingBlankLines(content string) string {
 	return leadingBlankLinesPattern.ReplaceAllString(content, "")
 }
 
-// --- 9. Config leak detection (predefined agents) ---
+// --- 9. Replace inline LaTeX symbols ---
+
+// inlineLaTeXPattern matches $\command$ patterns (e.g. $\rightarrow$, $\times$).
+var inlineLaTeXPattern = regexp.MustCompile(`\$\\[a-zA-Z]+\$`)
+
+// latexToUnicode maps common LaTeX commands to their Unicode equivalents.
+var latexToUnicode = map[string]string{
+	`$\rightarrow$`:    "→",
+	`$\leftarrow$`:     "←",
+	`$\leftrightarrow$`: "↔",
+	`$\Rightarrow$`:    "⇒",
+	`$\Leftarrow$`:     "⇐",
+	`$\uparrow$`:       "↑",
+	`$\downarrow$`:     "↓",
+	`$\times$`:         "×",
+	`$\div$`:           "÷",
+	`$\pm$`:            "±",
+	`$\neq$`:           "≠",
+	`$\leq$`:           "≤",
+	`$\geq$`:           "≥",
+	`$\approx$`:        "≈",
+	`$\infty$`:         "∞",
+	`$\alpha$`:         "α",
+	`$\beta$`:          "β",
+	`$\gamma$`:         "γ",
+	`$\delta$`:         "δ",
+	`$\lambda$`:        "λ",
+	`$\pi$`:            "π",
+	`$\sigma$`:         "σ",
+	`$\theta$`:         "θ",
+	`$\bullet$`:        "•",
+	`$\cdot$`:          "·",
+	`$\star$`:          "★",
+	`$\checkmark$`:     "✓",
+}
+
+func replaceInlineLaTeX(content string) string {
+	if !strings.Contains(content, `$\`) {
+		return content
+	}
+	result := content
+	for latex, unicode := range latexToUnicode {
+		result = strings.ReplaceAll(result, latex, unicode)
+	}
+	// Strip any remaining unrecognized $\command$ patterns
+	result = inlineLaTeXPattern.ReplaceAllStringFunc(result, func(match string) string {
+		// Extract command name without $ and \
+		cmd := match[2 : len(match)-1]
+		return cmd
+	})
+	return result
+}
+
+// --- 10. Config leak detection (predefined agents) ---
 
 // configLeakFileNames are internal file names that should not appear in user-facing output
 // when a predefined agent describes its procedures or configuration.
