@@ -181,16 +181,24 @@ var thinkingTagPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?is)<antthinking\b.*?</antthinking>`),
 }
 
+// orphanThinkClosePattern strips orphaned closing tags (e.g. </thought>)
+// that survive when the opening tag was consumed in an earlier streaming chunk.
+var orphanThinkClosePattern = regexp.MustCompile(`(?i)</\s*(?:think(?:ing)?|thought|antthinking)\s*>`)
+
 func stripThinkingTags(content string) string {
 	lower := strings.ToLower(content)
 	if !strings.Contains(lower, "<think") && !strings.Contains(lower, "<thought") &&
-		!strings.Contains(lower, "<antthinking") {
+		!strings.Contains(lower, "<antthinking") &&
+		!strings.Contains(lower, "</think") && !strings.Contains(lower, "</thought") {
 		return content
 	}
 	result := content
+	// 1. Strip matched pairs first
 	for _, pat := range thinkingTagPatterns {
 		result = pat.ReplaceAllString(result, "")
 	}
+	// 2. Strip any orphaned closing tags left over from streaming
+	result = orphanThinkClosePattern.ReplaceAllString(result, "")
 	return strings.TrimSpace(result)
 }
 
