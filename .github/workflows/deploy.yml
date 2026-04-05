@@ -28,6 +28,10 @@ jobs:
             # Load env and rebuild
             set -a && [ -f .env.local ] && source .env.local && set +a
 
+            # Generate version from git: short hash + date (e.g. v20260405-d86af18)
+            export GOCLAW_VERSION="v$(date +%Y%m%d)-$(git rev-parse --short HEAD)"
+            echo "Building version: $GOCLAW_VERSION"
+
             # Clean up stale containers before deploying
             docker compose \
               -f docker-compose.yml \
