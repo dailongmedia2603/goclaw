@@ -167,16 +167,15 @@ func stripDowngradedToolCallText(content string) string {
 
 // --- 3. Thinking/reasoning tags ---
 
-// Matches TS stripThinkingTagsFromText() with strict mode.
-// Strips: <think>...</think>, <thinking>...</thinking>, <thought>...</thought>,
-//         <antThinking>...</antThinking>
-// Go regexp doesn't support backreferences, so we use separate patterns.
+// Strips thinking/reasoning blocks: <think>, <thinking>, <thought>, <antThinking>.
+// Uses \b (word boundary) instead of requiring ">" so that malformed
+// opening tags like "<thought\n" (missing ">") are also caught.
 var thinkingTagPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`(?is)<think>.*?</think>`),
-	regexp.MustCompile(`(?is)<thinking>.*?</thinking>`),
-	regexp.MustCompile(`(?is)<thought>.*?</thought>`),
-	regexp.MustCompile(`(?is)<antThinking>.*?</antThinking>`),
-	regexp.MustCompile(`(?is)<antthinking>.*?</antthinking>`),
+	regexp.MustCompile(`(?is)<think\b.*?</think>`),
+	regexp.MustCompile(`(?is)<thinking\b.*?</thinking>`),
+	regexp.MustCompile(`(?is)<thought\b.*?</thought>`),
+	regexp.MustCompile(`(?is)<antThinking\b.*?</antThinking>`),
+	regexp.MustCompile(`(?is)<antthinking\b.*?</antthinking>`),
 }
 
 func stripThinkingTags(content string) string {
