@@ -1,19 +1,21 @@
-# Browser sidecar overlay — adds CloakBrowser (stealth Chromium) for the browser automation tool.
+# Browser sidecar overlay — multi-profile browser support.
 #
 # Usage:
 #   docker compose -f docker-compose.yml -f docker-compose.postgres.yml -f docker-compose.browser.yml up -d --build
 #
-# CloakBrowser exposes CDP (Chrome DevTools Protocol) on port 9222.
-# GoClaw connects to it automatically via GOCLAW_BROWSER_REMOTE_URL.
+# Profiles:
+#   "default" (chrome) — headless CloakBrowser for general web automation
+#   "shopee"  (cloak-shopee) — CloakBrowser with VNC for manual login (anti-bot sites)
+#
+# Configure profiles in config.json → tools.browser.profiles
 
 services:
+  # Profile "default" — headless CloakBrowser (CDP server mode)
   chrome:
     image: cloakhq/cloakbrowser:latest
     command: ["cloakserve", "--host", "0.0.0.0", "--port", "9222"]
     environment:
       - DISPLAY=:99
-    ports:
-      - "${CHROME_CDP_PORT:-9222}:9222"
     shm_size: 2gb
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://127.0.0.1:9222/json/version >/dev/null 2>&1 || wget -qO- http://127.0.0.1:9222/json/version >/dev/null 2>&1"]
@@ -28,9 +30,37 @@ services:
           cpus: '2.0'
     restart: unless-stopped
 
+  # Profile "shopee" — CloakBrowser with desktop + noVNC for manual login
+  # Access VNC at http://<host>:6080 to log in manually.
+  # Cookies persist in volume cloak-shopee-data across restarts.
+  cloak-shopee:
+    image: kasmweb/chromium:1.16.1
+    environment:
+      - VNC_PW=${VNC_PASSWORD:-goclaw2026}
+    ports:
+      - "${CLOAK_SHOPEE_VNC_PORT:-6080}:6901"
+    shm_size: 2gb
+    volumes:
+      - cloak-shopee-data:/home/kasm-user
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:6901 >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
   goclaw:
     environment:
-      - GOCLAW_BROWSER_REMOTE_URL=ws://chrome:9222
+      - GOCLAW_BROWSER_REMOTE_URL=
     depends_on:
       chrome:
         condition: service_healthy
+
+volumes:
+  cloak-shopee-data:
