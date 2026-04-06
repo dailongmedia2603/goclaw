@@ -99,6 +99,19 @@ func setupToolRegistry(
 	if cfg.Tools.Browser.Enabled {
 		profiles := cfg.Tools.Browser.ResolvedProfiles()
 		defaultName := cfg.Tools.Browser.ResolvedDefaultProfile()
+
+		// Ensure "default" profile has a remote URL when none is configured.
+		// In Docker, the chrome sidecar is always at ws://chrome:9222.
+		if dp, ok := profiles["default"]; ok && dp.RemoteURL == "" {
+			if envURL := os.Getenv("GOCLAW_BROWSER_REMOTE_URL"); envURL != "" {
+				dp.RemoteURL = envURL
+			} else if _, err := os.Stat("/.dockerenv"); err == nil {
+				// Inside Docker container — use chrome sidecar hostname
+				dp.RemoteURL = "ws://chrome:9222"
+			}
+			profiles["default"] = dp
+		}
+
 		registry := browser.NewProfileRegistry(defaultName)
 
 		for name, pc := range profiles {

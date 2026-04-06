@@ -437,15 +437,16 @@ func (c *BrowserToolConfig) ResolvedProfiles() map[string]BrowserProfile {
 			},
 		}
 	}
-	// Ensure "default" profile always exists (from env var / flat fields)
-	if _, ok := c.Profiles["default"]; !ok && c.RemoteURL != "" {
+	// Ensure "default" profile always exists when other profiles are configured.
+	// Uses RemoteURL from flat/env fields, or falls back to headless mode.
+	if _, ok := c.Profiles["default"]; !ok {
 		merged := make(map[string]BrowserProfile, len(c.Profiles)+1)
 		for k, v := range c.Profiles {
 			merged[k] = v
 		}
 		merged["default"] = BrowserProfile{
 			RemoteURL:       c.RemoteURL,
-			Headless:        c.Headless,
+			Headless:        c.Headless || c.RemoteURL == "",
 			ActionTimeoutMs: c.ActionTimeoutMs,
 			IdleTimeoutMs:   c.IdleTimeoutMs,
 			MaxPages:        c.MaxPages,
