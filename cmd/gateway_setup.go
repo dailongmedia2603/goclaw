@@ -29,7 +29,7 @@ import (
 
 // setupToolRegistry creates the tool registry and registers all tools.
 // Returns the registry, exec approval manager, MCP manager, sandbox manager,
-// browser manager (caller must defer Close), web fetch tool, TTS tool,
+// browser profile registry (caller must defer Close), web fetch tool, TTS tool,
 // permission policy engine, tool policy engine, data directory, and resolved agent defaults.
 func setupToolRegistry(
 	cfg *config.Config,
@@ -40,7 +40,7 @@ func setupToolRegistry(
 	execApprovalMgr *tools.ExecApprovalManager,
 	mcpMgr *mcpbridge.Manager,
 	sandboxMgr sandbox.Manager,
-	browserMgr *browser.Manager,
+	browserRegistry *browser.ProfileRegistry,
 	webFetchTool *tools.WebFetchTool,
 	ttsTool *tools.TtsTool,
 	permPE *permissions.PolicyEngine,
@@ -95,30 +95,51 @@ func setupToolRegistry(
 	toolsReg.Register(tools.NewNhanhSyncTool())
 	slog.Info("nhanh.vn tools registered")
 
-	// Browser automation tool
+	// Browser automation tool (multi-profile)
 	if cfg.Tools.Browser.Enabled {
-		var opts []browser.Option
-		if cfg.Tools.Browser.RemoteURL != "" {
-			opts = append(opts, browser.WithRemoteURL(cfg.Tools.Browser.RemoteURL))
-			slog.Info("browser tool enabled", "remote", cfg.Tools.Browser.RemoteURL)
-		} else {
-			opts = append(opts, browser.WithHeadless(cfg.Tools.Browser.Headless))
-			slog.Info("browser tool enabled", "headless", cfg.Tools.Browser.Headless)
+		profiles := cfg.Tools.Browser.ResolvedProfiles()
+		defaultName := cfg.Tools.Browser.ResolvedDefaultProfile()
+		registry := browser.NewProfileRegistry(defaultName)
+
+		for name, pc := range profiles {
+			var opts []browser.Option
+			if pc.RemoteURL != "" {
+				opts = append(opts, browser.WithRemoteURL(pc.RemoteURL))
+			} else {
+				opts = append(opts, browser.WithHeadless(pc.Headless))
+			}
+			if pc.Shared {
+				opts = append(opts, browser.WithShared(true))
+			}
+			if pc.ActionTimeoutMs > 0 {
+				opts = append(opts, browser.WithActionTimeout(time.Duration(pc.ActionTimeoutMs)*time.Millisecond))
+			}
+			if pc.IdleTimeoutMs > 0 {
+				opts = append(opts, browser.WithIdleTimeout(time.Duration(pc.IdleTimeoutMs)*time.Millisecond))
+			} else if pc.IdleTimeoutMs < 0 {
+				opts = append(opts, browser.WithIdleTimeout(0))
+			}
+			if pc.MaxPages > 0 {
+				opts = append(opts, browser.WithMaxPages(pc.MaxPages))
+			}
+
+			mgr := browser.New(opts...)
+			registry.Register(&browser.Profile{
+				Name:    name,
+				Manager: mgr,
+				Shared:  pc.Shared,
+				Domains: pc.Domains,
+				VNCURL:  pc.VNCURL,
+			})
+			slog.Info("browser profile registered",
+				"name", name,
+				"remote", pc.RemoteURL,
+				"shared", pc.Shared,
+				"domains", pc.Domains)
 		}
-		if cfg.Tools.Browser.ActionTimeoutMs > 0 {
-			opts = append(opts, browser.WithActionTimeout(time.Duration(cfg.Tools.Browser.ActionTimeoutMs)*time.Millisecond))
-		}
-		if cfg.Tools.Browser.IdleTimeoutMs > 0 {
-			opts = append(opts, browser.WithIdleTimeout(time.Duration(cfg.Tools.Browser.IdleTimeoutMs)*time.Millisecond))
-		} else if cfg.Tools.Browser.IdleTimeoutMs < 0 {
-			// Explicitly disable idle reaper with negative value
-			opts = append(opts, browser.WithIdleTimeout(0))
-		}
-		if cfg.Tools.Browser.MaxPages > 0 {
-			opts = append(opts, browser.WithMaxPages(cfg.Tools.Browser.MaxPages))
-		}
-		browserMgr = browser.New(opts...)
-		toolsReg.Register(browser.NewBrowserTool(browserMgr))
+
+		browserRegistry = registry
+		toolsReg.Register(browser.NewBrowserTool(registry))
 	}
 
 	// Web tools (web_search + web_fetch)

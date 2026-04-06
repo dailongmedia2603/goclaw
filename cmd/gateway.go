@@ -96,9 +96,9 @@ func runGateway() {
 	// Detect server IPs for output scrubbing (prevents IP leaks via web_fetch, exec, etc.)
 	tools.DetectServerIPs(context.Background())
 
-	toolsReg, execApprovalMgr, mcpMgr, sandboxMgr, browserMgr, webFetchTool, ttsTool, permPE, toolPE, dataDir, agentCfg := setupToolRegistry(cfg, workspace, providerRegistry)
-	if browserMgr != nil {
-		defer browserMgr.Close()
+	toolsReg, execApprovalMgr, mcpMgr, sandboxMgr, browserRegistry, webFetchTool, ttsTool, permPE, toolPE, dataDir, agentCfg := setupToolRegistry(cfg, workspace, providerRegistry)
+	if browserRegistry != nil {
+		defer browserRegistry.Close()
 	}
 	if mcpMgr != nil {
 		defer mcpMgr.Stop()

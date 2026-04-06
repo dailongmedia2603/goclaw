@@ -23,6 +23,7 @@ type Manager struct {
 	pageLastUsed map[string]time.Time       // targetID → last access time
 	headless      bool
 	remoteURL     string        // CDP endpoint for remote Chrome (sidecar); skips local launcher
+	shared        bool          // skip incognito isolation, use main browser context (preserves cookies)
 	actionTimeout time.Duration // per-action context timeout (default 30s)
 	idleTimeout   time.Duration // auto-close pages idle longer than this (default 10m, 0=disabled)
 	maxPages      int           // max open pages per tenant (default 5)
@@ -42,6 +43,12 @@ func WithHeadless(h bool) Option {
 // When set, Start() connects to the remote Chrome instead of launching locally.
 func WithRemoteURL(url string) Option {
 	return func(m *Manager) { m.remoteURL = url }
+}
+
+// WithShared sets shared mode — all tenants use the main browser context.
+// This preserves cookies/sessions from manual login (e.g. for anti-bot sites).
+func WithShared(s bool) Option {
+	return func(m *Manager) { m.shared = s }
 }
 
 // WithLogger sets a custom logger.
@@ -213,6 +220,10 @@ const MasterTenantID = "0193a5b0-7000-7000-8000-000000000001"
 func (m *Manager) tenantBrowserLocked(tenantID string) (*rod.Browser, error) {
 	if m.browser == nil {
 		return nil, fmt.Errorf("browser not running")
+	}
+	// Shared mode: always use main browser (preserves cookies/session from manual login)
+	if m.shared {
+		return m.browser, nil
 	}
 	// Master tenant or no tenant: use main browser
 	if tenantID == "" || tenantID == MasterTenantID {

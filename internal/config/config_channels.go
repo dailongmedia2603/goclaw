@@ -395,14 +395,55 @@ type WebFetchPolicyConfig struct {
 	BlockedDomains []string `json:"blocked_domains,omitempty"` // always checked regardless of policy
 }
 
+// BrowserProfile configures a single named browser profile.
+type BrowserProfile struct {
+	RemoteURL       string   `json:"remote_url,omitempty"`        // CDP endpoint, e.g. "ws://cloak:9222"
+	Headless        bool     `json:"headless,omitempty"`          // local Chrome headless mode
+	Shared          bool     `json:"shared,omitempty"`            // skip incognito isolation (preserves cookies)
+	Domains         []string `json:"domains,omitempty"`           // auto-route domains: ["shopee.vn", "*.shopee.*"]
+	VNCURL          string   `json:"vnc_url,omitempty"`           // noVNC URL for manual login
+	ActionTimeoutMs int      `json:"action_timeout_ms,omitempty"` // per-action timeout in ms
+	IdleTimeoutMs   int      `json:"idle_timeout_ms,omitempty"`   // idle page auto-close in ms
+	MaxPages        int      `json:"max_pages,omitempty"`         // max open pages per tenant
+}
+
 // BrowserToolConfig controls the browser automation tool.
 type BrowserToolConfig struct {
-	Enabled         bool   `json:"enabled"`                    // enable the browser tool (default false)
-	Headless        bool   `json:"headless,omitempty"`         // run Chrome in headless mode (ignored when RemoteURL is set)
-	RemoteURL       string `json:"remote_url,omitempty"`       // CDP endpoint for remote Chrome sidecar, e.g. "ws://chrome:9222"
+	Enabled        bool                      `json:"enabled"`                   // enable the browser tool
+	DefaultProfile string                    `json:"default_profile,omitempty"` // default profile name (default: "default")
+	Profiles       map[string]BrowserProfile `json:"profiles,omitempty"`        // named browser profiles
+
+	// Legacy flat fields — used as "default" profile when Profiles is empty (backward compat)
+	Headless        bool   `json:"headless,omitempty"`          // run Chrome in headless mode (ignored when RemoteURL is set)
+	RemoteURL       string `json:"remote_url,omitempty"`        // CDP endpoint for remote Chrome sidecar, e.g. "ws://chrome:9222"
 	ActionTimeoutMs int    `json:"action_timeout_ms,omitempty"` // per-action timeout in ms (default 30000)
 	IdleTimeoutMs   int    `json:"idle_timeout_ms,omitempty"`   // idle page auto-close in ms (default 600000, 0=disabled)
 	MaxPages        int    `json:"max_pages,omitempty"`         // max open pages per tenant (default 5)
+}
+
+// ResolvedProfiles returns the profile map. If no profiles are configured,
+// creates a single "default" profile from the legacy flat fields.
+func (c *BrowserToolConfig) ResolvedProfiles() map[string]BrowserProfile {
+	if len(c.Profiles) > 0 {
+		return c.Profiles
+	}
+	return map[string]BrowserProfile{
+		"default": {
+			RemoteURL:       c.RemoteURL,
+			Headless:        c.Headless,
+			ActionTimeoutMs: c.ActionTimeoutMs,
+			IdleTimeoutMs:   c.IdleTimeoutMs,
+			MaxPages:        c.MaxPages,
+		},
+	}
+}
+
+// ResolvedDefaultProfile returns the default profile name.
+func (c *BrowserToolConfig) ResolvedDefaultProfile() string {
+	if c.DefaultProfile != "" {
+		return c.DefaultProfile
+	}
+	return "default"
 }
 
 // ToolPolicySpec defines a tool policy at any level (global, per-agent, per-provider).
