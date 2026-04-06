@@ -423,19 +423,36 @@ type BrowserToolConfig struct {
 
 // ResolvedProfiles returns the profile map. If no profiles are configured,
 // creates a single "default" profile from the legacy flat fields.
+// When profiles exist but "default" is missing, auto-creates it from flat fields
+// so browser tool always has a fallback profile.
 func (c *BrowserToolConfig) ResolvedProfiles() map[string]BrowserProfile {
-	if len(c.Profiles) > 0 {
-		return c.Profiles
+	if len(c.Profiles) == 0 {
+		return map[string]BrowserProfile{
+			"default": {
+				RemoteURL:       c.RemoteURL,
+				Headless:        c.Headless,
+				ActionTimeoutMs: c.ActionTimeoutMs,
+				IdleTimeoutMs:   c.IdleTimeoutMs,
+				MaxPages:        c.MaxPages,
+			},
+		}
 	}
-	return map[string]BrowserProfile{
-		"default": {
+	// Ensure "default" profile always exists (from env var / flat fields)
+	if _, ok := c.Profiles["default"]; !ok && c.RemoteURL != "" {
+		merged := make(map[string]BrowserProfile, len(c.Profiles)+1)
+		for k, v := range c.Profiles {
+			merged[k] = v
+		}
+		merged["default"] = BrowserProfile{
 			RemoteURL:       c.RemoteURL,
 			Headless:        c.Headless,
 			ActionTimeoutMs: c.ActionTimeoutMs,
 			IdleTimeoutMs:   c.IdleTimeoutMs,
 			MaxPages:        c.MaxPages,
-		},
+		}
+		return merged
 	}
+	return c.Profiles
 }
 
 // ResolvedDefaultProfile returns the default profile name.
