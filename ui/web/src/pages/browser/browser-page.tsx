@@ -9,10 +9,8 @@ import {
   WifiOff,
   Lock,
   Unlock,
-  ExternalLink,
   Pencil,
   Trash2,
-  X,
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -46,8 +44,6 @@ export function BrowserPage() {
     null,
   );
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [vncProfile, setVncProfile] = useState<BrowserProfile | null>(null);
-
   useEffect(() => {
     refresh();
   }, [refresh]);
@@ -185,52 +181,11 @@ export function BrowserPage() {
               profile={p}
               onEdit={() => handleEdit(p)}
               onDelete={() => handleDelete(p.name)}
-              onVnc={() => setVncProfile(p)}
+              onVnc={() => window.open(p.vnc_url, "_blank", "noopener")}
               t={t}
             />
           ))}
         </div>
-      )}
-
-      {/* VNC Viewer */}
-      {vncProfile && vncProfile.vnc_url && (
-        <Card className="overflow-hidden">
-          <div className="flex items-center justify-between border-b px-4 py-3">
-            <div className="flex items-center gap-2">
-              <Monitor className="h-4 w-4" />
-              <span className="font-medium">
-                {t("vnc.title", { name: vncProfile.name })}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  window.open(vncProfile.vnc_url, "_blank", "noopener")
-                }
-              >
-                <ExternalLink className="mr-2 h-3 w-3" />
-                {t("vnc.openNew")}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setVncProfile(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-          <div className="relative h-[600px] w-full bg-black">
-            <iframe
-              src={vncProfile.vnc_url}
-              className="h-full w-full border-0"
-              title={`VNC - ${vncProfile.name}`}
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-            />
-          </div>
-        </Card>
       )}
 
       {/* Profile Edit Dialog */}
