@@ -81,6 +81,11 @@ if [ -f /app/.claude-host/.credentials.json ]; then
     && echo "Claude CLI credentials synced from host.") || echo "WARNING: Claude credentials copy failed (non-fatal)"
 fi
 
+# Ensure config file is writable by goclaw user (may have been created by root/onboard).
+if [ -n "$GOCLAW_CONFIG" ] && [ -f "$GOCLAW_CONFIG" ] && [ "$(id -u)" = "0" ]; then
+  chown goclaw:goclaw "$GOCLAW_CONFIG" 2>/dev/null || true
+fi
+
 # Run command with privilege drop (su-exec in Docker, direct otherwise).
 run_as_goclaw() {
   if command -v su-exec >/dev/null 2>&1 && [ "$(id -u)" = "0" ]; then
