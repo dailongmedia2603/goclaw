@@ -298,10 +298,14 @@ function ProfileCard({
                 <Wifi className="mr-1 h-3 w-3" />
                 {t("status.running", { tabs: p.tabs })}
               </Badge>
-            ) : (
+            ) : p.active ? (
               <Badge variant="outline" className="text-muted-foreground">
                 <WifiOff className="mr-1 h-3 w-3" />
                 {t("status.stopped")}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="border-amber-500/30 text-amber-500">
+                {t("status.pending")}
               </Badge>
             )}
             {p.shared ? (

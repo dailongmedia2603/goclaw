@@ -6,7 +6,8 @@
   "domains": "域名",
   "status": {
     "running": "运行中 · {{tabs}} 标签页",
-    "stopped": "已停止"
+    "stopped": "已停止",
+    "pending": "需要重启"
   },
   "mode": {
     "shared": "共享",

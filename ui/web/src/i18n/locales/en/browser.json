@@ -6,7 +6,8 @@
   "domains": "Domains",
   "status": {
     "running": "Running · {{tabs}} tabs",
-    "stopped": "Stopped"
+    "stopped": "Stopped",
+    "pending": "Restart required"
   },
   "mode": {
     "shared": "Shared",

@@ -6,7 +6,8 @@
   "domains": "Domain",
   "status": {
     "running": "Đang chạy · {{tabs}} tab",
-    "stopped": "Đã dừng"
+    "stopped": "Đã dừng",
+    "pending": "Chờ khởi động lại"
   },
   "mode": {
     "shared": "Chia sẻ",
@@ -42,7 +43,7 @@
     "saving": "Đang lưu..."
   },
   "toast": {
-    "saved": "Đã lưu profile trình duyệt. Có thể cần khởi động lại.",
+    "saved": "Đã lưu cấu hình. Profile mới sẽ hoạt động sau khi khởi động lại hệ thống.",
     "saveFailed": "Lưu profile trình duyệt thất bại"
   }
 }

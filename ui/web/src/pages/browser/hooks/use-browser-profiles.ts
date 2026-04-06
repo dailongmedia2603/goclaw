@@ -12,6 +12,7 @@ export interface BrowserProfile {
   shared: boolean;
   domains: string[];
   vnc_url: string;
+  active: boolean; // true = loaded in registry, false = config-only (needs restart)
 }
 
 interface ProfilesResponse {
