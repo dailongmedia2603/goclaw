@@ -1,0 +1,48 @@
+{
+  "title": "Browser Profiles",
+  "description": "Manage browser profiles for web automation. Each profile has its own browser instance, isolation mode, and domain routing.",
+  "refresh": "Refresh",
+  "addProfile": "Add Profile",
+  "domains": "Domains",
+  "status": {
+    "running": "Running · {{tabs}} tabs",
+    "stopped": "Stopped"
+  },
+  "mode": {
+    "shared": "Shared",
+    "isolated": "Isolated"
+  },
+  "empty": {
+    "title": "No browser profiles",
+    "description": "Add a browser profile to enable web automation."
+  },
+  "vnc": {
+    "title": "VNC — {{name}}",
+    "login": "VNC Login",
+    "openNew": "Open in new tab"
+  },
+  "dialog": {
+    "addTitle": "Add Browser Profile",
+    "editTitle": "Edit Browser Profile",
+    "description": "Configure a browser profile for web automation.",
+    "name": "Profile Name",
+    "remoteUrl": "CDP Remote URL",
+    "remoteUrlHint": "WebSocket URL for remote browser (e.g. ws://cloak:9222). Leave empty for local Chrome.",
+    "shared": "Shared Mode",
+    "sharedHint": "Skip tenant isolation — preserves cookies from manual login.",
+    "domains": "Domain Patterns",
+    "domainsHint": "Comma-separated. Auto-route URLs matching these domains (e.g. shopee.*, *.shopee.*).",
+    "vncUrl": "VNC URL",
+    "vncUrlHint": "noVNC URL for manual login (e.g. http://host:6080).",
+    "maxPages": "Max Pages",
+    "actionTimeout": "Action Timeout (ms)",
+    "idleTimeout": "Idle Timeout (ms)",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving..."
+  },
+  "toast": {
+    "saved": "Browser profiles saved. Restart may be required.",
+    "saveFailed": "Failed to save browser profiles"
+  }
+}

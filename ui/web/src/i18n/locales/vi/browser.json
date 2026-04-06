@@ -1,0 +1,48 @@
+{
+  "title": "Trình duyệt",
+  "description": "Quản lý profile trình duyệt. Mỗi profile có trình duyệt riêng, chế độ cách ly, và tự động chọn theo domain.",
+  "refresh": "Làm mới",
+  "addProfile": "Thêm Profile",
+  "domains": "Domain",
+  "status": {
+    "running": "Đang chạy · {{tabs}} tab",
+    "stopped": "Đã dừng"
+  },
+  "mode": {
+    "shared": "Chia sẻ",
+    "isolated": "Cách ly"
+  },
+  "empty": {
+    "title": "Chưa có profile trình duyệt",
+    "description": "Thêm profile trình duyệt để bật tự động hóa web."
+  },
+  "vnc": {
+    "title": "VNC — {{name}}",
+    "login": "Đăng nhập VNC",
+    "openNew": "Mở tab mới"
+  },
+  "dialog": {
+    "addTitle": "Thêm Profile Trình duyệt",
+    "editTitle": "Sửa Profile Trình duyệt",
+    "description": "Cấu hình profile trình duyệt cho tự động hóa web.",
+    "name": "Tên Profile",
+    "remoteUrl": "CDP Remote URL",
+    "remoteUrlHint": "URL WebSocket trình duyệt từ xa (VD: ws://cloak:9222). Để trống cho Chrome local.",
+    "shared": "Chế độ Chia sẻ",
+    "sharedHint": "Bỏ qua cách ly tenant — giữ cookies từ đăng nhập thủ công.",
+    "domains": "Domain Pattern",
+    "domainsHint": "Phân cách bằng dấu phẩy. Tự động chọn profile theo domain (VD: shopee.*, *.shopee.*).",
+    "vncUrl": "VNC URL",
+    "vncUrlHint": "URL noVNC để đăng nhập thủ công (VD: http://host:6080).",
+    "maxPages": "Số tab tối đa",
+    "actionTimeout": "Timeout hành động (ms)",
+    "idleTimeout": "Timeout rảnh (ms)",
+    "cancel": "Hủy",
+    "save": "Lưu",
+    "saving": "Đang lưu..."
+  },
+  "toast": {
+    "saved": "Đã lưu profile trình duyệt. Có thể cần khởi động lại.",
+    "saveFailed": "Lưu profile trình duyệt thất bại"
+  }
+}

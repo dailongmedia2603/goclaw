@@ -1,0 +1,48 @@
+{
+  "title": "浏览器配置",
+  "description": "管理浏览器配置文件。每个配置有独立的浏览器实例、隔离模式和域名路由。",
+  "refresh": "刷新",
+  "addProfile": "添加配置",
+  "domains": "域名",
+  "status": {
+    "running": "运行中 · {{tabs}} 标签页",
+    "stopped": "已停止"
+  },
+  "mode": {
+    "shared": "共享",
+    "isolated": "隔离"
+  },
+  "empty": {
+    "title": "暂无浏览器配置",
+    "description": "添加浏览器配置以启用网页自动化。"
+  },
+  "vnc": {
+    "title": "VNC — {{name}}",
+    "login": "VNC 登录",
+    "openNew": "在新标签页中打开"
+  },
+  "dialog": {
+    "addTitle": "添加浏览器配置",
+    "editTitle": "编辑浏览器配置",
+    "description": "为网页自动化配置浏览器。",
+    "name": "配置名称",
+    "remoteUrl": "CDP 远程 URL",
+    "remoteUrlHint": "远程浏览器的 WebSocket URL（如 ws://cloak:9222）。留空使用本地 Chrome。",
+    "shared": "共享模式",
+    "sharedHint": "跳过租户隔离 — 保留手动登录的 Cookie。",
+    "domains": "域名模式",
+    "domainsHint": "逗号分隔。自动根据域名选择配置（如 shopee.*, *.shopee.*）。",
+    "vncUrl": "VNC URL",
+    "vncUrlHint": "用于手动登录的 noVNC URL（如 http://host:6080）。",
+    "maxPages": "最大页面数",
+    "actionTimeout": "操作超时 (ms)",
+    "idleTimeout": "空闲超时 (ms)",
+    "cancel": "取消",
+    "save": "保存",
+    "saving": "保存中..."
+  },
+  "toast": {
+    "saved": "浏览器配置已保存。可能需要重启。",
+    "saveFailed": "保存浏览器配置失败"
+  }
+}

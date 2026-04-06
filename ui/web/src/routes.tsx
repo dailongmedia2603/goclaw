@@ -57,6 +57,9 @@ const MCPPage = lazyWithRetry(() =>
 const TeamsPage = lazyWithRetry(() =>
   import("@/pages/teams/teams-page").then((m) => ({ default: m.TeamsPage })),
 );
+const BrowserPage = lazyWithRetry(() =>
+  import("@/pages/browser/browser-page").then((m) => ({ default: m.BrowserPage })),
+);
 const BuiltinToolsPage = lazyWithRetry(() =>
   import("@/pages/builtin-tools/builtin-tools-page").then((m) => ({ default: m.BuiltinToolsPage })),
 );
@@ -167,6 +170,7 @@ export function AppRoutes() {
           <Route path={ROUTES.CHANNEL_DETAIL} element={<RequireAdmin><ChannelsPage key="detail" /></RequireAdmin>} />
           <Route path={ROUTES.NODES} element={<RequireAdmin><NodesPage /></RequireAdmin>} />
           <Route path={ROUTES.LOGS} element={<RequireAdmin><LogsPage /></RequireAdmin>} />
+          <Route path={ROUTES.BROWSER} element={<RequireAdmin><BrowserPage /></RequireAdmin>} />
           <Route path={ROUTES.BUILTIN_TOOLS} element={<RequireAdmin><BuiltinToolsPage /></RequireAdmin>} />
           <Route path={ROUTES.MCP} element={<RequireAdmin><MCPPage /></RequireAdmin>} />
           <Route path={ROUTES.TTS} element={<RequireAdmin><TtsPage /></RequireAdmin>} />

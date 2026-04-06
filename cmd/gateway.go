@@ -377,6 +377,9 @@ func runGateway() {
 	if builtinToolsH != nil {
 		server.SetBuiltinToolsHandler(builtinToolsH)
 	}
+	if browserRegistry != nil {
+		server.SetBrowserProfilesHandler(httpapi.NewBrowserProfilesHandler(browserRegistry))
+	}
 	if pendingMessagesH != nil {
 		if pc := cfg.Channels.PendingCompaction; pc != nil {
 			pendingMessagesH.SetKeepRecent(pc.KeepRecent)

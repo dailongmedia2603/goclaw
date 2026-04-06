@@ -413,6 +413,11 @@ func (s *Server) SetPackagesHandler(h *httpapi.PackagesHandler) {
 	s.handlers = append(s.handlers, h)
 }
 
+// SetBrowserProfilesHandler sets the browser profiles status handler.
+func (s *Server) SetBrowserProfilesHandler(h *httpapi.BrowserProfilesHandler) {
+	s.handlers = append(s.handlers, h)
+}
+
 // SetOAuthHandler sets the OAuth handler (available in all modes).
 func (s *Server) SetOAuthHandler(h *httpapi.OAuthHandler) { s.handlers = append(s.handlers, h) }
 
