@@ -4,8 +4,8 @@
 #   docker compose -f docker-compose.yml -f docker-compose.postgres.yml -f docker-compose.browser.yml up -d --build
 #
 # Profiles:
-#   "default" (chrome) — headless CloakBrowser for general web automation
-#   "shopee"  (cloak-shopee) — CloakBrowser with VNC for manual login (anti-bot sites)
+#   "default" (chrome) — headless CloakBrowser for general web automation (CDP :9222)
+#   "shopee"  (cloak-shopee) — CloakBrowser Manager with GUI + noVNC for manual login (:8686)
 #
 # Configure profiles in config.json → tools.browser.profiles
 
@@ -30,29 +30,27 @@ services:
           cpus: '2.0'
     restart: unless-stopped
 
-  # Profile "shopee" — CloakBrowser with desktop + noVNC for manual login
-  # Access VNC at http://<host>:6080 to log in manually.
+  # Profile "shopee" — CloakBrowser Manager with noVNC GUI for manual login
+  # Access web UI at http://<host>:8686 to create profiles, log in manually, and get CDP URL.
   # Cookies persist in volume cloak-shopee-data across restarts.
   cloak-shopee:
-    image: kasmweb/chromium:1.16.1
-    environment:
-      - VNC_PW=${VNC_PASSWORD:-goclaw2026}
+    image: cloakhq/cloakbrowser-manager:latest
     ports:
-      - "${CLOAK_SHOPEE_VNC_PORT:-6080}:6901"
-    shm_size: 2gb
+      - "${CLOAK_SHOPEE_PORT:-8686}:8080"
     volumes:
-      - cloak-shopee-data:/home/kasm-user
+      - cloak-shopee-data:/data
+    shm_size: 2gb
     deploy:
       resources:
         limits:
           memory: 2G
           cpus: '2.0'
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:6901 >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8080/ >/dev/null 2>&1"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 60s
+      start_period: 30s
     restart: unless-stopped
 
   goclaw:
