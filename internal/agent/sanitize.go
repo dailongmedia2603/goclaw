@@ -49,6 +49,9 @@ func SanitizeAssistantContent(content string) string {
 	// 3. Strip thinking/reasoning tags (<think>, <thinking>, <thought>, <antThinking>)
 	content = stripThinkingTags(content)
 
+	// 3b. Strip plain-text reasoning blocks ("Reasoning:\n• ...")
+	content = stripPlainTextReasoning(content)
+
 	// 4. Strip <final> tags (keep content inside)
 	content = stripFinalTags(content)
 
@@ -232,6 +235,76 @@ func stripThinkingTags(content string) string {
 	// 2. Strip any orphaned closing tags left over from streaming
 	result = orphanThinkClosePattern.ReplaceAllString(result, "")
 	return strings.TrimSpace(result)
+}
+
+// --- 3b. Plain-text reasoning blocks ---
+
+// stripPlainTextReasoning removes "Reasoning:" blocks that some models (Gemini,
+// DeepSeek) emit as plain text before their actual response. The block starts
+// with "Reasoning:" at the beginning of a line and ends at the first blank line
+// followed by non-reasoning content.
+func stripPlainTextReasoning(content string) string {
+	if !strings.HasPrefix(strings.TrimSpace(content), "Reasoning:") {
+		return content
+	}
+
+	lines := strings.Split(content, "\n")
+	// Find where the reasoning block ends: first blank line after "Reasoning:"
+	// followed by non-bullet/non-indented content.
+	reasoningEnd := 0
+	inReasoning := true
+	sawBlank := false
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		if i == 0 && strings.HasPrefix(trimmed, "Reasoning:") {
+			reasoningEnd = i + 1
+			continue
+		}
+
+		if !inReasoning {
+			break
+		}
+
+		if trimmed == "" {
+			sawBlank = true
+			reasoningEnd = i + 1
+			continue
+		}
+
+		// Reasoning content: bullets, indented lines, continuation
+		if strings.HasPrefix(trimmed, "•") || strings.HasPrefix(trimmed, "-") ||
+			strings.HasPrefix(trimmed, "*") || strings.HasPrefix(line, "    ") ||
+			strings.HasPrefix(line, "\t") {
+			sawBlank = false
+			reasoningEnd = i + 1
+			continue
+		}
+
+		// After a blank line, non-bullet content means reasoning ended
+		if sawBlank {
+			inReasoning = false
+			break
+		}
+
+		// Continuation of reasoning (indented sub-items, numbered steps)
+		reasoningEnd = i + 1
+	}
+
+	if reasoningEnd >= len(lines) {
+		// Entire content is reasoning — strip all (shouldn't happen, but safe)
+		return ""
+	}
+
+	result := strings.TrimSpace(strings.Join(lines[reasoningEnd:], "\n"))
+	if result != "" {
+		slog.Warn("stripped plain-text Reasoning: block from assistant response",
+			"reasoning_lines", reasoningEnd,
+			"remaining_len", len(result),
+		)
+	}
+	return result
 }
 
 // --- 4. <final> tags ---
