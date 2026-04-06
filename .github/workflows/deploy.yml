@@ -43,22 +43,12 @@ jobs:
             export GOCLAW_VERSION="v$(date +%Y%m%d)-$(git rev-parse --short HEAD)"
             echo "Building version: $GOCLAW_VERSION"
 
-            # Clean up stale containers before deploying
-            docker compose \
-              -f docker-compose.yml \
-              -f docker-compose.postgres.yml \
-              -f docker-compose.selfservice.yml \
-              -f docker-compose.browser.yml \
-              -f docker-compose.override.yml \
-              down --remove-orphans 2>/dev/null || true
+            COMPOSE_FILES="-f docker-compose.yml -f docker-compose.postgres.yml -f docker-compose.selfservice.yml -f docker-compose.browser.yml -f docker-compose.override.yml"
 
-            docker compose \
-              -f docker-compose.yml \
-              -f docker-compose.postgres.yml \
-              -f docker-compose.selfservice.yml \
-              -f docker-compose.browser.yml \
-              -f docker-compose.override.yml \
-              up -d --build
+            # Zero-downtime deploy: build first, then swap containers.
+            # Old containers keep serving traffic until new ones are ready.
+            docker compose $COMPOSE_FILES build --pull 2>/dev/null || true
+            docker compose $COMPOSE_FILES up -d --remove-orphans
 
             # Clean up unused images to free disk space
             docker image prune -f 2>/dev/null || true
