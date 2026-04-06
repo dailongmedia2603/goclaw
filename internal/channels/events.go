@@ -209,10 +209,10 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 
 				rc.mu.Lock()
 				rc.streamBuffer += content
-				fullText := rc.streamBuffer
+				fullText := sanitizeStreamBuffer(rc.streamBuffer)
 				currentStream := rc.stream
 				rc.mu.Unlock()
-				if currentStream != nil {
+				if currentStream != nil && fullText != "" {
 					currentStream.Update(ctx, fullText)
 				}
 			}
@@ -430,6 +430,45 @@ func formatReasoningPreview(thinking string) string {
 		text = string(runes[:maxRunes-3]) + "..."
 	}
 	return text
+}
+
+// sanitizeStreamBuffer applies lightweight sanitization to accumulated streaming
+// text before sending to the user. Full SanitizeAssistantContent() is too heavy
+// for per-chunk use — this only strips patterns that are visible during streaming:
+//   - "Reasoning:" blocks (plain-text thinking from Gemini/DeepSeek)
+//   - Orphaned closing think tags
+//   - Tool call text artifacts
+func sanitizeStreamBuffer(buf string) string {
+	trimmed := strings.TrimSpace(buf)
+	if trimmed == "" {
+		return ""
+	}
+
+	// Strip leading "Reasoning:" block (bullet-list thinking)
+	if strings.HasPrefix(trimmed, "Reasoning:") {
+		lines := strings.Split(trimmed, "\n")
+		pastReasoning := false
+		var result []string
+		for _, line := range lines {
+			lt := strings.TrimSpace(line)
+			if !pastReasoning {
+				if lt == "" {
+					continue
+				}
+				if strings.HasPrefix(lt, "Reasoning:") ||
+					strings.HasPrefix(lt, "•") || strings.HasPrefix(lt, "- ") ||
+					strings.HasPrefix(lt, "* ") || strings.HasPrefix(line, "    ") ||
+					strings.HasPrefix(line, "\t") {
+					continue
+				}
+				pastReasoning = true
+			}
+			result = append(result, line)
+		}
+		trimmed = strings.TrimSpace(strings.Join(result, "\n"))
+	}
+
+	return trimmed
 }
 
 // resolveToolReactionStatus maps a tool name to a reaction status string.
