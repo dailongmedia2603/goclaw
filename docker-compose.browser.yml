@@ -45,7 +45,7 @@ services:
 
   goclaw:
     environment:
-      - GOCLAW_BROWSER_REMOTE_URL=
+      - GOCLAW_BROWSER_REMOTE_URL=ws://chrome:9222
     depends_on:
       chrome:
         condition: service_healthy
