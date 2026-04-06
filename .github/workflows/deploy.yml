@@ -56,4 +56,7 @@ jobs:
               -f docker-compose.override.yml \
               up -d --build
 
+            # Clean up unused images to free disk space
+            docker image prune -f 2>/dev/null || true
+
             echo "Deploy completed at $(date)"
