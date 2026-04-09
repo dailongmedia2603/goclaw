@@ -162,6 +162,31 @@ func (s *PGAgentStore) EnsureUserProfile(ctx context.Context, agentID uuid.UUID,
 	return err
 }
 
+// DeleteUserInstance removes a user's profile and all their context files for an agent.
+// This triggers re-seeding on the user's next chat.
+func (s *PGAgentStore) DeleteUserInstance(ctx context.Context, agentID uuid.UUID, userID string) error {
+	tClause, tArgs, _, err := scopeClause(ctx, 3)
+	if err != nil {
+		return err
+	}
+	baseArgs := append([]any{agentID, userID}, tArgs...)
+	// Delete context files first (no FK constraint, but logical order)
+	if _, err := s.db.ExecContext(ctx,
+		"DELETE FROM user_context_files WHERE agent_id = $1 AND user_id = $2"+tClause,
+		baseArgs...); err != nil {
+		return err
+	}
+	// Delete user overrides
+	_, _ = s.db.ExecContext(ctx,
+		"DELETE FROM user_agent_overrides WHERE agent_id = $1 AND user_id = $2"+tClause,
+		baseArgs...)
+	// Delete profile
+	_, err = s.db.ExecContext(ctx,
+		"DELETE FROM user_agent_profiles WHERE agent_id = $1 AND user_id = $2"+tClause,
+		baseArgs...)
+	return err
+}
+
 // --- User Instances ---
 
 func (s *PGAgentStore) ListUserInstances(ctx context.Context, agentID uuid.UUID) ([]store.UserInstanceData, error) {

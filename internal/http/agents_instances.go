@@ -138,6 +138,44 @@ func (h *AgentsHandler) handleSetInstanceFile(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 
+// handleDeleteInstance removes a user instance (profile + all context files).
+// The user will be re-seeded from agent-level files on their next chat.
+func (h *AgentsHandler) handleDeleteInstance(w http.ResponseWriter, r *http.Request) {
+	callerID := store.UserIDFromContext(r.Context())
+	locale := store.LocaleFromContext(r.Context())
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidID, "agent")})
+		return
+	}
+	instanceUserID := r.PathValue("userID")
+	if instanceUserID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgRequired, "userID")})
+		return
+	}
+
+	ag, err := h.agents.GetByID(r.Context(), id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": i18n.T(locale, i18n.MsgNotFound, "agent", id.String())})
+		return
+	}
+	if callerID != "" && ag.OwnerID != callerID && !h.isOwnerUser(callerID) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": i18n.T(locale, i18n.MsgOwnerOnly, "delete instance")})
+		return
+	}
+
+	if err := h.agents.DeleteUserInstance(r.Context(), id, instanceUserID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Invalidate caches so re-seeding uses fresh data
+	h.emitCacheInvalidate(bus.CacheKindBootstrap, id.String())
+
+	emitAudit(h.msgBus, r, "agent_instance.deleted", "agent_instance", id.String())
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
 // handleUpdateInstanceMetadata updates metadata for a user instance.
 func (h *AgentsHandler) handleUpdateInstanceMetadata(w http.ResponseWriter, r *http.Request) {
 	callerID := store.UserIDFromContext(r.Context())
