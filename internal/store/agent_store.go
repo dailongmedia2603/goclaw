@@ -264,6 +264,32 @@ func (a *AgentData) ParseWorkspaceSharing() *WorkspaceSharingConfig {
 	return cfg.WS
 }
 
+// OutputRedactConfig holds per-agent output redaction settings.
+// Terms are case-insensitively replaced in all outbound content (streaming chunks,
+// block replies, and final output) to prevent leaking business secrets.
+type OutputRedactConfig struct {
+	Terms       []string `json:"terms"`                 // words/phrases to redact
+	Replacement string   `json:"replacement,omitempty"` // replacement text (default: "")
+}
+
+// ParseOutputRedact extracts output_redact from other_config JSONB.
+// Returns nil if not configured.
+func (a *AgentData) ParseOutputRedact() *OutputRedactConfig {
+	if len(a.OtherConfig) == 0 {
+		return nil
+	}
+	var cfg struct {
+		OutputRedact *OutputRedactConfig `json:"output_redact"`
+	}
+	if json.Unmarshal(a.OtherConfig, &cfg) != nil || cfg.OutputRedact == nil {
+		return nil
+	}
+	if len(cfg.OutputRedact.Terms) == 0 {
+		return nil
+	}
+	return cfg.OutputRedact
+}
+
 // ParseShellDenyGroups extracts shell_deny_groups from other_config JSONB.
 // Returns nil if not configured (all defaults apply).
 func (a *AgentData) ParseShellDenyGroups() map[string]bool {
@@ -352,6 +378,7 @@ type AgentProfileStore interface {
 	EnsureUserProfile(ctx context.Context, agentID uuid.UUID, userID string) error
 	ListUserInstances(ctx context.Context, agentID uuid.UUID) ([]UserInstanceData, error)
 	UpdateUserProfileMetadata(ctx context.Context, agentID uuid.UUID, userID string, metadata map[string]string) error
+	DeleteUserInstance(ctx context.Context, agentID uuid.UUID, userID string) error
 }
 
 // AgentStore composes all agent sub-interfaces for backward compatibility.

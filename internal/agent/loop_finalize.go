@@ -26,6 +26,10 @@ func (l *Loop) finalizeRun(
 	// 5. Full sanitization pipeline (matching TS extractAssistantText + sanitizeUserFacingText)
 	rs.finalContent = SanitizeAssistantContent(rs.finalContent)
 
+	// 5a. Output redaction: strip business-secret terms at code level (post-sanitize, pre-NO_REPLY).
+	// Catches any term the LLM leaked despite prompt rules — definitive last-mile filter.
+	rs.finalContent = l.redact(rs.finalContent)
+
 	// 6. Handle NO_REPLY: save to session for context but mark as silent.
 	isSilent := IsSilentReply(rs.finalContent)
 

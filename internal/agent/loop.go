@@ -534,7 +534,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 						Type:    protocol.ChatEventChunk,
 						AgentID: l.id,
 						RunID:   req.RunID,
-						Payload: map[string]string{"content": chunk.Content},
+						Payload: map[string]string{"content": l.redact(chunk.Content)},
 					})
 				}
 			})
@@ -666,7 +666,7 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		// Emit block.reply for intermediate assistant content during tool iterations.
 		// Non-streaming channels (Zalo, Discord, WhatsApp) would otherwise lose this text.
 		if resp.Content != "" {
-			sanitized := SanitizeAssistantContent(resp.Content)
+			sanitized := l.redact(SanitizeAssistantContent(resp.Content))
 			if sanitized != "" && !IsSilentReply(sanitized) {
 				rs.blockReplies++
 				rs.lastBlockReply = sanitized

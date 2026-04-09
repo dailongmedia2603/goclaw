@@ -144,6 +144,11 @@ type Loop struct {
 
 	// Memory store for extractive memory fallback (writes directly when LLM flush fails)
 	memStore store.MemoryStore
+
+	// Output redaction: case-insensitive replacement of sensitive terms in all outbound content.
+	// Enforced at code level (streaming chunks, block.reply, final output) — not prompt-dependent.
+	outputRedactTerms       []string
+	outputRedactReplacement string
 }
 
 // AgentEvent is emitted during agent execution for WS broadcasting.
@@ -272,6 +277,9 @@ type LoopConfig struct {
 
 	// Memory store for extractive memory fallback (writes directly when LLM flush fails)
 	MemoryStore store.MemoryStore
+
+	// Output redaction config (from agent other_config.output_redact)
+	OutputRedact *store.OutputRedactConfig
 }
 
 const defaultMaxTokens = config.DefaultMaxTokens
@@ -282,6 +290,16 @@ func (l *Loop) effectiveMaxTokens() int {
 		return l.maxTokens
 	}
 	return defaultMaxTokens
+}
+
+// redact applies output redaction to content if configured.
+// Returns the content with all sensitive terms replaced.
+// No-op when no redaction terms are configured.
+func (l *Loop) redact(content string) string {
+	if len(l.outputRedactTerms) == 0 {
+		return content
+	}
+	return RedactSensitiveTerms(content, l.outputRedactTerms, l.outputRedactReplacement)
 }
 
 func NewLoop(cfg LoopConfig) *Loop {
@@ -307,7 +325,7 @@ func NewLoop(cfg LoopConfig) *Loop {
 		guard = NewInputGuard()
 	}
 
-	return &Loop{
+	l := &Loop{
 		id:                     cfg.ID,
 		agentUUID:              cfg.AgentUUID,
 		tenantID:               cfg.TenantID,
@@ -364,6 +382,14 @@ func NewLoop(cfg LoopConfig) *Loop {
 		tracingStore:           cfg.TracingStore,
 		memStore:               cfg.MemoryStore,
 	}
+
+	// Wire output redaction from agent config
+	if cfg.OutputRedact != nil && len(cfg.OutputRedact.Terms) > 0 {
+		l.outputRedactTerms = cfg.OutputRedact.Terms
+		l.outputRedactReplacement = cfg.OutputRedact.Replacement
+	}
+
+	return l
 }
 
 // RunRequest is the input for processing a message through the agent.

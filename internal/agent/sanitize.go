@@ -610,7 +610,58 @@ func extractJSONBlock(content string, pos int) (string, int) {
 	return "", pos
 }
 
-// --- 11. Config leak detection (predefined agents) ---
+// --- 11. Output redaction (per-agent sensitive terms) ---
+
+// RedactSensitiveTerms performs case-insensitive replacement of all terms in content.
+// Used to enforce business-secret protection at the code level — LLM prompt rules
+// alone are insufficient because users can bypass them with indirect questions.
+// Applied at 3 points: streaming chunks, block.reply events, and final output.
+func RedactSensitiveTerms(content string, terms []string, replacement string) string {
+	if content == "" || len(terms) == 0 {
+		return content
+	}
+	lower := strings.ToLower(content)
+	result := content
+	redacted := false
+	for _, term := range terms {
+		if term == "" {
+			continue
+		}
+		termLower := strings.ToLower(term)
+		if !strings.Contains(lower, termLower) {
+			continue
+		}
+		// Case-insensitive replace: scan and rebuild
+		var b strings.Builder
+		b.Grow(len(result))
+		src := result
+		srcLower := strings.ToLower(src)
+		for {
+			idx := strings.Index(srcLower, termLower)
+			if idx < 0 {
+				b.WriteString(src)
+				break
+			}
+			b.WriteString(src[:idx])
+			b.WriteString(replacement)
+			src = src[idx+len(term):]
+			srcLower = srcLower[idx+len(term):]
+			redacted = true
+		}
+		result = b.String()
+		lower = strings.ToLower(result)
+	}
+	if redacted {
+		slog.Warn("security.output_redacted",
+			"terms_matched", true,
+			"original_len", len(content),
+			"redacted_len", len(result),
+		)
+	}
+	return result
+}
+
+// --- 12. Config leak detection (predefined agents) ---
 
 // configLeakFileNames are internal file names that should not appear in user-facing output
 // when a predefined agent describes its procedures or configuration.
