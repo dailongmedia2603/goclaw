@@ -278,14 +278,53 @@ func TestStripPlainTextReasoning_CurrentBehavior(t *testing.T) {
 	}
 }
 
-// helper to preview content in test failure messages
-func previewContent(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	return s[:max] + "..."
-}
+// TestSanitizeWithEmptyGuard verifies the "never silently drain to empty"
+// safety net added in Phase 2.
+func TestSanitizeWithEmptyGuard(t *testing.T) {
+	drainer := func(s string) string { return "" }
+	upper := func(s string) string { return strings.ToUpper(s) }
+	passthrough := func(s string) string { return s }
 
-// ensure preview helper used (silence unused warning if added but not called)
-var _ = previewContent
-var _ = strings.TrimSpace
+	t.Run("non_empty_drained_returns_original", func(t *testing.T) {
+		got := sanitizeWithEmptyGuard("drainer", "hello", drainer)
+		if got != "hello" {
+			t.Errorf("guard should keep original when drained: got %q", got)
+		}
+	})
+
+	t.Run("non_empty_drained_multiline_kept", func(t *testing.T) {
+		in := "line 1\nline 2"
+		got := sanitizeWithEmptyGuard("drainer", in, drainer)
+		if got != in {
+			t.Errorf("guard should keep multiline original: got %q", got)
+		}
+	})
+
+	t.Run("empty_input_passes_through", func(t *testing.T) {
+		got := sanitizeWithEmptyGuard("drainer", "", drainer)
+		if got != "" {
+			t.Errorf("empty input should pass: got %q", got)
+		}
+	})
+
+	t.Run("whitespace_only_passes_through", func(t *testing.T) {
+		got := sanitizeWithEmptyGuard("drainer", "  \n  ", drainer)
+		if got != "" {
+			t.Errorf("whitespace should pass: got %q", got)
+		}
+	})
+
+	t.Run("normal_transform_not_affected", func(t *testing.T) {
+		got := sanitizeWithEmptyGuard("upper", "hi", upper)
+		if got != "HI" {
+			t.Errorf("normal transform should work: got %q", got)
+		}
+	})
+
+	t.Run("passthrough_preserved", func(t *testing.T) {
+		got := sanitizeWithEmptyGuard("passthrough", "abc", passthrough)
+		if got != "abc" {
+			t.Errorf("passthrough failed: got %q", got)
+		}
+	})
+}

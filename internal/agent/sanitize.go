@@ -24,6 +24,30 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
+// sanitizeWithEmptyGuard wraps a transformer with a "never silently drain
+// to empty" guard. If the transformer produces empty output from non-empty
+// input, logs a warning and returns the ORIGINAL input unchanged. This
+// prevents accidental content loss when a sanitizer heuristic over-matches.
+//
+// Use this to wrap any transformer where emptying the content is NOT an
+// intentional outcome (e.g. garbled tool XML strip legitimately empties
+// tag-only input, but reasoning-prefix strip should not empty bullet lists).
+func sanitizeWithEmptyGuard(name, content string, fn func(string) string) string {
+	if strings.TrimSpace(content) == "" {
+		return fn(content)
+	}
+	out := fn(content)
+	if strings.TrimSpace(out) == "" {
+		slog.Warn("sanitize.drained_to_empty",
+			"transformer", name,
+			"original_len", len(content),
+			"original_preview", truncateForLog(content, 200),
+		)
+		return content
+	}
+	return out
+}
+
 // SanitizeAssistantContent applies the full sanitization pipeline to assistant
 // response text before saving to session and sending to user.
 // Matching TS extractAssistantText() + sanitizeUserFacingText().
@@ -247,6 +271,11 @@ func stripPlainTextReasoning(content string) string {
 	if !strings.HasPrefix(strings.TrimSpace(content), "Reasoning:") {
 		return content
 	}
+
+	slog.Info("sanitize.reasoning_text_prefix_detected",
+		"content_len", len(content),
+		"preview", truncateForLog(content, 200),
+	)
 
 	lines := strings.Split(content, "\n")
 	// Find where the reasoning block ends: first blank line after "Reasoning:"

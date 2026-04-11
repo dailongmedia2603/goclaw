@@ -446,6 +446,10 @@ func sanitizeStreamBuffer(buf string) string {
 
 	// Strip leading "Reasoning:" block (bullet-list thinking)
 	if strings.HasPrefix(trimmed, "Reasoning:") {
+		slog.Info("sanitize.stream_reasoning_prefix_detected",
+			"buf_len", len(buf),
+			"preview", Truncate(buf, 200),
+		)
 		lines := strings.Split(trimmed, "\n")
 		pastReasoning := false
 		var result []string
