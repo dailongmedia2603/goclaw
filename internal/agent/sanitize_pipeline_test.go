@@ -98,40 +98,39 @@ func TestSanitizeAssistantContent_Pipeline(t *testing.T) {
 			want:  "some content",
 		},
 
-		// --- Group D: Reasoning text prefix (BUG AREA — Phase 3 will flip these) ---
+		// --- Group D: Reasoning text prefix (post Phase 3 — content preserved verbatim) ---
+		// After removing stripPlainTextReasoning, content starting with "Reasoning:"
+		// is no longer transformed. The previous heuristic was broken for bullet-list
+		// answers and the structural separation is handled by the provider layer.
 		{
-			name:       "reasoning_pure_bullets_bug",
-			input:      "Reasoning:\n• step one\n• step two",
-			want:       "",
-			bugFlagged: true,
+			name:  "reasoning_pure_bullets_preserved",
+			input: "Reasoning:\n• step one\n• step two",
+			want:  "Reasoning:\n• step one\n• step two",
 		},
 		{
-			name:       "reasoning_then_dash_bullet_answer_bug",
-			input:      "Reasoning:\n• think\n\n- First\n- Second",
-			want:       "",
-			bugFlagged: true,
+			name:  "reasoning_then_dash_bullet_answer_preserved",
+			input: "Reasoning:\n• think\n\n- First\n- Second",
+			want:  "Reasoning:\n• think\n\n- First\n- Second",
 		},
 		{
-			name:       "reasoning_then_star_bullet_answer_bug",
-			input:      "Reasoning:\n• think\n\n* Item 1\n* Item 2",
-			want:       "",
-			bugFlagged: true,
+			name:  "reasoning_then_star_bullet_answer_preserved",
+			input: "Reasoning:\n• think\n\n* Item 1\n* Item 2",
+			want:  "Reasoning:\n• think\n\n* Item 1\n* Item 2",
 		},
 		{
-			name:       "reasoning_then_indented_answer_bug",
-			input:      "Reasoning:\n• think\n\n    code block line",
-			want:       "",
-			bugFlagged: true,
+			name:  "reasoning_then_indented_answer_preserved",
+			input: "Reasoning:\n• think\n\n    code block line",
+			want:  "Reasoning:\n• think\n\n    code block line",
 		},
 		{
-			name:  "reasoning_then_plain_text_answer",
+			name:  "reasoning_then_plain_text_answer_preserved",
 			input: "Reasoning:\n• think\n\nYes absolutely.",
-			want:  "Yes absolutely.",
+			want:  "Reasoning:\n• think\n\nYes absolutely.",
 		},
 		{
-			name:  "reasoning_then_vietnamese_text_answer",
+			name:  "reasoning_then_vietnamese_text_answer_preserved",
 			input: "Reasoning:\n• hmm\n\nChào bạn, đây là câu trả lời",
-			want:  "Chào bạn, đây là câu trả lời",
+			want:  "Reasoning:\n• hmm\n\nChào bạn, đây là câu trả lời",
 		},
 		{
 			name:  "no_reasoning_prefix_passthrough",
@@ -251,28 +250,6 @@ func TestSanitizeAssistantContent_NoReplyDetection(t *testing.T) {
 			got := IsSilentReply(c.input)
 			if got != c.silent {
 				t.Errorf("IsSilentReply(%q) = %v, want %v", c.input, got, c.silent)
-			}
-		})
-	}
-}
-
-// TestStripPlainTextReasoning_CurrentBehavior locks the current (buggy)
-// behavior of stripPlainTextReasoning at the unit level. This test will be
-// DELETED in Phase 3 when the function is removed.
-func TestStripPlainTextReasoning_CurrentBehavior(t *testing.T) {
-	cases := []struct{ name, in, want string }{
-		{"no_prefix_passthrough", "normal text", "normal text"},
-		{"pure_reasoning_bullets", "Reasoning:\n• step", ""},
-		{"reasoning_then_plain_text", "Reasoning:\n• x\n\nYes.", "Yes."},
-		{"reasoning_then_dash_bullets_BUG", "Reasoning:\n• x\n\n- ans", ""},
-		{"reasoning_then_star_bullets_BUG", "Reasoning:\n• x\n\n* ans", ""},
-		{"reasoning_incomplete_BUG", "Reasoning:\n• analyzing", ""},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			got := stripPlainTextReasoning(c.in)
-			if got != c.want {
-				t.Errorf("stripPlainTextReasoning(%q) = %q, want %q", c.in, got, c.want)
 			}
 		})
 	}
