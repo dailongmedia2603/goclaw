@@ -98,44 +98,93 @@ func TestSanitizeAssistantContent_Pipeline(t *testing.T) {
 			want:  "some content",
 		},
 
-		// --- Group D: Reasoning text prefix (post Phase 3 — content preserved verbatim) ---
-		// After removing stripPlainTextReasoning, content starting with "Reasoning:"
-		// is no longer transformed. The previous heuristic was broken for bullet-list
-		// answers and the structural separation is handled by the provider layer.
+		// --- Group D: Leading Reasoning/Thinking header (narrow stripper, 2026-04-12) ---
+		// stripLeadingReasoningBlock removes a "Reasoning:"/"Thinking:" paragraph at
+		// the very start of the response, up to the first blank-line separator.
+		// Inputs WITHOUT a "\n\n" separator are preserved untouched — this is the
+		// safety rule that prevents the original over-matching bug.
 		{
+			// No blank-line separator — pure bullet list must be preserved.
 			name:  "reasoning_pure_bullets_preserved",
 			input: "Reasoning:\n• step one\n• step two",
 			want:  "Reasoning:\n• step one\n• step two",
 		},
 		{
-			name:  "reasoning_then_dash_bullet_answer_preserved",
+			name:  "reasoning_then_dash_bullet_answer_stripped",
 			input: "Reasoning:\n• think\n\n- First\n- Second",
-			want:  "Reasoning:\n• think\n\n- First\n- Second",
+			want:  "- First\n- Second",
 		},
 		{
-			name:  "reasoning_then_star_bullet_answer_preserved",
+			name:  "reasoning_then_star_bullet_answer_stripped",
 			input: "Reasoning:\n• think\n\n* Item 1\n* Item 2",
-			want:  "Reasoning:\n• think\n\n* Item 1\n* Item 2",
+			want:  "* Item 1\n* Item 2",
 		},
 		{
-			name:  "reasoning_then_indented_answer_preserved",
+			// Note: the final-pipeline strings.TrimSpace strips leading whitespace of
+			// the first remaining line, so a single-line indented answer comes out
+			// un-indented. Multi-line answers keep inner indentation (see next case).
+			name:  "reasoning_then_indented_answer_stripped",
 			input: "Reasoning:\n• think\n\n    code block line",
-			want:  "Reasoning:\n• think\n\n    code block line",
+			want:  "code block line",
 		},
 		{
-			name:  "reasoning_then_plain_text_answer_preserved",
+			// Multi-line answer: first-line indent is trimmed by final TrimSpace but
+			// inner-line indentation is preserved — important for nested lists / code.
+			name:  "reasoning_then_multiline_indent_preserved",
+			input: "Reasoning:\nwhy\n\n    line1\n        line2\n        line3",
+			want:  "line1\n        line2\n        line3",
+		},
+		{
+			name:  "reasoning_then_plain_text_answer_stripped",
 			input: "Reasoning:\n• think\n\nYes absolutely.",
-			want:  "Reasoning:\n• think\n\nYes absolutely.",
+			want:  "Yes absolutely.",
 		},
 		{
-			name:  "reasoning_then_vietnamese_text_answer_preserved",
+			name:  "reasoning_then_vietnamese_text_answer_stripped",
 			input: "Reasoning:\n• hmm\n\nChào bạn, đây là câu trả lời",
-			want:  "Reasoning:\n• hmm\n\nChào bạn, đây là câu trả lời",
+			want:  "Chào bạn, đây là câu trả lời",
 		},
 		{
 			name:  "no_reasoning_prefix_passthrough",
 			input: "Just a plain reply",
 			want:  "Just a plain reply",
+		},
+		// --- Additional coverage for stripLeadingReasoningBlock ---
+		{
+			// Case-insensitive header match.
+			name:  "reasoning_header_uppercase_stripped",
+			input: "REASONING:\nchain of thought\n\nFinal answer here",
+			want:  "Final answer here",
+		},
+		{
+			// "Thinking:" variant header.
+			name:  "thinking_header_variant_stripped",
+			input: "Thinking:\ndeliberating steps\n\nHere you go",
+			want:  "Here you go",
+		},
+		{
+			// Inline text on the same line as the header.
+			name:  "reasoning_inline_after_colon_stripped",
+			input: "Reasoning: The user asked about X.\n\nActual answer",
+			want:  "Actual answer",
+		},
+		{
+			// Multiple blank lines between reasoning and answer collapse to none.
+			name:  "reasoning_extra_blank_lines_normalized",
+			input: "Reasoning:\nstuff\n\n\n\nReal answer",
+			want:  "Real answer",
+		},
+		{
+			// Single-line "Reasoning:" mention with no separator must not be touched.
+			name:  "reasoning_single_line_no_separator_preserved",
+			input: "Reasoning: single-line mention only",
+			want:  "Reasoning: single-line mention only",
+		},
+		{
+			// Word "reasoning" appearing mid-response (no leading header) untouched.
+			name:  "reasoning_word_midsentence_preserved",
+			input: "Hello! Let me explain my reasoning: it was obvious.",
+			want:  "Hello! Let me explain my reasoning: it was obvious.",
 		},
 
 		// --- Group E: Final tags + system message echo ---

@@ -73,9 +73,13 @@ func SanitizeAssistantContent(content string) string {
 	// 3. Strip thinking/reasoning tags (<think>, <thinking>, <thought>, <antThinking>)
 	content = stripThinkingTags(content)
 
-	// Note: plain-text "Reasoning:" prefix stripping was removed (2026-04-10).
-	// Providers natively separate reasoning (Thinking field) from text content.
-	// See plans/260410-remove-reasoning-text-heuristic/ for context.
+	// 3b. Strip leading plain-text "Reasoning:" / "Thinking:" header blocks
+	// (narrow re-addition 2026-04-12). Only triggers when content literally
+	// starts with one of these headers AND has a blank-line separator — avoids
+	// the over-matching bug that caused the original removal on 2026-04-10.
+	// Wrapped in sanitizeWithEmptyGuard so a pathological case can never drain
+	// the response to empty.
+	content = sanitizeWithEmptyGuard("leading_reasoning_block", content, stripLeadingReasoningBlock)
 
 	// 4. Strip <final> tags (keep content inside)
 	content = stripFinalTags(content)
@@ -260,6 +264,70 @@ func stripThinkingTags(content string) string {
 	// 2. Strip any orphaned closing tags left over from streaming
 	result = orphanThinkClosePattern.ReplaceAllString(result, "")
 	return strings.TrimSpace(result)
+}
+
+// --- 3b. Leading plain-text reasoning block (narrow) ---
+
+// stripLeadingReasoningBlock removes a "Reasoning:" or "Thinking:" paragraph
+// at the very start of the response, up to (and including) the first blank-
+// line separator. The actual answer after the separator is preserved verbatim,
+// including any horizontal indentation.
+//
+// This is a deliberately narrow re-addition of the old stripPlainTextReasoning
+// (removed 2026-04-10 for over-matching bullet-list answers). Safety rules:
+//
+//  1. Must START with "reasoning:" or "thinking:" on the first non-whitespace
+//     content — the prefix is matched case-insensitively.
+//  2. Requires a blank-line separator ("\n\n") after the prefix; without it
+//     the input is returned unchanged, so single-line responses that merely
+//     mention the word survive untouched.
+//  3. Wrapped in sanitizeWithEmptyGuard by the caller: if stripping produces
+//     an empty result the original input is restored.
+//
+// Target use case: Google AI Studio Gemma variants that emit their chain of
+// thought as plain text before the actual answer, e.g.
+//
+//	Reasoning:
+//	The user asked X. I should ...
+//
+//	Here is the answer ...
+//
+// The narrow form is safe for the previously-problematic bullet-list cases:
+// input that begins with "Reasoning:" but has no blank-line separator (pure
+// bullet list) is returned unchanged.
+func stripLeadingReasoningBlock(content string) string {
+	// Skip leading whitespace to find the first real content.
+	trimmed := strings.TrimLeft(content, " \t\n\r")
+	if trimmed == "" {
+		return content
+	}
+
+	// Must start with a reasoning header (case-insensitive).
+	lower := strings.ToLower(trimmed)
+	if !strings.HasPrefix(lower, "reasoning:") && !strings.HasPrefix(lower, "thinking:") {
+		return content
+	}
+
+	// Must have a blank-line separator; otherwise leave the content alone.
+	// This is the critical narrowness that prevents the old over-match bug:
+	// a pure bullet-list response starting with "Reasoning:" has no "\n\n"
+	// and is returned untouched.
+	sepIdx := strings.Index(trimmed, "\n\n")
+	if sepIdx < 0 {
+		return content
+	}
+
+	// Return everything after the separator, trimming any additional leading
+	// newlines while preserving horizontal indentation (spaces/tabs) of code
+	// blocks or indented content.
+	after := trimmed[sepIdx+2:]
+	after = strings.TrimLeft(after, "\n")
+
+	slog.Debug("sanitize.stripped_leading_reasoning_block",
+		"stripped_len", len(content)-len(after),
+		"remaining_len", len(after),
+	)
+	return after
 }
 
 // --- 4. <final> tags ---
