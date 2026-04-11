@@ -186,6 +186,55 @@ func TestSanitizeAssistantContent_Pipeline(t *testing.T) {
 			input: "Hello! Let me explain my reasoning: it was obvious.",
 			want:  "Hello! Let me explain my reasoning: it was obvious.",
 		},
+		// --- Group D2: Multi-paragraph reasoning with answer-start markers ---
+		// Gemma via Google AI Studio emits chain-of-thought as several
+		// paragraphs followed by a "Drafting the response:" / "Response:" /
+		// "Trả lời:" style marker before the actual answer. The marker
+		// is the reliable boundary; the "first blank line" heuristic does
+		// not work for these cases.
+		{
+			name: "reasoning_multi_para_drafting_response_marker",
+			input: "Reasoning:\nThe user sent /start.\n\n" +
+				"According to the persona I should be casual.\n\n" +
+				"I should avoid robotic phrases.\n\n" +
+				"Drafting the response:\nChào bạn, mình đây!",
+			want: "Chào bạn, mình đây!",
+		},
+		{
+			name: "reasoning_multi_para_vietnamese_tra_loi_marker",
+			input: "Reasoning:\nPhân tích câu hỏi của user.\n\n" +
+				"User đang hỏi về phonefarm.\n\n" +
+				"Trả lời:\nPhonefarm là hệ thống nuôi nhiều điện thoại.",
+			want: "Phonefarm là hệ thống nuôi nhiều điện thoại.",
+		},
+		{
+			name: "reasoning_multi_para_bold_response_marker",
+			input: "Reasoning:\nstep 1 analysis\n\n" +
+				"step 2 planning\n\n" +
+				"**Response:**\nHere is the actual answer.",
+			want: "Here is the actual answer.",
+		},
+		{
+			name: "reasoning_nested_markers_uses_last",
+			input: "Reasoning:\nfirst thought\n\n" +
+				"Response: considering options\n\n" +
+				"Final answer: 42",
+			want: "42",
+		},
+		{
+			name: "reasoning_draft_marker_with_inline_content",
+			input: "Reasoning:\nsome analysis\n\n" +
+				"Draft response: this is my answer",
+			want: "this is my answer",
+		},
+		{
+			// Marker found but produces empty result — fall through to blank-line
+			// fallback so we don't return an empty string mid-function.
+			name: "reasoning_marker_followed_by_empty_falls_back",
+			input: "Reasoning:\nquick thought\n\n" +
+				"The rest of the response here.",
+			want: "The rest of the response here.",
+		},
 
 		// --- Group E: Final tags + system message echo ---
 		{

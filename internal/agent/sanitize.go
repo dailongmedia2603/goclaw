@@ -266,35 +266,57 @@ func stripThinkingTags(content string) string {
 	return strings.TrimSpace(result)
 }
 
-// --- 3b. Leading plain-text reasoning block (narrow) ---
+// --- 3b. Leading plain-text reasoning block (marker-aware) ---
 
-// stripLeadingReasoningBlock removes a "Reasoning:" or "Thinking:" paragraph
-// at the very start of the response, up to (and including) the first blank-
-// line separator. The actual answer after the separator is preserved verbatim,
-// including any horizontal indentation.
+// reasoningAnswerMarkerPattern matches known "answer starts here" headers that
+// Gemma / some Gemini variants emit at the end of a multi-paragraph reasoning
+// block. Line-anchored (?m) and case-insensitive (?i). Optional markdown bold
+// wrappers (**, __, *, _) around the header keyword are tolerated.
 //
-// This is a deliberately narrow re-addition of the old stripPlainTextReasoning
-// (removed 2026-04-10 for over-matching bullet-list answers). Safety rules:
+// Covered markers (keyword followed by a colon):
+//   - Drafting the response / Drafting response / Draft response / Draft
+//   - Final response / Final answer / Final
+//   - Response / Answer / Reply
+//   - Trả lời / Câu trả lời / Đáp án / Phản hồi (Vietnamese)
 //
-//  1. Must START with "reasoning:" or "thinking:" on the first non-whitespace
-//     content — the prefix is matched case-insensitively.
-//  2. Requires a blank-line separator ("\n\n") after the prefix; without it
-//     the input is returned unchanged, so single-line responses that merely
-//     mention the word survive untouched.
-//  3. Wrapped in sanitizeWithEmptyGuard by the caller: if stripping produces
+// Note: (?i) in Go regexp only case-folds ASCII. Vietnamese keywords are
+// matched in their lowercase form; the leading letter case-folds via ASCII.
+var reasoningAnswerMarkerPattern = regexp.MustCompile(
+	`(?im)^[ \t>#\-]*[*_]{0,2}[ \t]*` +
+		`(?:drafting(?:[ \t]+the)?[ \t]+response|draft(?:[ \t]+response)?|` +
+		`final(?:[ \t]+response|[ \t]+answer)?|response|answer|reply|` +
+		`trả[ \t]+lời|câu[ \t]+trả[ \t]+lời|đáp[ \t]+án|phản[ \t]+hồi)` +
+		`[ \t]*[*_]{0,2}[ \t]*:[ \t]*[*_]{0,2}[ \t]*`,
+)
+
+// stripLeadingReasoningBlock removes a "Reasoning:" / "Thinking:" meta-thinking
+// block at the very start of the response. The actual answer that follows is
+// preserved verbatim.
+//
+// Boundary detection is tiered:
+//
+//  1. Strongest signal — an "answer start" marker (Drafting the response:,
+//     Response:, Trả lời:, etc.) anywhere in the content. If present, every-
+//     thing up to and including the LAST such marker is stripped. This handles
+//     Gemma's multi-paragraph reasoning where the answer only starts after a
+//     specific header.
+//  2. Fallback — first blank-line separator ("\n\n") after the "Reasoning:"
+//     header. Covers the simple single-paragraph case where the model does not
+//     emit an explicit answer marker.
+//
+// Safety rules:
+//
+//   - Must START with "reasoning:" or "thinking:" on the first non-whitespace
+//     content (case-insensitive). Responses that merely mention the word mid-
+//     sentence are never touched.
+//   - Wrapped in sanitizeWithEmptyGuard by the caller: if stripping produces
 //     an empty result the original input is restored.
 //
-// Target use case: Google AI Studio Gemma variants that emit their chain of
-// thought as plain text before the actual answer, e.g.
-//
-//	Reasoning:
-//	The user asked X. I should ...
-//
-//	Here is the answer ...
-//
-// The narrow form is safe for the previously-problematic bullet-list cases:
-// input that begins with "Reasoning:" but has no blank-line separator (pure
-// bullet list) is returned unchanged.
+// This is a deliberately-more-aggressive replacement for the narrow version
+// shipped in 90377228, which could not handle multi-paragraph reasoning. The
+// marker list is conservative (requires a keyword + colon at line start) to
+// keep the false-positive risk low — and the header-gate ensures we only run
+// when the content is clearly a leaked chain of thought.
 func stripLeadingReasoningBlock(content string) string {
 	// Skip leading whitespace to find the first real content.
 	trimmed := strings.TrimLeft(content, " \t\n\r")
@@ -302,28 +324,43 @@ func stripLeadingReasoningBlock(content string) string {
 		return content
 	}
 
-	// Must start with a reasoning header (case-insensitive).
+	// Must start with a reasoning header (case-insensitive ASCII fold).
 	lower := strings.ToLower(trimmed)
 	if !strings.HasPrefix(lower, "reasoning:") && !strings.HasPrefix(lower, "thinking:") {
 		return content
 	}
 
-	// Must have a blank-line separator; otherwise leave the content alone.
-	// This is the critical narrowness that prevents the old over-match bug:
-	// a pure bullet-list response starting with "Reasoning:" has no "\n\n"
-	// and is returned untouched.
+	// Tier 1 — explicit answer marker. Use the LAST match so nested meta-
+	// thinking ("Response: I want to say... Final answer: Hello") still
+	// resolves to the deepest marker.
+	matches := reasoningAnswerMarkerPattern.FindAllStringIndex(trimmed, -1)
+	if len(matches) > 0 {
+		last := matches[len(matches)-1]
+		after := trimmed[last[1]:]
+		after = strings.TrimLeft(after, " \t\n\r")
+		if strings.TrimSpace(after) != "" {
+			slog.Debug("sanitize.stripped_reasoning_via_marker",
+				"markers_found", len(matches),
+				"stripped_len", len(content)-len(after),
+				"remaining_len", len(after),
+			)
+			return after
+		}
+	}
+
+	// Tier 2 — first blank-line separator fallback. Covers the simple case
+	// "Reasoning:\n<single paragraph>\n\n<answer>".
 	sepIdx := strings.Index(trimmed, "\n\n")
 	if sepIdx < 0 {
 		return content
 	}
-
-	// Return everything after the separator, trimming any additional leading
-	// newlines while preserving horizontal indentation (spaces/tabs) of code
-	// blocks or indented content.
 	after := trimmed[sepIdx+2:]
 	after = strings.TrimLeft(after, "\n")
+	if strings.TrimSpace(after) == "" {
+		return content
+	}
 
-	slog.Debug("sanitize.stripped_leading_reasoning_block",
+	slog.Debug("sanitize.stripped_reasoning_via_blank_line",
 		"stripped_len", len(content)-len(after),
 		"remaining_len", len(after),
 	)
