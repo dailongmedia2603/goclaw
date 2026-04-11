@@ -82,25 +82,26 @@ func SeedToStore(ctx context.Context, agentStore store.AgentStore, agentID uuid.
 
 // userSeedFilesOpen is the full set of files seeded per-user for open agents.
 // TOOLS.md excluded — not applicable.
+// BOOTSTRAP.md intentionally omitted: onboarding ritual is disabled for all agents.
 var userSeedFilesOpen = []string{
 	AgentsFile,
 	SoulFile,
 	IdentityFile,
 	UserFile,
-	BootstrapFile,
 }
 
 // userSeedFilesPredefined is the set of files seeded per-user for predefined agents.
 // Only USER.md — predefined agents already have full context (SOUL.md, IDENTITY.md, AGENTS.md)
 // and don't need a bootstrap onboarding ritual. They just need to learn the user's profile.
+// BOOTSTRAP.md intentionally omitted: onboarding ritual is disabled for all agents.
 var userSeedFilesPredefined = []string{
 	UserFile,
-	BootstrapFile,
 }
 
 // SeedUserFiles seeds embedded templates into user_context_files for a new user.
-// For "open" agents: all 7 files (including BOOTSTRAP.md).
-// For "predefined" agents: USER.md + BOOTSTRAP.md (user-focused onboarding template).
+// For "open" agents: AGENTS.md, SOUL.md, IDENTITY.md, USER.md.
+// For "predefined" agents: USER.md only.
+// BOOTSTRAP.md is never seeded — onboarding greeting ritual is disabled.
 // Only writes files that don't already exist — safe to call multiple times.
 //
 // Agent-level fallback: if the agent already has customized files in

@@ -226,9 +226,10 @@ func TestSeedUserFiles_OpenAgent_UsesEmbeddedTemplate(t *testing.T) {
 		t.Fatalf("SeedUserFiles returned error: %v", err)
 	}
 
-	// Open agents seed the full set: AGENTS.md, SOUL.md, IDENTITY.md, USER.md, BOOTSTRAP.md
+	// Open agents seed: AGENTS.md, SOUL.md, IDENTITY.md, USER.md
+	// BOOTSTRAP.md intentionally excluded — onboarding ritual is disabled.
 	expectedFiles := map[string]bool{
-		AgentsFile: true, SoulFile: true, IdentityFile: true, UserFile: true, BootstrapFile: true,
+		AgentsFile: true, SoulFile: true, IdentityFile: true, UserFile: true,
 	}
 	for _, f := range seeded {
 		delete(expectedFiles, f)

@@ -11,7 +11,7 @@ import (
 var templateFS embed.FS
 
 // templateFiles lists the templates to seed, in order.
-// BOOTSTRAP.md is handled separately (only seeded for brand-new workspaces).
+// BOOTSTRAP.md intentionally omitted: onboarding ritual is disabled for all agents.
 var templateFiles = []string{
 	AgentsFile,
 	SoulFile,
@@ -31,7 +31,7 @@ func ReadTemplate(name string) (string, error) {
 
 // EnsureWorkspaceFiles seeds template files into a workspace directory.
 // Only writes files that don't already exist (will not overwrite).
-// BOOTSTRAP.md is only seeded if the workspace is brand new (no AGENTS.md exists).
+// BOOTSTRAP.md is never seeded — onboarding greeting ritual is disabled.
 // Returns the list of files that were created.
 func EnsureWorkspaceFiles(workspaceDir string) ([]string, error) {
 	if err := os.MkdirAll(workspaceDir, 0755); err != nil {
@@ -39,10 +39,6 @@ func EnsureWorkspaceFiles(workspaceDir string) ([]string, error) {
 	}
 
 	var created []string
-
-	// Check if this is a brand-new workspace (no AGENTS.md yet)
-	_, agentsErr := os.Stat(filepath.Join(workspaceDir, AgentsFile))
-	isBrandNew := os.IsNotExist(agentsErr)
 
 	// Seed standard template files
 	for _, name := range templateFiles {
@@ -53,16 +49,6 @@ func EnsureWorkspaceFiles(workspaceDir string) ([]string, error) {
 		}
 		if ok {
 			created = append(created, name)
-		}
-	}
-
-	// Seed BOOTSTRAP.md only for brand-new workspaces
-	if isBrandNew {
-		ok, err := seedTemplate(workspaceDir, BootstrapFile)
-		if err != nil {
-			slog.Warn("bootstrap: failed to seed BOOTSTRAP.md", "error", err)
-		} else if ok {
-			created = append(created, BootstrapFile)
 		}
 	}
 

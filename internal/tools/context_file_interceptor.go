@@ -288,6 +288,10 @@ func (b *ContextFileInterceptor) WriteFile(ctx context.Context, path, content st
 // LoadContextFiles loads context files for a specific user+agent combination.
 // Used by the agent loop to dynamically resolve context files for system prompt.
 // Uses the same agentCache/userCache as ReadFile — invalidated on WriteFile and pubsub events.
+//
+// BOOTSTRAP.md is always filtered out at load time — the onboarding greeting ritual
+// is globally disabled. Legacy rows in user_context_files are ignored without being
+// deleted, so they remain inert until a later cleanup migration.
 func (b *ContextFileInterceptor) LoadContextFiles(ctx context.Context, agentID uuid.UUID, userID, agentType string) []bootstrap.ContextFile {
 	// Open agent: all files from user_context_files
 	if agentType == store.AgentTypeOpen && userID != "" {
@@ -296,6 +300,9 @@ func (b *ContextFileInterceptor) LoadContextFiles(ctx context.Context, agentID u
 		for _, f := range files {
 			if f.Content == "" {
 				continue
+			}
+			if f.FileName == bootstrap.BootstrapFile {
+				continue // onboarding disabled — ignore legacy rows
 			}
 			result = append(result, bootstrap.ContextFile{
 				Path:    f.FileName,
@@ -323,6 +330,9 @@ func (b *ContextFileInterceptor) LoadContextFiles(ctx context.Context, agentID u
 
 		var result []bootstrap.ContextFile
 		for _, f := range agentFiles {
+			if f.FileName == bootstrap.BootstrapFile {
+				continue // onboarding disabled — ignore legacy rows
+			}
 			content := f.Content
 			// Override with user version if available
 			if uc, ok := userMap[f.FileName]; ok {
@@ -338,12 +348,14 @@ func (b *ContextFileInterceptor) LoadContextFiles(ctx context.Context, agentID u
 		}
 
 		// Include user-only files not present at agent level
-		// (e.g. BOOTSTRAP.md — seeded per-user for onboarding, not at agent level)
 		agentFileSet := make(map[string]bool, len(agentFiles))
 		for _, f := range agentFiles {
 			agentFileSet[f.FileName] = true
 		}
 		for _, f := range userFiles {
+			if f.FileName == bootstrap.BootstrapFile {
+				continue // onboarding disabled — ignore legacy rows
+			}
 			if !agentFileSet[f.FileName] && f.Content != "" {
 				result = append(result, bootstrap.ContextFile{
 					Path:    f.FileName,
@@ -361,6 +373,9 @@ func (b *ContextFileInterceptor) LoadContextFiles(ctx context.Context, agentID u
 	for _, f := range agentFiles {
 		if f.Content == "" {
 			continue
+		}
+		if f.FileName == bootstrap.BootstrapFile {
+			continue // onboarding disabled — ignore legacy rows
 		}
 		result = append(result, bootstrap.ContextFile{
 			Path:    f.FileName,
