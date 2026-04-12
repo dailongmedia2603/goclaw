@@ -10,7 +10,7 @@ func init() {
 		MsgInvalidRequest:   "无效请求：%s",
 		MsgInvalidJSON:      "无效的 JSON",
 		MsgUnauthorized:     "未授权",
-		MsgPermissionDenied: "权限不足：无法访问 %s",
+		MsgPermissionDenied: "权限不足：%s",
 		MsgInternalError:    "内部错误：%s",
 		MsgInvalidSlug:      "%s 必须是有效的 slug（小写字母、数字、连字符）",
 		MsgFailedToList:     "获取 %s 列表失败",
@@ -95,6 +95,7 @@ func init() {
 
 		// Channels
 		MsgCannotDeleteDefaultInst: "无法删除默认Channel实例",
+		MsgCannotRemoveLastWriter:  "无法移除最后一个文件管理员",
 
 		// Skills
 		MsgSkillsUpdateNotSupported: "基于文件的Skill不支持 skills.update",
@@ -104,8 +105,10 @@ func init() {
 		MsgInvalidLogAction: "action 必须是 'start' 或 'stop'",
 
 		// Config
-		MsgRawConfigRequired: "raw 配置是必填项",
-		MsgRawPatchRequired:  "raw 补丁是必填项",
+		MsgRawConfigRequired:     "raw 配置是必填项",
+		MsgRawPatchRequired:      "raw 补丁是必填项",
+		MsgConfigMasterScopeOnly: "config.* 方法仅适用于主作用域；使用租户工具配置端点进行租户级覆盖",
+		MsgMasterScopeRequired:   "此操作需要主租户范围",
 
 		// Storage / File
 		MsgCannotDeleteSkillsDir: "无法删除Skill目录",

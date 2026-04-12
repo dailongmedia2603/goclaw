@@ -11,7 +11,7 @@ const (
 	MsgInvalidRequest    = "error.invalid_request"    // "invalid request: %s"
 	MsgInvalidJSON       = "error.invalid_json"       // "invalid JSON"
 	MsgUnauthorized      = "error.unauthorized"       // "unauthorized"
-	MsgPermissionDenied  = "error.permission_denied"  // "permission denied: insufficient role for %s"
+	MsgPermissionDenied  = "error.permission_denied"  // "permission denied: %s"
 	MsgInternalError     = "error.internal"           // "internal error: %s"
 	MsgInvalidSlug       = "error.invalid_slug"       // "%s must be a valid slug (lowercase letters, numbers, hyphens only)"
 	MsgFailedToList      = "error.failed_to_list"     // "failed to list %s"
@@ -96,6 +96,7 @@ const (
 
 	// --- Channels ---
 	MsgCannotDeleteDefaultInst  = "error.cannot_delete_default_inst"  // "cannot delete default channel instance"
+	MsgCannotRemoveLastWriter   = "error.cannot_remove_last_writer"   // "cannot remove the last file writer"
 
 	// --- Skills ---
 	MsgSkillsUpdateNotSupported = "error.skills_update_not_supported" // "skills.update not supported for file-based skills"
@@ -105,8 +106,10 @@ const (
 	MsgInvalidLogAction = "error.invalid_log_action" // "action must be 'start' or 'stop'"
 
 	// --- Config ---
-	MsgRawConfigRequired = "error.raw_config_required" // "raw config is required"
-	MsgRawPatchRequired  = "error.raw_patch_required"  // "raw patch is required"
+	MsgRawConfigRequired      = "error.raw_config_required"       // "raw config is required"
+	MsgRawPatchRequired       = "error.raw_patch_required"        // "raw patch is required"
+	MsgConfigMasterScopeOnly  = "error.config_master_scope_only"  // "config.* methods are master-scope only"
+	MsgMasterScopeRequired    = "error.master_scope_required"     // "this action requires master tenant scope"
 
 	// --- Storage / File ---
 	MsgCannotDeleteSkillsDir = "error.cannot_delete_skills_dir" // "cannot delete skills directories"

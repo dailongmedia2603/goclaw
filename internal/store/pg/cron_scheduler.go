@@ -1,13 +1,16 @@
 package pg
 
 import (
+	"database/sql"
+	"errors"
+	"fmt"
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/nextlevelbuilder/goclaw/internal/cron"
+	"github.com/nextlevelbuilder/goclaw/internal/safego"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
@@ -35,7 +38,8 @@ func (s *PGCronStore) GetDueJobs(now time.Time) []store.CronJob {
 func (s *PGCronStore) refreshJobCache() {
 	rows, err := s.db.QueryContext(s.baseCtx,
 		`SELECT id, tenant_id, agent_id, user_id, name, enabled, schedule_kind, cron_expression, run_at, timezone,
-		 interval_ms, payload, delete_after_run, next_run_at, last_run_at, last_status, last_error,
+		 interval_ms, payload, delete_after_run, stateless, deliver, deliver_channel, deliver_to, wake_heartbeat,
+		 next_run_at, last_run_at, last_status, last_error,
 		 created_at, updated_at FROM cron_jobs WHERE enabled = true`)
 	if err != nil {
 		return
@@ -61,20 +65,38 @@ func (s *PGCronStore) InvalidateCache() {
 	s.mu.Unlock()
 }
 
-// recomputeStaleJobs fixes enabled jobs that have next_run_at = NULL.
-// This happens when the gateway was stopped/crashed while a job was executing,
-// or when the previously computed next_run_at was consumed but never recomputed.
+// recomputeStaleJobs fixes enabled jobs on startup:
+//   - Resets any jobs stuck in 'running' state from a previous crash.
+//   - Recomputes next_run_at for jobs where it is NULL (crashed mid-execution).
+//   - Advances past-due jobs (next_run_at < now) to their next future run time,
+//     preventing a flood of all missed jobs firing simultaneously after downtime.
 func (s *PGCronStore) recomputeStaleJobs() {
+	// Reset stale 'running' status — jobs that were mid-execution when the server
+	// crashed will never self-recover, so mark them as interrupted on startup.
+	if res, err := s.db.ExecContext(s.baseCtx,
+		`UPDATE cron_jobs SET last_status = 'interrupted' WHERE last_status = 'running'`); err != nil {
+		slog.Warn("cron: failed to reset stale running jobs on startup", "error", err)
+	} else if n, _ := res.RowsAffected(); n > 0 {
+		slog.Info("cron: reset stale running jobs to interrupted", "count", n)
+	}
+
+	// Fix jobs with NULL next_run_at OR past-due next_run_at.
+	// Past-due jobs happen when the server was down and their scheduled time passed.
+	// Without this, ALL past-due jobs would fire simultaneously on the first tick.
+	// NOTE: After prolonged downtime, all past-due "every" jobs with the same interval
+	// will synchronize (all get next_run_at = now + interval). This is inherent because
+	// the original schedule anchor is not persisted. After the first execution cycle,
+	// anchor-based scheduling in executeOneJob preserves spacing going forward.
+	now := time.Now()
 	rows, err := s.db.QueryContext(s.baseCtx,
 		`SELECT id, schedule_kind, cron_expression, run_at, timezone, interval_ms
-		 FROM cron_jobs WHERE enabled = true AND next_run_at IS NULL`)
+		 FROM cron_jobs WHERE enabled = true AND (next_run_at IS NULL OR next_run_at < $1)`, now)
 	if err != nil {
 		slog.Warn("cron: failed to query stale jobs", "error", err)
 		return
 	}
 	defer rows.Close()
 
-	now := time.Now()
 	var fixed int
 	for rows.Next() {
 		var id uuid.UUID
@@ -115,7 +137,7 @@ func (s *PGCronStore) recomputeStaleJobs() {
 	}
 
 	if fixed > 0 {
-		slog.Info("cron: recomputed stale next_run_at on startup", "fixed", fixed)
+		slog.Info("cron: advanced stale/past-due jobs to next future run", "fixed", fixed)
 	}
 }
 
@@ -127,9 +149,20 @@ func (s *PGCronStore) runLoop() {
 		case <-s.stop:
 			return
 		case <-ticker.C:
-			s.checkAndRunDueJobs()
+			s.safeCheckAndRunDueJobs()
 		}
 	}
+}
+
+// safeCheckAndRunDueJobs wraps checkAndRunDueJobs with panic recovery
+// so a panic in any check/claim logic doesn't kill the runLoop goroutine.
+func (s *PGCronStore) safeCheckAndRunDueJobs() {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("cron: checkAndRunDueJobs panicked — runLoop continues", "panic", fmt.Sprint(r))
+		}
+	}()
+	s.checkAndRunDueJobs()
 }
 
 func (s *PGCronStore) checkAndRunDueJobs() {
@@ -146,32 +179,59 @@ func (s *PGCronStore) checkAndRunDueJobs() {
 		return
 	}
 
-	// Clear next_run for all due jobs first to prevent duplicate fires
+	now := time.Now()
+	var claimedJobs []store.CronJob
 	for _, job := range dueJobs {
-		if id, parseErr := uuid.Parse(job.ID); parseErr == nil {
-			s.db.ExecContext(s.baseCtx, "UPDATE cron_jobs SET next_run_at = NULL WHERE id = $1", id)
+		if id, parseErr := uuid.Parse(job.ID); parseErr == nil && s.claimDueJob(id, now) {
+			claimedJobs = append(claimedJobs, job)
 		}
 	}
+	if len(claimedJobs) == 0 {
+		return
+	}
 
-	// Execute jobs in parallel — scheduler enforces per-session serialization
-	var wg sync.WaitGroup
-	for _, job := range dueJobs {
-		wg.Add(1)
+	// Execute jobs in parallel without blocking the runLoop.
+	// Previously wg.Wait() blocked here — if any job hung (e.g. LLM timeout,
+	// agent loop stuck), the entire cron scheduler would stop checking for new
+	// due jobs. Now each job runs independently; cache is invalidated per-job.
+	for _, job := range claimedJobs {
 		go func(job store.CronJob) {
-			defer wg.Done()
-			s.executeOneJob(job, handler)
+			defer safego.Recover(nil, "component", "cron_job", "job_id", job.ID, "job_name", job.Name)
+			defer s.InvalidateCache()
+			s.executeOneJob(job, handler, true)
 		}(job)
 	}
-	wg.Wait()
-
-	// Invalidate cache after job execution changed next_run_at values
-	s.mu.Lock()
-	s.cacheLoaded = false
-	s.mu.Unlock()
 }
 
 // executeOneJob runs a single cron job with retry, logs the result, and updates next_run_at.
-func (s *PGCronStore) executeOneJob(job store.CronJob, handler func(job *store.CronJob) (*store.CronJobResult, error)) {
+// executeOneJob runs a claimed job. When reloadClaimed is true (scheduler path),
+// it re-reads the job from DB to verify claim invariants (enabled + next_run_at IS NULL).
+// When false (manual RunJob path), it uses the already-loaded job directly —
+// skipping the reload avoids the enabled=true filter that would reject disabled jobs.
+func (s *PGCronStore) executeOneJob(job store.CronJob, handler func(job *store.CronJob) (*store.CronJobResult, error), reloadClaimed bool) {
+	// Preserve the original scheduled time before reload clears it.
+	// For "every" jobs, this anchor is used to compute the next run from the
+	// intended schedule time (not "now"), preventing drift and synchronization
+	// of interval-based jobs after server restarts.
+	scheduledAtMS := job.State.NextRunAtMS
+
+	// For manual runs (reloadClaimed=false), don't use anchor — manual triggers
+	// should reset the schedule to now + interval, not preserve the original offset.
+	if !reloadClaimed {
+		scheduledAtMS = nil
+	}
+
+	if reloadClaimed {
+		if id, parseErr := uuid.Parse(job.ID); parseErr == nil {
+			freshJob, ok := s.loadClaimedJob(id)
+			if !ok {
+				slog.Info("cron job skipped after claim state changed", "id", job.ID)
+				return
+			}
+			job = *freshJob
+		}
+	}
+
 	startTime := time.Now()
 
 	// Wrap handler to fit ExecuteWithRetry's (string, error) signature
@@ -236,10 +296,34 @@ func (s *PGCronStore) executeOneJob(job store.CronJob, handler func(job *store.C
 		}
 	} else if id, parseErr := uuid.Parse(job.ID); parseErr == nil {
 		schedule := job.Schedule
-		next := computeNextRun(&schedule, now, s.defaultTZ)
+		var nextRunValue any
+
+		// For "every" (interval) jobs, compute next run from the original scheduled
+		// time (anchor) instead of "now". This prevents:
+		//  1. Drift: interval is always exact, not interval + execution_time
+		//  2. Synchronization: after restart, jobs that started at different offsets
+		//     keep their original spacing instead of clustering together
+		if schedule.Kind == "every" && scheduledAtMS != nil && schedule.EveryMS != nil && *schedule.EveryMS > 0 {
+			anchor := time.UnixMilli(*scheduledAtMS)
+			interval := time.Duration(*schedule.EveryMS) * time.Millisecond
+			// O(1) advance to the next future slot from anchor
+			elapsed := now.Sub(anchor)
+			periods := int64(elapsed / interval)
+			next := anchor.Add(interval * time.Duration(periods+1))
+			nextRunValue = next
+		} else {
+			next := computeNextRun(&schedule, now, s.defaultTZ)
+			if next != nil {
+				nextRunValue = *next
+			}
+		}
+
 		s.db.ExecContext(s.baseCtx,
-			"UPDATE cron_jobs SET last_run_at = $1, last_status = $2, last_error = $3, next_run_at = $4, updated_at = $5 WHERE id = $6",
-			now, status, lastError, next, now, id,
+			`UPDATE cron_jobs SET
+			 last_run_at = $1, last_status = $2, last_error = $3, updated_at = $4,
+			 next_run_at = CASE WHEN enabled = true AND next_run_at IS NULL THEN $5 ELSE next_run_at END
+			 WHERE id = $6`,
+			now, status, lastError, now, nextRunValue, id,
 		)
 	}
 
@@ -250,4 +334,44 @@ func (s *PGCronStore) executeOneJob(job store.CronJob, handler func(job *store.C
 		evt.Error = err.Error()
 	}
 	s.emitEvent(evt)
+}
+
+func (s *PGCronStore) claimDueJob(id uuid.UUID, now time.Time) bool {
+	res, err := s.db.ExecContext(
+		s.baseCtx,
+		`UPDATE cron_jobs
+		 SET next_run_at = NULL
+		 WHERE id = $1 AND enabled = true AND next_run_at IS NOT NULL AND next_run_at <= $2`,
+		id,
+		now,
+	)
+	if err != nil {
+		slog.Warn("cron: failed to claim due job", "id", id, "error", err)
+		return false
+	}
+
+	n, _ := res.RowsAffected()
+	return n == 1
+}
+
+func (s *PGCronStore) loadClaimedJob(id uuid.UUID) (*store.CronJob, bool) {
+	row := s.db.QueryRowContext(
+		s.baseCtx,
+		`SELECT id, tenant_id, agent_id, user_id, name, enabled, schedule_kind, cron_expression, run_at, timezone,
+		 interval_ms, payload, delete_after_run, stateless, deliver, deliver_channel, deliver_to, wake_heartbeat,
+		 next_run_at, last_run_at, last_status, last_error,
+		 created_at, updated_at
+		 FROM cron_jobs
+		 WHERE id = $1 AND enabled = true AND next_run_at IS NULL`,
+		id,
+	)
+	job, err := scanCronSingleRow(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, false
+	}
+	if err != nil {
+		slog.Warn("cron: failed to reload claimed job", "id", id, "error", err)
+		return nil, false
+	}
+	return job, true
 }

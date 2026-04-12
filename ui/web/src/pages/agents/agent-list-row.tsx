@@ -4,6 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { AgentData } from "@/types/agent";
+import { cn } from "@/lib/utils";
+import { UUID_RE, agentDisplayName, hasActiveChatGPTOAuthRouting, readPromptMode } from "./agent-detail/agent-display-utils";
+import { promptModeBadgeClass } from "./agent-detail/prompt-mode-badge-utils";
 
 interface AgentListRowProps {
   agent: AgentData;
@@ -13,15 +16,13 @@ interface AgentListRowProps {
   onDelete?: () => void;
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export function AgentListRow({ agent, ownerName, onClick, onResummon, onDelete }: AgentListRowProps) {
   const { t } = useTranslation("agents");
-  const displayName = agent.display_name
-    || (UUID_RE.test(agent.agent_key) ? t("card.unnamedAgent") : agent.agent_key);
-  const otherCfg = (agent.other_config ?? {}) as Record<string, unknown>;
-  const selfEvolve = agent.agent_type === "predefined" && Boolean(otherCfg.self_evolve);
-  const emoji = typeof otherCfg.emoji === "string" ? otherCfg.emoji : "";
+  const displayName = agentDisplayName(agent, t("card.unnamedAgent"));
+  const selfEvolve = agent.agent_type === "predefined" && Boolean(agent.self_evolve);
+  const emoji = agent.emoji ?? "";
+  const hasOAuthRouting = hasActiveChatGPTOAuthRouting(agent.chatgpt_oauth_routing);
+  const promptMode = readPromptMode(agent);
 
   return (
     <button
@@ -63,13 +64,25 @@ export function AgentListRow({ agent, ownerName, onClick, onResummon, onDelete }
         {[agent.provider, agent.model].filter(Boolean).join(" / ")}
       </div>
 
-      {/* Type + evolve */}
+      {/* Version + evolve */}
       <div className="hidden shrink-0 items-center gap-1 lg:flex">
-        <Badge variant="outline" className="text-[11px]">{agent.agent_type}</Badge>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge
+              variant="outline"
+              className={cn("text-xs-plus", promptModeBadgeClass(promptMode))}
+            >
+              {t(`detail.prompt.mode.${promptMode}`)}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-[260px] text-xs">
+            {t(`detail.prompt.mode.${promptMode}Desc`)}
+          </TooltipContent>
+        </Tooltip>
         {selfEvolve && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Badge className="bg-orange-100 text-[11px] text-orange-700 hover:bg-orange-100 dark:bg-orange-900/30 dark:text-orange-300">
+              <Badge className="bg-orange-100 text-xs-plus text-orange-700 hover:bg-orange-100 dark:bg-orange-900/30 dark:text-orange-300">
                 <Sparkles className="mr-0.5 h-3 w-3" />
                 {t("card.evolving")}
               </Badge>
@@ -78,6 +91,11 @@ export function AgentListRow({ agent, ownerName, onClick, onResummon, onDelete }
               {t("card.evolvingTooltip")}
             </TooltipContent>
           </Tooltip>
+        )}
+        {hasOAuthRouting && (
+          <Badge variant="outline" className="text-xs-plus">
+            {t("chatgptOAuthRouting.badge")}
+          </Badge>
         )}
       </div>
 
@@ -90,7 +108,7 @@ export function AgentListRow({ agent, ownerName, onClick, onResummon, onDelete }
 
       {/* Context window */}
       {agent.context_window > 0 && (
-        <span className="hidden shrink-0 text-[11px] text-muted-foreground lg:block">
+        <span className="hidden shrink-0 text-xs-plus text-muted-foreground lg:block">
           {(agent.context_window / 1000).toFixed(0)}K
         </span>
       )}

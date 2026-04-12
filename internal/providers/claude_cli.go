@@ -31,10 +31,18 @@ const OptPeerKind = "peer_kind"
 // OptWorkspace passes the agent workspace path so MCP bridge tools can resolve file paths.
 const OptWorkspace = "workspace"
 
+// OptTenantID passes the tenant UUID string for per-session MCP config.
+// Required for memory indexing and tenant-scoped queries via bridge tools.
+const OptTenantID = "tenant_id"
+
+// OptLocalKey passes the composite local key (e.g. "-100123:topic:42") for forum topic routing.
+const OptLocalKey = "local_key"
+
 // ClaudeCLIProvider implements Provider by shelling out to the `claude` CLI binary.
 // It acts as a thin proxy: CLI manages session history, tool execution, and context.
 // GoClaw only forwards the latest user message and streams back the response.
 type ClaudeCLIProvider struct {
+	name               string // provider name (default: "claude-cli")
 	cliPath            string // path to claude binary (default: "claude")
 	defaultModel       string // default: "sonnet"
 	baseWorkDir        string // base dir for agent workspaces
@@ -49,6 +57,15 @@ type ClaudeCLIProvider struct {
 
 // ClaudeCLIOption configures the provider.
 type ClaudeCLIOption func(*ClaudeCLIProvider)
+
+// WithClaudeCLIName overrides the provider name (default: "claude-cli").
+func WithClaudeCLIName(name string) ClaudeCLIOption {
+	return func(p *ClaudeCLIProvider) {
+		if name != "" {
+			p.name = name
+		}
+	}
+}
 
 // WithClaudeCLIModel sets the default model alias.
 func WithClaudeCLIModel(model string) ClaudeCLIOption {
@@ -106,6 +123,7 @@ func NewClaudeCLIProvider(cliPath string, opts ...ClaudeCLIOption) *ClaudeCLIPro
 		cliPath = "claude"
 	}
 	p := &ClaudeCLIProvider{
+		name:         "claude-cli",
 		cliPath:      cliPath,
 		defaultModel: "sonnet",
 		baseWorkDir:  defaultCLIWorkDir(),
@@ -118,8 +136,23 @@ func NewClaudeCLIProvider(cliPath string, opts ...ClaudeCLIOption) *ClaudeCLIPro
 	return p
 }
 
-func (p *ClaudeCLIProvider) Name() string        { return "claude-cli" }
+func (p *ClaudeCLIProvider) Name() string        { return p.name }
 func (p *ClaudeCLIProvider) DefaultModel() string { return p.defaultModel }
+
+// Capabilities implements CapabilitiesAware for pipeline code-path selection.
+// ClaudeCLI is subprocess-based — no HTTP adapter, capabilities only.
+func (p *ClaudeCLIProvider) Capabilities() ProviderCapabilities {
+	return ProviderCapabilities{
+		Streaming:        true,
+		ToolCalling:      true,
+		StreamWithTools:  true,
+		Thinking:         true,
+		Vision:           false,
+		CacheControl:     false,
+		MaxContextWindow: 200_000,
+		TokenizerID:      "cl100k_base",
+	}
+}
 
 // Close cleans up temp files (per-session MCP configs, hooks settings). Implements io.Closer.
 func (p *ClaudeCLIProvider) Close() error {

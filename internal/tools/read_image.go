@@ -30,13 +30,17 @@ func MediaImagesFromCtx(ctx context.Context) []providers.ImageContent {
 // --- ReadImageTool ---
 
 // visionProviderPriority is the order in which providers are tried for vision.
-var visionProviderPriority = []string{"openrouter", "gemini", "anthropic", "dashscope"}
+// claude-cli follows anthropic so installations with a native Anthropic API key
+// keep using the faster direct API, while claude-cli-only setups still resolve.
+var visionProviderPriority = []string{"openrouter", "gemini", "anthropic", "claude-cli", "dashscope"}
 
 // visionModelDefaults maps provider names to preferred vision models.
+// Empty string lets the provider pick its own default model.
 var visionModelDefaults = map[string]string{
 	"openrouter": "google/gemini-2.5-flash-image",
 	"gemini":     "gemini-2.5-flash",
 	"anthropic":  "",
+	"claude-cli": "",
 	"dashscope":  "qwen3-vl",
 }
 
@@ -107,9 +111,13 @@ func (t *ReadImageTool) Execute(ctx context.Context, args map[string]any) *Resul
 		chain[i].Params["images"] = images
 	}
 
+	if len(chain) == 0 {
+		return ErrorResult("No vision provider configured. Ask the user to add a vision-capable provider (e.g. Gemini, Anthropic, OpenRouter) in the system settings.")
+	}
+
 	chainResult, err := ExecuteWithChain(ctx, chain, t.registry, t.callProvider)
 	if err != nil {
-		return ErrorResult(fmt.Sprintf("image analysis failed: %v", err))
+		return ErrorResult(fmt.Sprintf("Image analysis failed — all vision providers returned errors: %v. The user may need to check their provider API keys or configuration.", err))
 	}
 
 	result := NewResult(string(chainResult.Data))
@@ -132,6 +140,18 @@ func (t *ReadImageTool) callProvider(ctx context.Context, cp credentialProvider,
 
 	slog.Info("read_image: calling vision provider", "provider", providerName, "model", model, "images", len(images))
 
+	opts := map[string]any{
+		"max_tokens":  1024,
+		"temperature": 0.3,
+	}
+	// claude-cli spawns the Claude CLI binary; loading its built-in MCP
+	// toolset costs latency we don't need for a one-shot vision call. Keep
+	// this flag scoped to claude-cli so other providers don't receive
+	// options they ignore (or worse, choke on in the future).
+	if providerName == "claude-cli" {
+		opts["disable_tools"] = true
+	}
+
 	resp, err := p.Chat(ctx, providers.ChatRequest{
 		Messages: []providers.Message{
 			{
@@ -140,11 +160,8 @@ func (t *ReadImageTool) callProvider(ctx context.Context, cp credentialProvider,
 				Images:  images,
 			},
 		},
-		Model: model,
-		Options: map[string]any{
-			"max_tokens":  1024,
-			"temperature": 0.3,
-		},
+		Model:   model,
+		Options: opts,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("vision provider error: %w", err)

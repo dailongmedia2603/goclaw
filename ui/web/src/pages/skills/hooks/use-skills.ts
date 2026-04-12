@@ -11,6 +11,21 @@ import type { SkillInfo, SkillFile, SkillVersions } from "@/types/skill";
 
 export type { SkillInfo, SkillFile, SkillVersions };
 
+export type SkillUploadResponse = {
+  /** Absent when status is "unchanged" */
+  id?: string;
+  slug: string;
+  version: number;
+  name: string;
+  /** "active" | "unchanged" | "archived" */
+  status?: string;
+  is_new?: boolean;
+  deps_warning?: string;
+  deps_errors?: string[];
+  missing_deps?: string[];
+  deps_installed?: boolean;
+};
+
 export function useSkills() {
   const ws = useWs();
   const http = useHttp();
@@ -36,7 +51,7 @@ export function useSkills() {
   // even if the SKILL_DEPS_* events were emitted before the client connected.
   useEffect(() => {
     if (connected) invalidate();
-  }, [connected]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [connected]);  
 
   const getSkill = useCallback(
     async (name: string) => {
@@ -50,7 +65,7 @@ export function useSkills() {
     async (file: File) => {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await http.upload<{ id: string; slug: string; version: number; name: string }>(
+      const res = await http.upload<SkillUploadResponse>(
         "/v1/skills/upload",
         formData,
       );

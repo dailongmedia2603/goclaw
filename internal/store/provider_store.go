@@ -31,6 +31,18 @@ const (
 	ProviderOllama          = "ollama"       // local or self-hosted Ollama (no API key)
 	ProviderOllamaCloud     = "ollama_cloud" // Ollama Cloud (Bearer token required)
 	ProviderACP             = "acp"          // ACP (Agent Client Protocol) agent subprocess
+	ProviderNovita          = "novita"          // Novita AI (OpenAI-compatible endpoint)
+	ProviderBytePlus        = "byteplus"        // BytePlus ModelArk (Seed 2.0 models)
+	ProviderBytePlusCoding  = "byteplus_coding" // BytePlus ModelArk Coding Plan
+
+	// Novita AI defaults.
+	NovitaDefaultAPIBase = "https://api.novita.ai/openai"
+	NovitaDefaultModel   = "moonshotai/kimi-k2.5"
+
+	// BytePlus ModelArk defaults.
+	BytePlusDefaultAPIBase       = "https://ark.ap-southeast.bytepluses.com/api/v3"
+	BytePlusCodingDefaultAPIBase = "https://ark.ap-southeast.bytepluses.com/api/coding/v3"
+	BytePlusDefaultModel         = "seed-2-0-lite-260228"
 )
 
 // ValidProviderTypes lists all accepted provider_type values.
@@ -57,27 +69,46 @@ var ValidProviderTypes = map[string]bool{
 	ProviderOllama:          true,
 	ProviderOllamaCloud:     true,
 	ProviderACP:             true,
+	ProviderNovita:          true,
+	ProviderBytePlus:        true,
+	ProviderBytePlusCoding:  true,
 }
 
 // LLMProviderData represents an LLM provider configuration.
 type LLMProviderData struct {
 	BaseModel
-	TenantID     uuid.UUID       `json:"tenant_id,omitempty"`
-	Name         string          `json:"name"`
-	DisplayName  string          `json:"display_name,omitempty"`
-	ProviderType string          `json:"provider_type"`
-	APIBase      string          `json:"api_base,omitempty"`
-	APIKey       string          `json:"api_key,omitempty"`
-	Enabled      bool            `json:"enabled"`
-	Settings     json.RawMessage `json:"settings,omitempty"`
+	TenantID     uuid.UUID       `json:"tenant_id,omitempty" db:"tenant_id"`
+	Name         string          `json:"name" db:"name"`
+	DisplayName  string          `json:"display_name,omitempty" db:"display_name"`
+	ProviderType string          `json:"provider_type" db:"provider_type"`
+	APIBase      string          `json:"api_base,omitempty" db:"api_base"`
+	APIKey       string          `json:"api_key,omitempty" db:"api_key"`
+	Enabled      bool            `json:"enabled" db:"enabled"`
+	Settings     json.RawMessage `json:"settings,omitempty" db:"settings"`
 }
+
+// RequiredMemoryEmbeddingDimensions is the fixed vector size used by the pgvector memory schema.
+// All memory embeddings must match this dimensionality until the schema supports variable sizes.
+const RequiredMemoryEmbeddingDimensions = 1536
 
 // EmbeddingSettings holds embedding-specific configuration stored in provider settings JSONB.
 type EmbeddingSettings struct {
-	Enabled    bool   `json:"enabled"`
-	Model      string `json:"model,omitempty"`      // e.g. "text-embedding-3-small"
-	APIBase    string `json:"api_base,omitempty"`    // override if embedding endpoint differs from chat
-	Dimensions int    `json:"dimensions,omitempty"` // truncate output to N dims (e.g. 1536); 0 = model default
+	Enabled    bool   `json:"enabled" db:"-"`
+	Model      string `json:"model,omitempty" db:"-"`      // e.g. "text-embedding-3-small"
+	APIBase    string `json:"api_base,omitempty" db:"-"`   // override if embedding endpoint differs from chat
+	Dimensions int    `json:"dimensions,omitempty" db:"-"` // truncate output to N dims (e.g. 1536); 0 = model default
+}
+
+// ProviderReasoningConfig holds provider-owned default reasoning settings.
+// These defaults are inherited by agents unless they save a custom override.
+type ProviderReasoningConfig struct {
+	Effort   string `json:"effort,omitempty" db:"-"`
+	Fallback string `json:"fallback,omitempty" db:"-"`
+}
+
+// ChatGPTOAuthProviderSettings holds provider-level defaults for Codex account pooling.
+type ChatGPTOAuthProviderSettings struct {
+	CodexPool *ChatGPTOAuthRoutingConfig `json:"codex_pool,omitempty" db:"-"`
 }
 
 // ParseEmbeddingSettings extracts embedding config from a provider's settings JSONB.
@@ -93,6 +124,55 @@ func ParseEmbeddingSettings(settings json.RawMessage) *EmbeddingSettings {
 		return nil
 	}
 	return s.Embedding
+}
+
+// ParseChatGPTOAuthProviderSettings extracts provider-level Codex pool defaults from settings JSONB.
+func ParseChatGPTOAuthProviderSettings(settings json.RawMessage) *ChatGPTOAuthProviderSettings {
+	if len(settings) == 0 {
+		return nil
+	}
+	var s ChatGPTOAuthProviderSettings
+	if json.Unmarshal(settings, &s) != nil {
+		return nil
+	}
+	s.CodexPool = normalizeChatGPTOAuthRoutingConfig(s.CodexPool)
+	if s.CodexPool == nil {
+		return nil
+	}
+	s.CodexPool.OverrideMode = ""
+	return &s
+}
+
+// ParseProviderReasoningConfig extracts provider-owned reasoning defaults from settings JSONB.
+// Returns nil when no non-default provider reasoning is configured.
+func ParseProviderReasoningConfig(settings json.RawMessage) *ProviderReasoningConfig {
+	if len(settings) == 0 {
+		return nil
+	}
+	var raw struct {
+		ReasoningDefaults *ProviderReasoningConfig `json:"reasoning_defaults"`
+	}
+	if json.Unmarshal(settings, &raw) != nil {
+		return nil
+	}
+	return normalizeProviderReasoningConfig(raw.ReasoningDefaults)
+}
+
+func normalizeProviderReasoningConfig(raw *ProviderReasoningConfig) *ProviderReasoningConfig {
+	if raw == nil {
+		return nil
+	}
+	cfg := &ProviderReasoningConfig{
+		Effort:   normalizeReasoningEffort(raw.Effort),
+		Fallback: normalizeReasoningFallback(raw.Fallback),
+	}
+	if cfg.Effort == "" {
+		cfg.Effort = "off"
+	}
+	if cfg.Effort == "off" && cfg.Fallback == ReasoningFallbackDowngrade {
+		return nil
+	}
+	return cfg
 }
 
 // NoEmbeddingTypes lists provider types that cannot serve embeddings.

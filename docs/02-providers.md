@@ -1,6 +1,6 @@
 # 02 - LLM Providers
 
-GoClaw abstracts LLM communication behind a single `Provider` interface, allowing the agent loop to work with any backend without knowing the wire format. Six concrete implementations exist: Anthropic (native HTTP+SSE), OpenAI-compatible (covering 10+ API endpoints), Claude CLI (local binary), Codex (OAuth-based), ACP (subagent orchestration), and DashScope (Alibaba Qwen with thinking).
+GoClaw abstracts LLM communication behind a single `Provider` interface, allowing the agent loop to work with any backend without knowing the wire format. Six concrete implementations exist: Anthropic (native HTTP+SSE), OpenAI-compatible (covering 10+ API endpoints), Claude CLI (local binary), Codex (OAuth-based), ACP (subagent orchestration), and DashScope (Alibaba Qwen with thinking). The OpenAI-compatible provider also supports BytePlus ModelArk (Seed 2.0 models with image/video generation).
 
 ---
 
@@ -75,6 +75,8 @@ All HTTP-based providers (Anthropic, OpenAI-compatible, Codex) use 300-second ti
 | bailian | `https://coding-intl.dashscope.aliyuncs.com/v1` | `qwen3.5-plus` | Alibaba Coding API |
 | zai | `https://api.z.ai/api/paas/v4` | `glm-5` | |
 | zai-coding | `https://api.z.ai/api/coding/paas/v4` | `glm-5` | |
+| byteplus | `https://ark.ap-southeast.bytepluses.com/api/v3` | `seed-2-0-lite-260228` | Seed 2.0 models |
+| byteplus_coding | `https://ark.ap-southeast.bytepluses.com/api/coding/v3` | `seed-2-0-lite-260228` | Seed 2.0 Coding Plan |
 
 ---
 
@@ -271,25 +273,25 @@ flowchart LR
 
 ## 8. Extended Thinking
 
-Extended thinking allows LLMs to generate internal reasoning tokens before producing a response, improving quality for complex tasks. GoClaw supports this across multiple providers with a unified `thinking_level` configuration. See [12-extended-thinking.md](./12-extended-thinking.md) for full details.
+Extended thinking allows LLMs to generate internal reasoning tokens before producing a response, improving quality for complex tasks. GoClaw supports this across multiple providers with provider-owned reasoning defaults, agent inherit/custom overrides, and a legacy `thinking_level` shim for rollback compatibility. See [12-extended-thinking.md](./12-extended-thinking.md) for full details.
 
 ### Provider Mapping
 
 ```mermaid
 flowchart TD
-    LEVEL["thinking_level"] --> CHECK{"Provider<br/>supports thinking?"}
+    LEVEL["provider.settings.reasoning_defaults<br/>+ agent other_config.reasoning"] --> CHECK{"Provider<br/>supports thinking?"}
     CHECK -->|No| SKIP["Skip — normal request"]
     CHECK -->|Yes| TYPE{"Provider type?"}
 
     TYPE -->|Anthropic| ANTH["Budget tokens:<br/>low=4K, medium=10K, high=32K<br/>+ anthropic-beta header<br/>+ strip temperature"]
-    TYPE -->|OpenAI-compat| OAI["reasoning_effort:<br/>low / medium / high"]
+    TYPE -->|OpenAI-compat| OAI["capability-aware<br/>reasoning_effort"]
     TYPE -->|DashScope| DASH["enable_thinking: true<br/>Budget: low=4K, medium=16K, high=32K<br/>⚠ No streaming with tools"]
 ```
 
 ### Streaming
 
 - **Anthropic**: `thinking_delta` events accumulate into `StreamChunk.Thinking`
-- **OpenAI-compat**: `reasoning_content` in response delta
+- **OpenAI-compat**: `reasoning_content` in response delta, with GPT-5/Codex effort normalization when the model is known
 - **DashScope**: Falls back to non-streaming when tools are present, synthesizes chunk callbacks
 
 ### Tool Loop Handling
@@ -621,11 +623,100 @@ Codex supports SSE streaming similar to Anthropic:
 
 ### Extended Thinking
 
-Codex provider reports `SupportsThinking() = true`, allowing thinking_level to be injected. The provider maps thinking levels to reasoning_effort parameters as needed.
+Codex provider reports `SupportsThinking() = true`, allowing capability-aware reasoning effort injection. Providers can save reusable `settings.reasoning_defaults`, agents inherit them by default, and custom agent overrides remain additive. For known GPT-5/Codex models, GoClaw resolves requested versus effective effort before the request and records the source and outcome in trace metadata.
 
 ### Token Usage
 
 Tracks prompt, completion, and total tokens. `CacheCreationTokens` and `CacheReadTokens` are supported for prompt caching if available.
+
+### Provider-Level Defaults + Agent Overrides
+
+Multiple authenticated `chatgpt_oauth` providers can coexist in one tenant. Each provider name is one OpenAI Codex OAuth alias. Pool membership is authoritative at the provider layer: one alias owns the reusable pool, while member aliases stay leaf accounts.
+
+Provider default example:
+
+```json
+{
+  "name": "openai-codex",
+  "provider_type": "chatgpt_oauth",
+  "settings": {
+    "codex_pool": {
+      "strategy": "round_robin",
+      "extra_provider_names": ["codex-work"]
+    }
+  }
+}
+```
+
+Provider reasoning default example:
+
+```json
+{
+  "name": "openai-codex",
+  "provider_type": "chatgpt_oauth",
+  "settings": {
+    "reasoning_defaults": {
+      "effort": "high",
+      "fallback": "provider_default"
+    }
+  }
+}
+```
+
+Agent override example:
+
+```json
+{
+  "provider": "openai-codex",
+  "other_config": {
+    "reasoning": {
+      "override_mode": "custom",
+      "effort": "xhigh",
+      "fallback": "downgrade"
+    }
+  }
+}
+```
+
+Routing behavior:
+- The main `provider` field remains the preferred/default account.
+- Provider aliases are arbitrary. `openai-codex` and `codex-work` are examples, not required prefixes.
+- `settings.codex_pool.extra_provider_names` is the authoritative membership list for that pool owner.
+- A provider listed in another pool cannot also manage its own pool.
+- `override_mode: "inherit"` uses the primary provider's `settings.codex_pool`.
+- `override_mode: "custom"` is limited to routing behavior for that provider-owned pool.
+- `primary_first` keeps the preferred account fixed. When saved as a custom override with no extra names, it disables the pool for that agent and keeps the agent on the primary account only.
+- `round_robin` rotates requests across the preferred account plus the provider-owned extra authenticated OpenAI Codex OAuth accounts.
+- `priority_order` tries the preferred account first, then drains the provider-owned extra accounts in order.
+- Retryable upstream failures can fall through to the next eligible OpenAI Codex OAuth account in the same request.
+- Explicit provider names remain explicit. OAuth auth/logout is still provider-scoped.
+- Runtime observability for one agent is available at `GET /v1/agents/{id}/codex-pool-activity`, which exposes recent routed traces plus per-alias health derived from those traces.
+
+Reasoning behavior:
+- `settings.reasoning_defaults` is provider-owned and reusable across agents.
+- `reasoning.override_mode: "inherit"` follows the provider default.
+- `reasoning.override_mode: "custom"` stores an agent-local reasoning policy.
+- Existing `reasoning` payloads without `override_mode` still behave as custom overrides.
+- If no provider default is saved, inherit resolves to reasoning `off`.
+- Trace metadata surfaces the reasoning `source` so provider-default behavior is no longer implicit.
+
+---
+
+## 13. Wave 2: Provider Resilience (v3)
+
+GoClaw v3 Wave 2 adds composable request middleware, error classification, per-model cooldown, and 2-tier failover for production resilience.
+
+**Request Middleware** — Transforms provider requests in composable pipeline. Built-in: `CacheMiddleware` (prompt caching), `ServiceTierMiddleware` (routing hints), `RateLimitMiddleware` (quota management). Zero-alloc fast path: `ComposeMiddlewares` returns nil if all inputs nil.
+
+**Error Classification** — Maps provider errors to 9 canonical reasons: `FailoverAuth`, `FailoverAuthPermanent`, `FailoverRateLimit`, `FailoverOverloaded`, `FailoverBilling`, `FailoverFormat`, `FailoverModelNotFound`, `FailoverTimeout`, `FailoverUnknown`. `DefaultClassifier` pattern-matches body strings (OpenAI, Anthropic pre-registered). Detects context overflow (triggers auto-compaction).
+
+**Cooldown Tracking** — `CooldownTracker` in-memory state machine. Per-reason durations: 30s (rate limit), 60s→120s escalated (overloaded), 10m (auth), 1h (permanent auth/model not found), 15s (timeout), 5m (billing). Auto-decay 24h TTL; probe interval ≥30s.
+
+**2-Tier Failover** — `RunWithFailover[T]`: Tier 1 rotates API profiles for transient errors (≤5 rotations); Tier 2 falls back to next model for permanent errors. Returns all attempts with classifications. Exhausted → `FailoverSummaryError`.
+
+**Model Registry** — Thread-safe forward-compat resolver. Seeds Claude, GPT, Qwen models. Each spec: context window, max tokens, reasoning/vision flags, per-1M cost. Unknown models → provider's `ForwardCompatResolver` (caches hit). Template cloning with patch overrides.
+
+**Embedding Providers** — OpenAI (text-embedding-3-small, 1536 dims, batch 2048) and Voyage AI (1024 dims, batch 1024) via `store.EmbeddingProvider`. Used by vault and episodic memory. All vectors normalized to 1536 for pgvector column.
 
 ---
 
@@ -633,6 +724,15 @@ Tracks prompt, completion, and total tokens. `CacheCreationTokens` and `CacheRea
 
 | File | Purpose |
 |------|---------|
+| `internal/providers/middleware.go` | RequestMiddleware type, ComposeMiddlewares, ApplyMiddlewares (zero-alloc fast path) |
+| `internal/providers/middleware_cache.go` | CacheMiddleware for prompt caching |
+| `internal/providers/middleware_service_tier.go` | ServiceTierMiddleware for routing hints |
+| `internal/providers/error_classify.go` | ErrorClassifier, DefaultClassifier, 9 failover reasons, context overflow detection |
+| `internal/providers/cooldown.go` | CooldownTracker: per-model:provider failure state, reason-dependent durations, probe intervals |
+| `internal/providers/failover.go` | RunWithFailover[T]: 2-tier logic, profile rotation, model fallback, candidate exhaustion |
+| `internal/providers/model_registry.go` | ModelRegistry, ModelSpec, InMemoryRegistry, forward-compat resolver, seeded defaults |
+| `internal/providers/embedding_openai.go` | OpenAI embedding provider (text-embedding-3-small, 1536 dims, batch 2048) |
+| `internal/providers/embedding_voyage.go` | Voyage AI embedding provider |
 | `internal/providers/types.go` | Provider interface, ChatRequest, ChatResponse, Message, ToolCall, Usage types |
 | `internal/providers/anthropic.go` | Anthropic provider: native HTTP + SSE, request/response marshaling |
 | `internal/providers/anthropic_request.go` | Anthropic request builder: message formatting, tool schemas, system blocks |
@@ -644,22 +744,10 @@ Tracks prompt, completion, and total tokens. `CacheCreationTokens` and `CacheRea
 | `internal/providers/claude_cli_chat.go` | Chat/ChatStream implementation for CLI provider |
 | `internal/providers/claude_cli_session.go` | Session management: per-session state, history, workspace |
 | `internal/providers/claude_cli_mcp.go` | MCP configuration and server bridge for CLI provider |
-| `internal/providers/claude_cli_auth.go` | Authentication and token handling for CLI |
-| `internal/providers/claude_cli_parse.go` | Response parsing and message extraction from CLI output |
-| `internal/providers/claude_cli_deny_patterns.go` | Path validation and deny pattern enforcement |
-| `internal/providers/claude_cli_hooks.go` | Security hooks configuration for CLI tool execution |
-| `internal/providers/claude_cli_types.go` | Internal types for CLI provider (session, config, options) |
 | `internal/providers/codex.go` | CodexProvider: OAuth-based ChatGPT Responses API |
 | `internal/providers/codex_build.go` | Codex request builder: message formatting, phase handling |
-| `internal/providers/codex_types.go` | Codex request/response types and OAuth token management |
 | `internal/providers/dashscope.go` | DashScope provider: OpenAI-compat wrapper with thinking budget, tools+streaming fallback |
 | `internal/providers/acp_provider.go` | ACPProvider: orchestrates ACP-compatible agent subprocesses |
-| `internal/providers/acp/types.go` | ACP protocol types: InitializeRequest, SessionUpdate, ContentBlock, etc. |
-| `internal/providers/acp/process.go` | ProcessPool: subprocess lifecycle, idle TTL reaping, crash recovery |
-| `internal/providers/acp/jsonrpc.go` | JSON-RPC 2.0 request/response marshaling over stdio |
-| `internal/providers/acp/tool_bridge.go` | ToolBridge: handles fs and terminal requests, workspace sandboxing |
-| `internal/providers/acp/terminal.go` | Terminal lifecycle: create, output, exit, release, kill |
-| `internal/providers/acp/session.go` | Session state tracking per ACP agent |
 | `internal/providers/retry.go` | RetryDo[T] generic function, RetryConfig, IsRetryableError, backoff computation |
 | `internal/providers/schema_cleaner.go` | CleanSchemaForProvider, CleanToolSchemas, recursive schema field removal |
 | `internal/providers/registry.go` | Provider registry: registration, lookup, lifecycle management |

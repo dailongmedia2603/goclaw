@@ -10,7 +10,7 @@ func init() {
 		MsgInvalidRequest:   "yêu cầu không hợp lệ: %s",
 		MsgInvalidJSON:      "JSON không hợp lệ",
 		MsgUnauthorized:     "chưa xác thực",
-		MsgPermissionDenied: "từ chối quyền truy cập: không đủ quyền cho %s",
+		MsgPermissionDenied: "từ chối quyền truy cập: %s",
 		MsgInternalError:    "lỗi nội bộ: %s",
 		MsgInvalidSlug:      "%s phải là slug hợp lệ (chữ thường, số, dấu gạch ngang)",
 		MsgFailedToList:     "không thể liệt kê %s",
@@ -95,6 +95,7 @@ func init() {
 
 		// Channels
 		MsgCannotDeleteDefaultInst: "không thể xóa phiên bản channel mặc định",
+		MsgCannotRemoveLastWriter:  "không thể xóa người quản lý cuối cùng",
 
 		// Skills
 		MsgSkillsUpdateNotSupported: "skills.update không được hỗ trợ với skill dựa trên tệp",
@@ -104,8 +105,10 @@ func init() {
 		MsgInvalidLogAction: "action phải là 'start' hoặc 'stop'",
 
 		// Config
-		MsgRawConfigRequired: "cấu hình raw là bắt buộc",
-		MsgRawPatchRequired:  "patch raw là bắt buộc",
+		MsgRawConfigRequired:     "cấu hình raw là bắt buộc",
+		MsgRawPatchRequired:      "patch raw là bắt buộc",
+		MsgConfigMasterScopeOnly: "config.* chỉ áp dụng cho master scope; dùng endpoint tenant tool config cho override theo tenant",
+		MsgMasterScopeRequired:   "thao tác này yêu cầu phạm vi tenant chính",
 
 		// Storage / File
 		MsgCannotDeleteSkillsDir: "không thể xóa thư mục skill",

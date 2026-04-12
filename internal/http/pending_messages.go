@@ -2,13 +2,13 @@ package http
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
+	"github.com/nextlevelbuilder/goclaw/internal/providerresolve"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -116,8 +116,7 @@ type compactRequest struct {
 func (h *PendingMessagesHandler) handleCompact(w http.ResponseWriter, r *http.Request) {
 	locale := store.LocaleFromContext(r.Context())
 	var req compactRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": i18n.T(locale, i18n.MsgInvalidJSON)})
+	if !bindJSON(w, r, locale, &req) {
 		return
 	}
 	if req.ChannelName == "" || req.HistoryKey == "" {
@@ -183,7 +182,7 @@ func (h *PendingMessagesHandler) resolveProviderAndModel(ctx context.Context) (p
 	// Fallback: default agent's provider+model.
 	if h.agentStore != nil {
 		if ag, err := h.agentStore.GetDefault(ctx); err == nil && ag.Provider != "" {
-			if p, err := h.providerReg.GetForTenant(ag.TenantID, ag.Provider); err == nil {
+			if p, err := providerresolve.ResolveConfiguredProvider(h.providerReg, ag); err == nil {
 				model := ag.Model
 				if model == "" {
 					model = p.DefaultModel()

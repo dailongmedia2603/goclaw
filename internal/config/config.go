@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -66,11 +67,13 @@ type TailscaleConfig struct {
 	EnableTLS bool   `json:"enable_tls,omitempty"` // use ListenTLS for auto HTTPS certs
 }
 
-// DatabaseConfig configures the PostgreSQL connection and optional Redis cache.
+// DatabaseConfig configures the database connection and optional Redis cache.
 // DSN fields are NEVER read from config.json (secrets) — only from env vars.
 type DatabaseConfig struct {
-	PostgresDSN string `json:"-"` // from env GOCLAW_POSTGRES_DSN only
-	RedisDSN    string `json:"-"` // from env GOCLAW_REDIS_DSN only (optional, requires -tags redis)
+	PostgresDSN    string `json:"-"` // from env GOCLAW_POSTGRES_DSN only
+	RedisDSN       string `json:"-"` // from env GOCLAW_REDIS_DSN only (optional, requires -tags redis)
+	StorageBackend string `json:"-"` // from env GOCLAW_STORAGE_BACKEND only ("postgres" or "sqlite", default "postgres")
+	SQLitePath     string `json:"-"` // from env GOCLAW_SQLITE_PATH only (default: {dataDir}/goclaw.db)
 }
 
 // SkillsConfig configures the skills storage system.
@@ -131,8 +134,7 @@ type AgentDefaults struct {
 // Matching TS agents.defaults.compaction.
 type CompactionConfig struct {
 	ReserveTokensFloor int                `json:"reserveTokensFloor,omitempty"` // min reserve tokens (default 20000)
-	MaxHistoryShare    float64            `json:"maxHistoryShare,omitempty"`    // max share of context for history (default 0.75)
-	MinMessages        int                `json:"minMessages,omitempty"`        // min messages before compaction triggers (default 200)
+	MaxHistoryShare    float64            `json:"maxHistoryShare,omitempty"`    // max share of context for history (default 0.85)
 	KeepLastMessages   int                `json:"keepLastMessages,omitempty"`   // messages to keep after compaction (default 4)
 	MemoryFlush        *MemoryFlushConfig `json:"memoryFlush,omitempty"`        // pre-compaction flush
 }
@@ -185,6 +187,22 @@ type MemoryConfig struct {
 	VectorWeight      float64 `json:"vector_weight,omitempty"`      // hybrid search vector weight (default 0.7)
 	TextWeight        float64 `json:"text_weight,omitempty"`        // hybrid search FTS weight (default 0.3)
 	MinScore          float64 `json:"min_score,omitempty"`          // minimum relevance score (default 0.35)
+
+	// Dreaming configures the episodic → long-term consolidation worker.
+	// nil = use hardcoded defaults (threshold=5, debounce=10min, enabled).
+	Dreaming *DreamingConfig `json:"dreaming,omitempty"`
+}
+
+// DreamingConfig controls per-agent behaviour of the consolidation dreaming
+// worker (episodic summaries → long-term memory). Pointer fields allow partial
+// overrides from JSONB to merge cleanly with defaults without clobbering
+// unset values (e.g. leaving VerboseLog at its default when only Threshold is
+// overridden).
+type DreamingConfig struct {
+	Enabled    *bool `json:"enabled,omitempty"`     // default true (nil = enabled)
+	DebounceMs int   `json:"debounce_ms,omitempty"` // min interval between runs per agent/user (default 600000 = 10 min)
+	Threshold  int   `json:"threshold,omitempty"`   // min unpromoted entries before running (default 5)
+	VerboseLog *bool `json:"verbose_log,omitempty"` // log debounce/below-threshold skips at info level (default false)
 }
 
 // SandboxConfig configures Docker-based sandbox execution.
@@ -300,6 +318,11 @@ type ModelPricing struct {
 	OutputPerMillion      float64 `json:"output_per_million"`
 	CacheReadPerMillion   float64 `json:"cache_read_per_million,omitempty"`
 	CacheCreatePerMillion float64 `json:"cache_create_per_million,omitempty"`
+	// ReasoningPerMillion is the per-million-token rate for reasoning/thinking tokens
+	// (e.g., Claude extended thinking, GPT-5 reasoning, o3/o4-mini CoT). If zero,
+	// reasoning tokens fall back to OutputPerMillion (providers typically charge
+	// reasoning at the same rate as output tokens).
+	ReasoningPerMillion float64 `json:"reasoning_per_million,omitempty"`
 }
 
 // TelemetryConfig configures OpenTelemetry export for traces and spans.
@@ -321,6 +344,22 @@ type CronConfig struct {
 	RetryBaseDelay  string `json:"retry_base_delay,omitempty"` // initial backoff delay (default "2s", Go duration)
 	RetryMaxDelay   string `json:"retry_max_delay,omitempty"`  // maximum backoff delay (default "30s", Go duration)
 	DefaultTimezone string `json:"default_timezone,omitempty"` // IANA timezone for cron expressions when not set per-job (e.g. "Asia/Ho_Chi_Minh")
+	JobTimeout      string `json:"job_timeout,omitempty"`      // max duration per cron job execution (default "10m", Go duration)
+}
+
+// DefaultJobTimeout is the fallback timeout for cron job execution.
+const DefaultJobTimeout = 10 * time.Minute
+
+// JobTimeoutDuration returns the configured job timeout or the default (10m).
+func (cc CronConfig) JobTimeoutDuration() time.Duration {
+	if cc.JobTimeout != "" {
+		d, err := time.ParseDuration(cc.JobTimeout)
+		if err == nil && d > 0 {
+			return d
+		}
+		slog.Warn("cron: invalid job_timeout, using default", "value", cc.JobTimeout, "default", DefaultJobTimeout)
+	}
+	return DefaultJobTimeout
 }
 
 // ToRetryConfig converts CronConfig to cron.RetryConfig with defaults applied.
@@ -349,6 +388,7 @@ type SubagentsConfig struct {
 	MaxSpawnDepth       int    `json:"maxSpawnDepth,omitempty"`       // default 1, range 1-5
 	MaxChildrenPerAgent int    `json:"maxChildrenPerAgent,omitempty"` // default 5, range 1-20
 	ArchiveAfterMinutes int    `json:"archiveAfterMinutes,omitempty"` // default 60
+	MaxRetries          int    `json:"maxRetries,omitempty"`          // max LLM retries on error (default 2)
 	Model               string `json:"model,omitempty"`               // model override for subagents
 }
 

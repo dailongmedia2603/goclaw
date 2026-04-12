@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
+import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAgentDetail } from "../hooks/use-agent-detail";
@@ -9,12 +10,19 @@ import { AgentOverviewTab } from "./agent-overview-tab";
 import { AgentFilesTab } from "./agent-files-tab";
 import { AgentInstancesTab } from "./agent-instances-tab";
 import { AgentPermissionsTab } from "./agent-permissions-tab";
-import { AgentAdvancedDialog } from "./agent-advanced-dialog";
-import { HeartbeatConfigDialog } from "./heartbeat-config-dialog";
+import { AgentEvolutionTab } from "./evolution-tab/agent-evolution-tab";
 import { SummoningModal } from "../summoning-modal";
 import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { DetailPageSkeleton } from "@/components/shared/loading-skeleton";
 import { agentDisplayName } from "./agent-display-utils";
+import { SystemPromptDialog } from "./system-prompt-dialog";
+
+const AgentAdvancedDialog = lazy(() =>
+  import("./agent-advanced-dialog").then((m) => ({ default: m.AgentAdvancedDialog }))
+);
+const HeartbeatConfigDialog = lazy(() =>
+  import("./heartbeat-config-dialog").then((m) => ({ default: m.HeartbeatConfigDialog }))
+);
 
 interface AgentDetailPageProps {
   agentId: string;
@@ -23,6 +31,7 @@ interface AgentDetailPageProps {
 
 export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
   const { t } = useTranslation("agents");
+  const navigate = useNavigate();
   const { agent, files, loading, updateAgent, getFile, setFile, regenerateAgent, resummonAgent, refresh } =
     useAgentDetail(agentId);
   const { deleteAgent: deleteAgentById } = useAgents();
@@ -32,11 +41,7 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [heartbeatOpen, setHeartbeatOpen] = useState(false);
-
-  const handleRegenerate = async (prompt: string) => {
-    await regenerateAgent(prompt);
-    setSummoningOpen(true);
-  };
+  const [promptOpen, setPromptOpen] = useState(false);
 
   const handleResummon = async () => {
     await resummonAgent();
@@ -63,6 +68,7 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
         onDelete={() => setDeleteOpen(true)}
         onAdvanced={() => setAdvancedOpen(true)}
         onHeartbeat={() => setHeartbeatOpen(true)}
+        onSystemPrompt={() => setPromptOpen(true)}
       />
 
       <div className="p-3 sm:p-4">
@@ -72,13 +78,20 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
               <TabsTrigger value="agent">{t("detail.tabs.agent")}</TabsTrigger>
               <TabsTrigger value="files">{t("detail.tabs.files")}</TabsTrigger>
               <TabsTrigger value="permissions">{t("detail.tabs.permissions")}</TabsTrigger>
+              <TabsTrigger value="evolution">{t("detail.tabs.evolution")}</TabsTrigger>
               {agent.agent_type === "predefined" && (
                 <TabsTrigger value="instances">{t("detail.tabs.instances")}</TabsTrigger>
               )}
             </TabsList>
 
             <TabsContent value="agent" className="mt-4">
-              <AgentOverviewTab key={agent.id + "-" + agent.updated_at} agent={agent} onUpdate={updateAgent} heartbeat={hb} />
+              <AgentOverviewTab
+                key={agent.id + "-" + agent.updated_at}
+                agent={agent}
+                onUpdate={updateAgent}
+                heartbeat={hb}
+                onManageCodexPool={() => navigate(`/agents/${agent.id}/codex-pool`)}
+              />
             </TabsContent>
 
             <TabsContent value="files" className="mt-4">
@@ -87,13 +100,21 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
                 files={files}
                 onGetFile={getFile}
                 onSetFile={setFile}
-                onRegenerate={handleRegenerate}
+                onRegenerate={regenerateAgent}
                 onResummon={handleResummon}
+                onRegenerateCompleted={refresh}
               />
             </TabsContent>
 
             <TabsContent value="permissions" className="mt-4">
               <AgentPermissionsTab agentId={agentId} />
+            </TabsContent>
+
+            <TabsContent value="evolution" className="mt-4">
+              <AgentEvolutionTab
+                agentId={agentId}
+                agentOtherConfig={agent.other_config as Record<string, unknown> | undefined}
+              />
             </TabsContent>
 
             {agent.agent_type === "predefined" && (
@@ -105,13 +126,17 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
         </div>
       </div>
 
-      <AgentAdvancedDialog
-        key={agent.id}
-        open={advancedOpen}
-        onOpenChange={setAdvancedOpen}
-        agent={agent}
-        onUpdate={updateAgent}
-      />
+      {advancedOpen ? (
+        <Suspense fallback={null}>
+          <AgentAdvancedDialog
+            key={agent.id}
+            open={advancedOpen}
+            onOpenChange={setAdvancedOpen}
+            agent={agent}
+            onUpdate={updateAgent}
+          />
+        </Suspense>
+      ) : null}
 
       <SummoningModal
         open={summoningOpen}
@@ -123,19 +148,29 @@ export function AgentDetailPage({ agentId, onBack }: AgentDetailPageProps) {
       />
 
       {heartbeatOpen && (
-        <HeartbeatConfigDialog
-          open={heartbeatOpen}
-          onOpenChange={setHeartbeatOpen}
-          config={hb.config}
-          saving={hb.saving}
-          update={hb.update}
-          test={hb.test}
-          getChecklist={hb.getChecklist}
-          setChecklist={hb.setChecklist}
-          fetchTargets={hb.fetchTargets}
-          refresh={hb.refresh}
-          agentProvider={agent?.provider}
-          agentModel={agent?.model}
+        <Suspense fallback={null}>
+          <HeartbeatConfigDialog
+            open={heartbeatOpen}
+            onOpenChange={setHeartbeatOpen}
+            config={hb.config}
+            saving={hb.saving}
+            update={hb.update}
+            test={hb.test}
+            getChecklist={hb.getChecklist}
+            setChecklist={hb.setChecklist}
+            fetchTargets={hb.fetchTargets}
+            refresh={hb.refresh}
+            agentProvider={agent?.provider}
+            agentModel={agent?.model}
+          />
+        </Suspense>
+      )}
+
+      {promptOpen && (
+        <SystemPromptDialog
+          agentKey={agent.agent_key}
+          open={promptOpen}
+          onOpenChange={setPromptOpen}
         />
       )}
 

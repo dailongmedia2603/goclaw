@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router";
-import { Plus, Bot, LayoutGrid, List } from "lucide-react";
+import { Plus, Bot, LayoutGrid, List, ArrowLeftRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -37,6 +37,7 @@ export function AgentsPage() {
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"card" | "list">("card");
   const [ownerFilter, setOwnerFilter] = useState<string | undefined>();
+  const [typeFilter, setTypeFilter] = useState<string | undefined>();
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [summoningAgent, setSummoningAgent] = useState<{ id: string; name: string } | null>(null);
@@ -44,6 +45,20 @@ export function AgentsPage() {
   // Collect unique owner IDs for filter + contact resolution
   const ownerIDs = useMemo(() => [...new Set(agents.map((a) => a.owner_id).filter(Boolean))], [agents]);
   const { resolve } = useContactResolver(ownerIDs);
+
+  const filtered = useMemo(() => agents.filter((a) => {
+    if (ownerFilter && a.owner_id !== ownerFilter) return false;
+    if (typeFilter && a.agent_type !== typeFilter) return false;
+    const q = search.toLowerCase();
+    return (
+      a.agent_key.toLowerCase().includes(q) ||
+      (a.display_name ?? "").toLowerCase().includes(q)
+    );
+  }), [agents, ownerFilter, typeFilter, search]);
+
+  const { pageItems, pagination, setPage, setPageSize, resetPage } = usePagination(filtered);
+
+  useEffect(() => { resetPage(); }, [search, ownerFilter, typeFilter, resetPage]);
 
   const handleResummon = async (agent: { id: string; display_name?: string; agent_key: string }) => {
     try {
@@ -64,19 +79,6 @@ export function AgentsPage() {
     );
   }
 
-  const filtered = agents.filter((a) => {
-    if (ownerFilter && a.owner_id !== ownerFilter) return false;
-    const q = search.toLowerCase();
-    return (
-      a.agent_key.toLowerCase().includes(q) ||
-      (a.display_name ?? "").toLowerCase().includes(q)
-    );
-  });
-
-  const { pageItems, pagination, setPage, setPageSize, resetPage } = usePagination(filtered);
-
-  useEffect(() => { resetPage(); }, [search, ownerFilter, resetPage]);
-
   const resolveOwnerName = (id: string) => {
     const contact = resolve(id);
     return contact?.display_name || contact?.username || id;
@@ -96,9 +98,14 @@ export function AgentsPage() {
         title={t("title")}
         description={t("description")}
         actions={
-          <Button onClick={() => setCreateOpen(true)} className="gap-1">
-            <Plus className="h-4 w-4" /> {t("createAgent")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => navigate("/import-export?tab=agents")} className="gap-1">
+              <ArrowLeftRight className="h-4 w-4" /> {t("transfer.title")}
+            </Button>
+            <Button onClick={() => setCreateOpen(true)} className="gap-1">
+              <Plus className="h-4 w-4" /> {t("createAgent")}
+            </Button>
+          </div>
         }
       />
 
@@ -110,6 +117,21 @@ export function AgentsPage() {
           placeholder={t("searchPlaceholder")}
           className="max-w-sm"
         />
+
+        {/* Type filter */}
+        <Select
+          value={typeFilter ?? "__all__"}
+          onValueChange={(v) => setTypeFilter(v === "__all__" ? undefined : v)}
+        >
+          <SelectTrigger className="h-9 w-36 text-xs">
+            <SelectValue placeholder={t("allTypes", "All Types")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">{t("allTypes", "All Types")}</SelectItem>
+            <SelectItem value="open">{t("typeOpen", "Open")}</SelectItem>
+            <SelectItem value="predefined">{t("typePredefined", "Predefined")}</SelectItem>
+          </SelectContent>
+        </Select>
 
         {/* Creator filter */}
         {ownerIDs.length > 0 && (
@@ -174,9 +196,9 @@ export function AgentsPage() {
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={Bot}
-            title={search || ownerFilter ? t("noMatchTitle") : t("emptyTitle")}
+            title={search || ownerFilter || typeFilter ? t("noMatchTitle") : t("emptyTitle")}
             description={
-              search || ownerFilter
+              search || ownerFilter || typeFilter
                 ? t("noMatchDescription")
                 : t("emptyDescription")
             }
@@ -232,8 +254,14 @@ export function AgentsPage() {
           const created = await createAgent(data);
           refresh();
           if (created && typeof created === "object" && "status" in created && created.status === "summoning") {
-            const ag = created as { id: string; display_name?: string; agent_key: string };
-            setSummoningAgent({ id: ag.id, name: ag.display_name || ag.agent_key });
+            const ag = created as { id: string; display_name?: string; agent_key: string; other_config?: Record<string, unknown> };
+            // Skip summoning modal for none/minimal — these modes don't use persona files
+            const pm = ag.other_config?.prompt_mode;
+            if (pm === "none" || pm === "minimal") {
+              // no-op: summoning will still run on backend but we skip the modal
+            } else {
+              setSummoningAgent({ id: ag.id, name: ag.display_name || ag.agent_key });
+            }
           }
         }}
       />

@@ -21,6 +21,27 @@ func (m *TeamToolManager) broadcastTeamEvent(ctx context.Context, name string, p
 	bus.BroadcastForTenant(m.msgBus, name, store.TenantIDFromContext(ctx), payload)
 }
 
+func reviewOutboundMessage(task *store.TeamTaskData, content string) bus.OutboundMessage {
+	message := bus.OutboundMessage{
+		Channel: task.Channel,
+		ChatID:  task.ChatID,
+		Content: content,
+	}
+	message.Metadata = TaskLocalKeyMetadata(task)
+	return message
+}
+
+// TaskLocalKeyMetadata extracts local_key from task metadata for Telegram forum topic routing.
+func TaskLocalKeyMetadata(task *store.TeamTaskData) map[string]string {
+	if task == nil || task.Metadata == nil {
+		return nil
+	}
+	if localKey, ok := task.Metadata[TaskMetaLocalKey].(string); ok && localKey != "" {
+		return map[string]string{TaskMetaLocalKey: localKey}
+	}
+	return nil
+}
+
 // resolveTeamRole returns the calling agent's role in the team.
 // Unlike requireLead(), this does NOT bypass for teammate channel —
 // workspace RBAC must respect actual roles even for teammate agents.
@@ -47,6 +68,23 @@ func (m *TeamToolManager) agentDisplayName(ctx context.Context, key string) stri
 		return ""
 	}
 	return ag.DisplayName
+}
+
+// ============================================================
+// TeamToolBackend exported wrappers (helpers layer)
+// ============================================================
+
+func (m *TeamToolManager) BroadcastTeamEvent(ctx context.Context, name string, payload any) {
+	m.broadcastTeamEvent(ctx, name, payload)
+}
+func (m *TeamToolManager) AgentDisplayName(ctx context.Context, key string) string {
+	return m.agentDisplayName(ctx, key)
+}
+func (m *TeamToolManager) FollowupDelayMinutes(team *store.TeamData) int {
+	return m.followupDelayMinutes(team)
+}
+func (m *TeamToolManager) FollowupMaxReminders(team *store.TeamData) int {
+	return m.followupMaxReminders(team)
 }
 
 // ============================================================
@@ -166,16 +204,14 @@ func (m *TeamToolManager) createEscalationTask(ctx context.Context, team *store.
 		return ErrorResult("failed to create escalation task: " + err.Error())
 	}
 
-	m.broadcastTeamEvent(ctx, protocol.EventTeamTaskCreated, protocol.TeamTaskEventPayload{
-		TeamID:    team.ID.String(),
-		TaskID:    task.ID.String(),
-		Subject:   subject,
-		Status:    store.TeamTaskStatusPending,
-		UserID:    store.UserIDFromContext(ctx),
-		Channel:   ToolChannelFromCtx(ctx),
-		ChatID:    ToolChatIDFromCtx(ctx),
-		Timestamp: task.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
-	})
+	m.broadcastTeamEvent(ctx, protocol.EventTeamTaskCreated, BuildTaskEventPayload(
+		team.ID.String(), task.ID.String(),
+		store.TeamTaskStatusPending,
+		"", "",
+		WithSubject(subject),
+		WithContextInfo(ctx),
+		WithTimestamp(task.CreatedAt.UTC().Format("2006-01-02T15:04:05Z")),
+	))
 
 	// Notify channel if possible.
 	m.notifyChannelReview(task)
@@ -189,9 +225,5 @@ func (m *TeamToolManager) notifyChannelReview(task *store.TeamTaskData) {
 		return
 	}
 	content := fmt.Sprintf("🔔 Escalation: \"%s\" requires human review (task %s).", task.Subject, task.Identifier)
-	m.msgBus.PublishOutbound(bus.OutboundMessage{
-		Channel: task.Channel,
-		ChatID:  task.ChatID,
-		Content: content,
-	})
+	m.msgBus.PublishOutbound(reviewOutboundMessage(task, content))
 }

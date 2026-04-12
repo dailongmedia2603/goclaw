@@ -8,10 +8,29 @@ import (
 
 	"log/slog"
 
+	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
+	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
+
+// isUserFilePopulated checks if USER.md has been filled with actual user data
+// beyond the blank template. The template has "- **Name:**\n" with no value.
+func isUserFilePopulated(content string) bool {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return false
+	}
+	// Template markers: "**Name:**" followed by newline (no value) or just whitespace
+	for line := range strings.SplitSeq(content, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "- **Name:**" || line == "**Name:**" {
+			return false // name field still empty
+		}
+	}
+	return true
+}
 
 // finalizeRun performs post-loop processing: sanitization, media dedup, session flush,
 // bootstrap cleanup, and builds the final RunResult.
@@ -24,25 +43,7 @@ func (l *Loop) finalizeRun(
 	toolTiming ToolTimingMap,
 ) *RunResult {
 	// 5. Full sanitization pipeline (matching TS extractAssistantText + sanitizeUserFacingText)
-	preSanitize := rs.finalContent
 	rs.finalContent = SanitizeAssistantContent(rs.finalContent)
-
-	// Log reasoning guard diagnostics for the final message.
-	if isReasoningPrefix(preSanitize) || strings.Contains(strings.ToLower(preSanitize), "<answer>") {
-		slog.Info("reasoning.guard.final_sanitize",
-			"agent", l.id, "session", req.SessionKey,
-			"pre_len", len(preSanitize),
-			"pre_preview", truncateForLog(preSanitize, 300),
-			"post_len", len(rs.finalContent),
-			"post_preview", truncateForLog(rs.finalContent, 300),
-			"had_answer_tag", strings.Contains(strings.ToLower(preSanitize), "<answer>"),
-			"had_reasoning_prefix", isReasoningPrefix(preSanitize),
-		)
-	}
-
-	// 5a. Output redaction: strip business-secret terms at code level (post-sanitize, pre-NO_REPLY).
-	// Catches any term the LLM leaked despite prompt rules — definitive last-mile filter.
-	rs.finalContent = l.redact(rs.finalContent)
 
 	// 6. Handle NO_REPLY: save to session for context but mark as silent.
 	isSilent := IsSilentReply(rs.finalContent)
@@ -108,6 +109,7 @@ func (l *Loop) finalizeRun(
 			ID:       filepath.Base(mr.Path),
 			MimeType: mr.ContentType,
 			Kind:     kind,
+			Path:     mr.Path,
 		})
 	}
 	rs.pendingMsgs = append(rs.pendingMsgs, assistantMsg)
@@ -126,6 +128,38 @@ func (l *Loop) finalizeRun(
 				Role:    "user",
 				Content: "[System] You haven't completed onboarding yet. Please update USER.md with the user's details and clear BOOTSTRAP.md as instructed.",
 			})
+		}
+	}
+
+	// Bootstrap auto-cleanup: after enough conversation turns, remove BOOTSTRAP.md.
+	// If USER.md is still the blank template, inject a reminder so the agent fills it.
+	// Must run BEFORE session flush so the nudge message is persisted to history.
+	if hadBootstrap && l.bootstrapCleanup != nil {
+		userTurns := 1 // current user message
+		for _, m := range history {
+			if m.Role == "user" {
+				userTurns++
+			}
+		}
+		if userTurns >= bootstrapAutoCleanupTurns {
+			if cleanErr := l.bootstrapCleanup(ctx, l.agentUUID, req.UserID); cleanErr != nil {
+				slog.Warn("bootstrap auto-cleanup failed", "error", cleanErr, "agent", l.id, "user", req.UserID)
+			} else {
+				slog.Info("bootstrap auto-cleanup completed", "agent", l.id, "user", req.UserID, "turns", userTurns)
+				// Check if USER.md is still the blank template — nudge agent to fill it
+				if l.contextFileLoader != nil {
+					files := l.contextFileLoader(ctx, l.agentUUID, req.UserID, l.agentType)
+					for _, f := range files {
+						if f.Path == bootstrap.UserFile && !isUserFilePopulated(f.Content) {
+							rs.pendingMsgs = append(rs.pendingMsgs, providers.Message{
+								Role:    "user",
+								Content: "[System] You completed onboarding but USER.md is still empty. Please update USER.md with the user's name and details from this conversation using write_file.",
+							})
+							break
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -151,23 +185,6 @@ func (l *Loop) finalizeRun(
 
 	l.sessions.Save(ctx, req.SessionKey)
 
-	// Bootstrap auto-cleanup: after enough conversation turns, remove BOOTSTRAP.md.
-	if hadBootstrap && l.bootstrapCleanup != nil {
-		userTurns := 1 // current user message
-		for _, m := range history {
-			if m.Role == "user" {
-				userTurns++
-			}
-		}
-		if userTurns >= bootstrapAutoCleanupTurns {
-			if cleanErr := l.bootstrapCleanup(ctx, l.agentUUID, req.UserID); cleanErr != nil {
-				slog.Warn("bootstrap auto-cleanup failed", "error", cleanErr, "agent", l.id, "user", req.UserID)
-			} else {
-				slog.Info("bootstrap auto-cleanup completed", "agent", l.id, "user", req.UserID, "turns", userTurns)
-			}
-		}
-	}
-
 	// 8. Metadata Stripping: Clean internal [[...]] tags for user-facing content
 	rs.finalContent = StripMessageDirectives(rs.finalContent)
 	if isSilent {
@@ -179,8 +196,26 @@ func (l *Loop) finalizeRun(
 	// 9. Maybe summarize
 	l.maybeSummarize(ctx, req.SessionKey)
 
+	// V3: emit session.completed for consolidation pipeline (episodic → semantic → dreaming)
+	if l.domainBus != nil {
+		l.domainBus.Publish(eventbus.DomainEvent{
+			Type:     eventbus.EventSessionCompleted,
+			TenantID: l.tenantID.String(),
+			AgentID:  l.agentUUID.String(),
+			UserID:   req.UserID,
+			SourceID: req.SessionKey,
+			Payload: &eventbus.SessionCompletedPayload{
+				SessionKey:      req.SessionKey,
+				MessageCount:    len(history) + len(rs.pendingMsgs),
+				TokensUsed:      rs.totalUsage.PromptTokens + rs.totalUsage.CompletionTokens,
+				CompactionCount: l.sessions.GetCompactionCount(ctx, req.SessionKey),
+			},
+		})
+	}
+
 	return &RunResult{
 		Content:        rs.finalContent,
+		Thinking:       rs.finalThinking,
 		RunID:          req.RunID,
 		Iterations:     rs.iteration,
 		Usage:          &rs.totalUsage,
@@ -188,5 +223,6 @@ func (l *Loop) finalizeRun(
 		Deliverables:   rs.deliverables,
 		BlockReplies:   rs.blockReplies,
 		LastBlockReply: rs.lastBlockReply,
+		LoopKilled:     rs.loopKilled,
 	}
 }

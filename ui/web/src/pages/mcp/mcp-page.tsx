@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
-import { Plug, Plus, RefreshCw, Pencil, Trash2, Users, Wrench, KeyRound } from "lucide-react";
+import { Plug, Plus, RefreshCw, RotateCcw, Pencil, Trash2, Users, Wrench, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/shared/page-header";
@@ -11,12 +11,17 @@ import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { ConfirmDeleteDialog } from "@/components/shared/confirm-delete-dialog";
 import { useMCP, type MCPServerData, type MCPServerInput } from "./hooks/use-mcp";
 import { MCPFormDialog } from "./mcp-form-dialog";
-import { MCPGrantsDialog } from "./mcp-grants-dialog";
 import { MCPToolsDialog } from "./mcp-tools-dialog";
-import { MCPUserCredentialsDialog } from "./mcp-user-credentials-dialog";
 import { useMinLoading } from "@/hooks/use-min-loading";
 import { useDeferredLoading } from "@/hooks/use-deferred-loading";
 import { usePagination } from "@/hooks/use-pagination";
+
+const MCPGrantsDialog = lazy(() =>
+  import("./mcp-grants-dialog").then((m) => ({ default: m.MCPGrantsDialog }))
+);
+const MCPUserCredentialsDialog = lazy(() =>
+  import("./mcp-user-credentials-dialog").then((m) => ({ default: m.MCPUserCredentialsDialog }))
+);
 
 const transportBadge: Record<string, string> = {
   stdio: "default",
@@ -27,8 +32,8 @@ const transportBadge: Record<string, string> = {
 export function MCPPage() {
   const { t } = useTranslation("mcp");
   const { t: tc } = useTranslation("common");
-  const { servers, loading, refresh, createServer, updateServer, deleteServer, grantAgent, revokeAgent, listAgentGrants, testConnection, listServerTools, getUserCredentials, setUserCredentials, deleteUserCredentials } = useMCP();
-  const spinning = useMinLoading(loading);
+  const { servers, loading, fetching, refresh, createServer, updateServer, deleteServer, grantAgent, revokeAgent, listAgentGrants, testConnection, reconnectServer, listServerTools, getUserCredentials, setUserCredentials, deleteUserCredentials } = useMCP();
+  const spinning = useMinLoading(fetching);
   const showSkeleton = useDeferredLoading(loading && servers.length === 0);
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -38,6 +43,7 @@ export function MCPPage() {
   const [deleteTarget, setDeleteTarget] = useState<MCPServerData | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [credentialsServer, setCredentialsServer] = useState<MCPServerData | null>(null);
+  const [reconnectingId, setReconnectingId] = useState<string | null>(null);
 
   const filtered = servers.filter(
     (s) =>
@@ -131,7 +137,7 @@ export function MCPPage() {
                               <span className="ml-1 text-xs text-muted-foreground">({srv.name})</span>
                             )}
                           </div>
-                          <span className="font-mono text-[11px] text-muted-foreground">
+                          <span className="font-mono text-xs-plus text-muted-foreground">
                             {srv.tool_prefix || `mcp_${srv.name.replace(/-/g, "_")}`}
                           </span>
                         </div>
@@ -163,6 +169,18 @@ export function MCPPage() {
                     <td className="px-4 py-3 text-muted-foreground">{srv.created_by || "-"}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={reconnectingId === srv.id}
+                          onClick={async () => {
+                            setReconnectingId(srv.id);
+                            try { await reconnectServer(srv.id); } finally { setReconnectingId(null); }
+                          }}
+                          title={t("reconnect")}
+                        >
+                          <RotateCcw className={"h-3.5 w-3.5" + (reconnectingId === srv.id ? " animate-spin" : "")} />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -223,15 +241,17 @@ export function MCPPage() {
       />
 
       {grantsServer && (
-        <MCPGrantsDialog
-          open={!!grantsServer}
-          onOpenChange={(open) => !open && setGrantsServer(null)}
-          server={grantsServer}
-          onGrant={(agentId, allow, deny) => grantAgent(grantsServer.id, agentId, allow, deny)}
-          onRevoke={(agentId) => revokeAgent(grantsServer.id, agentId)}
-          onLoadGrants={listAgentGrants}
-          onLoadTools={listServerTools}
-        />
+        <Suspense fallback={null}>
+          <MCPGrantsDialog
+            open={!!grantsServer}
+            onOpenChange={(open) => !open && setGrantsServer(null)}
+            server={grantsServer}
+            onGrant={(agentId, allow, deny) => grantAgent(grantsServer.id, agentId, allow, deny)}
+            onRevoke={(agentId) => revokeAgent(grantsServer.id, agentId)}
+            onLoadGrants={listAgentGrants}
+            onLoadTools={listServerTools}
+          />
+        </Suspense>
       )}
 
       {toolsServer && (
@@ -255,14 +275,16 @@ export function MCPPage() {
       />
 
       {credentialsServer && (
-        <MCPUserCredentialsDialog
-          open={!!credentialsServer}
-          onOpenChange={(open) => !open && setCredentialsServer(null)}
-          server={credentialsServer}
-          onGetCredentials={getUserCredentials}
-          onSetCredentials={setUserCredentials}
-          onDeleteCredentials={deleteUserCredentials}
-        />
+        <Suspense fallback={null}>
+          <MCPUserCredentialsDialog
+            open={!!credentialsServer}
+            onOpenChange={(open) => !open && setCredentialsServer(null)}
+            server={credentialsServer}
+            onGetCredentials={getUserCredentials}
+            onSetCredentials={setUserCredentials}
+            onDeleteCredentials={deleteUserCredentials}
+          />
+        </Suspense>
       )}
     </div>
   );

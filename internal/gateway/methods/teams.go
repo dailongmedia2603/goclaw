@@ -125,6 +125,10 @@ func (m *TeamsMethods) handleCreate(ctx context.Context, client *gateway.Client,
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgRequired, "lead")))
 		return
 	}
+	if len(params.Members) == 0 {
+		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, "at least 1 member is required"))
+		return
+	}
 
 	// Resolve lead agent
 	leadAgent, err := resolveAgentInfo(ctx, m.agentStore, params.Lead)
@@ -179,12 +183,6 @@ func (m *TeamsMethods) handleCreate(ctx context.Context, client *gateway.Client,
 		if err := m.teamStore.AddMember(ctx, team.ID, ag.ID, store.TeamRoleMember); err != nil {
 			slog.Warn("teams.create: failed to add member", "agent", ag.AgentKey, "error", err)
 		}
-	}
-
-	// Auto-create outbound agent_links from lead to each member.
-	// Only the lead can delegate to members.
-	if m.linkStore != nil {
-		m.autoCreateTeamLinks(ctx, team.ID, leadAgent, memberAgents, client.UserID())
 	}
 
 	// Invalidate agent + team tool caches so TEAM.md gets injected

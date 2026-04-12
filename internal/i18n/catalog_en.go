@@ -10,7 +10,7 @@ func init() {
 		MsgInvalidRequest:   "invalid request: %s",
 		MsgInvalidJSON:      "invalid JSON",
 		MsgUnauthorized:     "unauthorized",
-		MsgPermissionDenied: "permission denied: insufficient role for %s",
+		MsgPermissionDenied: "permission denied: %s",
 		MsgInternalError:    "internal error: %s",
 		MsgInvalidSlug:      "%s must be a valid slug (lowercase letters, numbers, hyphens only)",
 		MsgFailedToList:     "failed to list %s",
@@ -95,6 +95,7 @@ func init() {
 
 		// Channels
 		MsgCannotDeleteDefaultInst: "cannot delete default channel instance",
+		MsgCannotRemoveLastWriter:  "cannot remove the last file writer",
 
 		// Skills
 		MsgSkillsUpdateNotSupported: "skills.update not supported for file-based skills",
@@ -104,8 +105,10 @@ func init() {
 		MsgInvalidLogAction: "action must be 'start' or 'stop'",
 
 		// Config
-		MsgRawConfigRequired: "raw config is required",
-		MsgRawPatchRequired:  "raw patch is required",
+		MsgRawConfigRequired:     "raw config is required",
+		MsgRawPatchRequired:      "raw patch is required",
+		MsgConfigMasterScopeOnly: "config.* methods are master-scope only; use tenant tool config endpoints for per-tenant overrides",
+		MsgMasterScopeRequired:   "this action requires master tenant scope",
 
 		// Storage / File
 		MsgCannotDeleteSkillsDir: "cannot delete skills directories",

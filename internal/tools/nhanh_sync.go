@@ -157,7 +157,7 @@ func (t *NhanhSyncTool) syncProducts(ctx context.Context, client *nhanh.Client, 
 		stats.entities += len(entities)
 		stats.relations += len(relations)
 
-		if err := t.kgStore.IngestExtraction(ctx, agentID, userID, entities, relations); err != nil {
+		if _, err := t.kgStore.IngestExtraction(ctx, agentID, userID, entities, relations); err != nil {
 			slog.Warn("nhanh sync: KG ingest failed", "resource", "products", "page", page+1, "error", err)
 			stats.errors = append(stats.errors, fmt.Sprintf("KG ingest products page %d: %v", page+1, err))
 		}
@@ -202,7 +202,7 @@ func (t *NhanhSyncTool) syncOrders(ctx context.Context, client *nhanh.Client, ag
 		stats.entities += len(entities)
 		stats.relations += len(relations)
 
-		if err := t.kgStore.IngestExtraction(ctx, agentID, userID, entities, relations); err != nil {
+		if _, err := t.kgStore.IngestExtraction(ctx, agentID, userID, entities, relations); err != nil {
 			slog.Warn("nhanh sync: KG ingest failed", "resource", "orders", "page", page+1, "error", err)
 			stats.errors = append(stats.errors, fmt.Sprintf("KG ingest orders page %d: %v", page+1, err))
 		}
@@ -240,7 +240,7 @@ func (t *NhanhSyncTool) syncCustomers(ctx context.Context, client *nhanh.Client,
 		stats.entities += len(entities)
 		stats.relations += len(relations)
 
-		if err := t.kgStore.IngestExtraction(ctx, agentID, userID, entities, relations); err != nil {
+		if _, err := t.kgStore.IngestExtraction(ctx, agentID, userID, entities, relations); err != nil {
 			slog.Warn("nhanh sync: KG ingest failed", "resource", "customers", "page", page+1, "error", err)
 			stats.errors = append(stats.errors, fmt.Sprintf("KG ingest customers page %d: %v", page+1, err))
 		}

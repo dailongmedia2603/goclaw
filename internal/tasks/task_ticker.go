@@ -13,15 +13,16 @@ import (
 
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
+	"github.com/nextlevelbuilder/goclaw/internal/tools"
 	"github.com/nextlevelbuilder/goclaw/pkg/protocol"
 )
 
 const (
-	defaultRecoveryInterval    = 5 * time.Minute
-	defaultStaleThreshold      = 2 * time.Hour
-	defaultInReviewThreshold   = 4 * time.Hour
-	followupCooldown           = 5 * time.Minute
-	defaultFollowupInterval    = 30 * time.Minute
+	defaultRecoveryInterval  = 5 * time.Minute
+	defaultStaleThreshold    = 2 * time.Hour
+	defaultInReviewThreshold = 4 * time.Hour
+	followupCooldown         = 5 * time.Minute
+	defaultFollowupInterval  = 30 * time.Minute
 )
 
 // TaskTicker periodically recovers stale tasks and re-dispatches pending work.
@@ -234,12 +235,26 @@ func (t *TaskTicker) notifyLeaders(ctx context.Context, tasks []store.RecoveredT
 			chatID = scope.TeamID.String()
 		}
 
+		// Resolve PeerKind from first task's metadata for correct session routing (#266).
+		var peerKind string
+		var fullTask *store.TeamTaskData
+		if task, err := t.teams.GetTask(ctx, scopeTasks[0].ID); err == nil {
+			fullTask = task
+			if fullTask != nil && fullTask.Metadata != nil {
+				if pk, ok := fullTask.Metadata["peer_kind"].(string); ok {
+					peerKind = pk
+				}
+			}
+		}
+
 		if !t.msgBus.TryPublishInbound(bus.InboundMessage{
 			Channel:  channel,
 			SenderID: "ticker:system",
 			ChatID:   chatID,
+			Metadata: tools.TaskLocalKeyMetadata(fullTask),
 			AgentID:  lead.AgentKey,
 			UserID:   team.CreatedBy,
+			PeerKind: peerKind,
 			TenantID: scope.TenantID,
 			Content:  content,
 		}) {
@@ -261,13 +276,11 @@ func (t *TaskTicker) broadcastStaleEvents(ctx context.Context, tasks []store.Rec
 			continue
 		}
 		seen[task.TeamID] = true
-		bus.BroadcastForTenant(t.msgBus, protocol.EventTeamTaskStale, task.TenantID, protocol.TeamTaskEventPayload{
-			TeamID:    task.TeamID.String(),
-			Status:    store.TeamTaskStatusStale,
-			Timestamp: time.Now().UTC().Format("2006-01-02T15:04:05Z"),
-			ActorType: "system",
-			ActorID:   "task_ticker",
-		})
+		bus.BroadcastForTenant(t.msgBus, protocol.EventTeamTaskStale, task.TenantID, tools.BuildTaskEventPayload(
+			task.TeamID.String(), "",
+			store.TeamTaskStatusStale,
+			"system", "task_ticker",
+		))
 	}
 }
 
@@ -326,11 +339,7 @@ func (t *TaskTicker) processTeamFollowups(ctx context.Context, tasks []store.Tea
 		}
 		content := fmt.Sprintf("Reminder (%s): %s", countLabel, task.FollowupMessage)
 
-		if !t.msgBus.TryPublishOutbound(bus.OutboundMessage{
-			Channel: task.FollowupChannel,
-			ChatID:  task.FollowupChatID,
-			Content: content,
-		}) {
+		if !t.msgBus.TryPublishOutbound(followupOutboundMessage(task, content)) {
 			slog.Warn("task_ticker: outbound buffer full, skipping followup", "task_id", task.ID)
 			continue
 		}
@@ -360,6 +369,16 @@ func (t *TaskTicker) processTeamFollowups(ctx context.Context, tasks []store.Tea
 			"team_id", task.TeamID,
 		)
 	}
+}
+
+func followupOutboundMessage(task *store.TeamTaskData, content string) bus.OutboundMessage {
+	message := bus.OutboundMessage{
+		Channel: task.FollowupChannel,
+		ChatID:  task.FollowupChatID,
+		Content: content,
+	}
+	message.Metadata = tools.TaskLocalKeyMetadata(task)
+	return message
 }
 
 // followupInterval parses the team's followup_interval_minutes setting.

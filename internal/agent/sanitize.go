@@ -24,30 +24,6 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
-// sanitizeWithEmptyGuard wraps a transformer with a "never silently drain
-// to empty" guard. If the transformer produces empty output from non-empty
-// input, logs a warning and returns the ORIGINAL input unchanged. This
-// prevents accidental content loss when a sanitizer heuristic over-matches.
-//
-// Use this to wrap any transformer where emptying the content is NOT an
-// intentional outcome (e.g. garbled tool XML strip legitimately empties
-// tag-only input, but reasoning-prefix strip should not empty bullet lists).
-func sanitizeWithEmptyGuard(name, content string, fn func(string) string) string {
-	if strings.TrimSpace(content) == "" {
-		return fn(content)
-	}
-	out := fn(content)
-	if strings.TrimSpace(out) == "" {
-		slog.Warn("sanitize.drained_to_empty",
-			"transformer", name,
-			"original_len", len(content),
-			"original_preview", truncateForLog(content, 200),
-		)
-		return content
-	}
-	return out
-}
-
 // SanitizeAssistantContent applies the full sanitization pipeline to assistant
 // response text before saving to session and sending to user.
 // Matching TS extractAssistantText() + sanitizeUserFacingText().
@@ -67,29 +43,8 @@ func SanitizeAssistantContent(content string) string {
 	// 2. Strip downgraded tool call text ([Tool Call: ...], [Tool Result ...])
 	content = stripDowngradedToolCallText(content)
 
-	// 2b. Strip bare function-call-as-text (e.g. take_snapshot(targetId="..."))
-	content = stripBareToolCallText(content)
-
-	// 2c. Extract <answer> tags (additive extraction — most reliable).
-	// If the model wrapped its response in <answer>...</answer>, extract ONLY
-	// that content and discard everything else (reasoning, meta-analysis, etc.).
-	// This is the primary defense against reasoning leaks — it doesn't matter
-	// WHAT the reasoning looks like, only the marked answer survives.
-	// Falls through to subtractive stripping if no <answer> tags found.
-	if extracted := extractAnswerTag(content); extracted != "" {
-		content = extracted
-	}
-
 	// 3. Strip thinking/reasoning tags (<think>, <thinking>, <thought>, <antThinking>)
 	content = stripThinkingTags(content)
-
-	// 3b. Strip leading plain-text "Reasoning:" / "Thinking:" header blocks
-	// (narrow re-addition 2026-04-12). Only triggers when content literally
-	// starts with one of these headers AND has a blank-line separator — avoids
-	// the over-matching bug that caused the original removal on 2026-04-10.
-	// Wrapped in sanitizeWithEmptyGuard so a pathological case can never drain
-	// the response to empty.
-	content = sanitizeWithEmptyGuard("leading_reasoning_block", content, stripLeadingReasoningBlock)
 
 	// 4. Strip <final> tags (keep content inside)
 	content = stripFinalTags(content)
@@ -105,12 +60,6 @@ func SanitizeAssistantContent(content string) string {
 
 	// 8. Strip leading blank lines (preserve indentation)
 	content = stripLeadingBlankLines(content)
-
-	// 9. Replace inline LaTeX symbols with Unicode equivalents
-	content = replaceInlineLaTeX(content)
-
-	// 10. Strip raw tool result JSON leaked by LLM
-	content = stripToolResultJSON(content)
 
 	content = strings.TrimSpace(content)
 
@@ -216,246 +165,33 @@ func stripDowngradedToolCallText(content string) string {
 	return strings.TrimSpace(strings.Join(result, "\n"))
 }
 
-// --- 2b. Bare function-call-as-text ---
-
-// bareToolCallPattern matches function-call syntax that models sometimes emit
-// as plain text instead of structured tool_calls. Covers patterns like:
-//   - take_snapshot(targetId="70C982...")
-//   - browser(action="snapshot", targetId="...")
-//   - memory_search(query="something")
-// Only matches identifiers that look like tool names (snake_case/camelCase),
-// followed by parenthesized arguments containing at least one key="value" pair.
-var bareToolCallPattern = regexp.MustCompile(
-	`(?m)^\s*[a-z][a-zA-Z0-9_]*\(\s*(?:[a-zA-Z_]+=(?:"[^"]*"|'[^']*'|\d+)(?:\s*,\s*[a-zA-Z_]+=(?:"[^"]*"|'[^']*'|\d+))*)\s*\)\s*$`,
-)
-
-func stripBareToolCallText(content string) string {
-	if !strings.Contains(content, "(") || !strings.Contains(content, "=") {
-		return content
-	}
-	result := bareToolCallPattern.ReplaceAllStringFunc(content, func(match string) string {
-		slog.Warn("stripped bare tool-call text from assistant response",
-			"match", strings.TrimSpace(match),
-		)
-		return ""
-	})
-	return strings.TrimSpace(result)
-}
-
-// isReasoningPrefix checks if content starts with "Reasoning:" or "Thinking:"
-// (case-insensitive, ignoring leading whitespace). Used to suppress block
-// replies that are chain-of-thought text before they ever reach the sanitize
-// pipeline — checking RAW content avoids the partial-strip problem where
-// sanitize removes the prefix but leaves meta-reasoning content behind.
-func isReasoningPrefix(content string) bool {
-	lower := strings.ToLower(strings.TrimLeft(content, " \t\n\r"))
-	return strings.HasPrefix(lower, "reasoning:") ||
-		strings.HasPrefix(lower, "thinking:") ||
-		strings.HasPrefix(lower, "reasoning\n") ||
-		strings.HasPrefix(lower, "thinking\n")
-}
-
-// --- 2c. Answer tag extraction ---
-
-// answerTagPattern matches <answer>...</answer> tags. Uses lazy matching
-// to handle multiple occurrences — FindAllStringSubmatch returns all matches
-// and we concatenate them.
-var answerTagPattern = regexp.MustCompile(`(?is)<answer\b[^>]*>(.*?)</answer>`)
-
-// extractAnswerTag extracts content from <answer>...</answer> tags.
-// Returns the concatenated content of ALL <answer> blocks (preserving order),
-// or "" if no tags are found (caller falls through to subtractive stripping).
-//
-// This is the additive complement to stripThinkingTags: instead of removing
-// reasoning (which requires knowing where it ends), we extract ONLY what
-// the model explicitly marked as the answer. Everything outside is discarded.
-func extractAnswerTag(content string) string {
-	if !strings.Contains(strings.ToLower(content), "<answer") {
-		return ""
-	}
-	matches := answerTagPattern.FindAllStringSubmatch(content, -1)
-	if len(matches) == 0 {
-		return ""
-	}
-	var parts []string
-	for _, m := range matches {
-		if trimmed := strings.TrimSpace(m[1]); trimmed != "" {
-			parts = append(parts, trimmed)
-		}
-	}
-	if len(parts) == 0 {
-		return ""
-	}
-	result := strings.Join(parts, "\n\n")
-	slog.Info("reasoning.guard.answer_tag_extracted",
-		"matches", len(matches),
-		"result_len", len(result),
-		"result_preview", truncateForLog(result, 200),
-	)
-	return result
-}
-
 // --- 3. Thinking/reasoning tags ---
 
-// Strips thinking/reasoning blocks: <think>, <thinking>, <thought>, <antThinking>.
-// Uses \b (word boundary) instead of requiring ">" so that malformed
-// opening tags like "<thought\n" (missing ">") are also caught.
+// Matches TS stripThinkingTagsFromText() with strict mode.
+// Strips: <redacted_thinking>...</redacted_thinking>, <think>...</think>,
+//         <thinking>...</thinking>, <thought>...</thought>,
+//         <antThinking>...</antThinking>
+// Go regexp doesn't support backreferences, so we use separate patterns.
 var thinkingTagPatterns = []*regexp.Regexp{
-	regexp.MustCompile(`(?is)<think\b.*?</think>`),
-	regexp.MustCompile(`(?is)<thinking\b.*?</thinking>`),
-	regexp.MustCompile(`(?is)<thought\b.*?</thought>`),
-	regexp.MustCompile(`(?is)<antThinking\b.*?</antThinking>`),
-	regexp.MustCompile(`(?is)<antthinking\b.*?</antthinking>`),
+	regexp.MustCompile(`(?is)<redacted_thinking\b[^>]*>.*?</redacted_thinking\s*>`),
+	regexp.MustCompile(`(?is)<thinking\b[^>]*>.*?</thinking\s*>`),
+	regexp.MustCompile(`(?is)<think\b[^>]*>.*?</think\s*>`),
+	regexp.MustCompile(`(?is)<thought\b[^>]*>.*?</thought\s*>`),
+	regexp.MustCompile(`(?is)<antThinking\b[^>]*>.*?</antThinking\s*>`),
+	regexp.MustCompile(`(?is)<antthinking\b[^>]*>.*?</antthinking\s*>`),
 }
-
-// reasoningToCloseTagPattern matches the Gemma-specific pattern where
-// "Reasoning:" (plain text) acts as the opening delimiter and an orphaned
-// </thought>, </think>, or </thinking> acts as the closing delimiter.
-// Gemma-4-31b-it via Google AI Studio consistently emits this pattern:
-//
-//	Reasoning:
-//	<multi-paragraph chain of thought>
-//	</thought>
-//	<actual answer>
-//
-// The regex is anchored to the start of content (^) with optional leading
-// whitespace, and uses lazy matching (.*?) to stop at the FIRST closing tag.
-// Everything from the start through the closing tag is stripped; only the
-// actual answer remains.
-var reasoningToCloseTagPattern = regexp.MustCompile(
-	`(?is)^[\s]*(?:reasoning|thinking):?.*?</\s*(?:thought|think(?:ing)?)\s*>`,
-)
-
-// orphanThinkClosePattern strips orphaned closing tags (e.g. </thought>)
-// that survive when the opening tag was consumed in an earlier streaming chunk.
-var orphanThinkClosePattern = regexp.MustCompile(`(?i)</\s*(?:think(?:ing)?|thought|antthinking)\s*>`)
 
 func stripThinkingTags(content string) string {
 	lower := strings.ToLower(content)
 	if !strings.Contains(lower, "<think") && !strings.Contains(lower, "<thought") &&
-		!strings.Contains(lower, "<antthinking") &&
-		!strings.Contains(lower, "</think") && !strings.Contains(lower, "</thought") &&
-		!strings.Contains(lower, "reasoning:") && !strings.Contains(lower, "thinking:") &&
-		!strings.HasPrefix(strings.TrimLeft(lower, " \t\n\r"), "reasoning\n") &&
-		!strings.HasPrefix(strings.TrimLeft(lower, " \t\n\r"), "thinking\n") {
+		!strings.Contains(lower, "<antthinking") && !strings.Contains(lower, "<redacted_thinking") {
 		return content
 	}
 	result := content
-
-	// 0. Gemma-specific: strip "Reasoning: ... </thought>" blocks.
-	// Must run BEFORE paired-tag stripping since there is no opening <thought>.
-	result = reasoningToCloseTagPattern.ReplaceAllString(result, "")
-
-	// 1. Strip matched pairs (<think>...</think>, <thought>...</thought>, etc.)
 	for _, pat := range thinkingTagPatterns {
 		result = pat.ReplaceAllString(result, "")
 	}
-	// 2. Strip any orphaned closing tags left over from streaming
-	result = orphanThinkClosePattern.ReplaceAllString(result, "")
 	return strings.TrimSpace(result)
-}
-
-// --- 3b. Leading plain-text reasoning block (marker-aware) ---
-
-// reasoningAnswerMarkerPattern matches known "answer starts here" headers that
-// Gemma / some Gemini variants emit at the end of a multi-paragraph reasoning
-// block. Line-anchored (?m) and case-insensitive (?i). Optional markdown bold
-// wrappers (**, __, *, _) around the header keyword are tolerated.
-//
-// Covered markers (keyword followed by a colon):
-//   - Drafting the response / Drafting response / Draft response / Draft
-//   - Final response / Final answer / Final
-//   - Response / Answer / Reply
-//   - Trả lời / Câu trả lời / Đáp án / Phản hồi (Vietnamese)
-//
-// Note: (?i) in Go regexp only case-folds ASCII. Vietnamese keywords are
-// matched in their lowercase form; the leading letter case-folds via ASCII.
-var reasoningAnswerMarkerPattern = regexp.MustCompile(
-	`(?im)^[ \t>#\-]*[*_]{0,2}[ \t]*` +
-		`(?:drafting(?:[ \t]+the)?[ \t]+response|draft(?:[ \t]+response)?|` +
-		`final(?:[ \t]+response|[ \t]+answer)?|response|answer|reply|` +
-		`trả[ \t]+lời|câu[ \t]+trả[ \t]+lời|đáp[ \t]+án|phản[ \t]+hồi)` +
-		`[ \t]*[*_]{0,2}[ \t]*:[ \t]*[*_]{0,2}[ \t]*`,
-)
-
-// stripLeadingReasoningBlock removes a "Reasoning:" / "Thinking:" meta-thinking
-// block at the very start of the response. The actual answer that follows is
-// preserved verbatim.
-//
-// Boundary detection is tiered:
-//
-//  1. Strongest signal — an "answer start" marker (Drafting the response:,
-//     Response:, Trả lời:, etc.) anywhere in the content. If present, every-
-//     thing up to and including the LAST such marker is stripped. This handles
-//     Gemma's multi-paragraph reasoning where the answer only starts after a
-//     specific header.
-//  2. Fallback — first blank-line separator ("\n\n") after the "Reasoning:"
-//     header. Covers the simple single-paragraph case where the model does not
-//     emit an explicit answer marker.
-//
-// Safety rules:
-//
-//   - Must START with "reasoning:" or "thinking:" on the first non-whitespace
-//     content (case-insensitive). Responses that merely mention the word mid-
-//     sentence are never touched.
-//   - Wrapped in sanitizeWithEmptyGuard by the caller: if stripping produces
-//     an empty result the original input is restored.
-//
-// This is a deliberately-more-aggressive replacement for the narrow version
-// shipped in 90377228, which could not handle multi-paragraph reasoning. The
-// marker list is conservative (requires a keyword + colon at line start) to
-// keep the false-positive risk low — and the header-gate ensures we only run
-// when the content is clearly a leaked chain of thought.
-func stripLeadingReasoningBlock(content string) string {
-	// Skip leading whitespace to find the first real content.
-	trimmed := strings.TrimLeft(content, " \t\n\r")
-	if trimmed == "" {
-		return content
-	}
-
-	// Must start with a reasoning header (case-insensitive ASCII fold).
-	// Handles both "Reasoning:" (with colon) and "Reasoning\n" (newline, no colon).
-	lower := strings.ToLower(trimmed)
-	if !strings.HasPrefix(lower, "reasoning:") && !strings.HasPrefix(lower, "thinking:") &&
-		!strings.HasPrefix(lower, "reasoning\n") && !strings.HasPrefix(lower, "thinking\n") {
-		return content
-	}
-
-	// Tier 1 — explicit answer marker. Use the LAST match so nested meta-
-	// thinking ("Response: I want to say... Final answer: Hello") still
-	// resolves to the deepest marker.
-	matches := reasoningAnswerMarkerPattern.FindAllStringIndex(trimmed, -1)
-	if len(matches) > 0 {
-		last := matches[len(matches)-1]
-		after := trimmed[last[1]:]
-		after = strings.TrimLeft(after, " \t\n\r")
-		if strings.TrimSpace(after) != "" {
-			slog.Debug("sanitize.stripped_reasoning_via_marker",
-				"markers_found", len(matches),
-				"stripped_len", len(content)-len(after),
-				"remaining_len", len(after),
-			)
-			return after
-		}
-	}
-
-	// Tier 2 — first blank-line separator fallback. Covers the simple case
-	// "Reasoning:\n<single paragraph>\n\n<answer>".
-	sepIdx := strings.Index(trimmed, "\n\n")
-	if sepIdx < 0 {
-		return content
-	}
-	after := trimmed[sepIdx+2:]
-	after = strings.TrimLeft(after, "\n")
-	if strings.TrimSpace(after) == "" {
-		return content
-	}
-
-	slog.Debug("sanitize.stripped_reasoning_via_blank_line",
-		"stripped_len", len(content)-len(after),
-		"remaining_len", len(after),
-	)
-	return after
 }
 
 // --- 4. <final> tags ---
@@ -584,235 +320,7 @@ func stripLeadingBlankLines(content string) string {
 	return leadingBlankLinesPattern.ReplaceAllString(content, "")
 }
 
-// --- 9. Replace inline LaTeX symbols ---
-
-// inlineLaTeXPattern matches $\command$ patterns (e.g. $\rightarrow$, $\times$).
-var inlineLaTeXPattern = regexp.MustCompile(`\$\\[a-zA-Z]+\$`)
-
-// latexToUnicode maps common LaTeX commands to their Unicode equivalents.
-var latexToUnicode = map[string]string{
-	`$\rightarrow$`:    "→",
-	`$\leftarrow$`:     "←",
-	`$\leftrightarrow$`: "↔",
-	`$\Rightarrow$`:    "⇒",
-	`$\Leftarrow$`:     "⇐",
-	`$\uparrow$`:       "↑",
-	`$\downarrow$`:     "↓",
-	`$\times$`:         "×",
-	`$\div$`:           "÷",
-	`$\pm$`:            "±",
-	`$\neq$`:           "≠",
-	`$\leq$`:           "≤",
-	`$\geq$`:           "≥",
-	`$\approx$`:        "≈",
-	`$\infty$`:         "∞",
-	`$\alpha$`:         "α",
-	`$\beta$`:          "β",
-	`$\gamma$`:         "γ",
-	`$\delta$`:         "δ",
-	`$\lambda$`:        "λ",
-	`$\pi$`:            "π",
-	`$\sigma$`:         "σ",
-	`$\theta$`:         "θ",
-	`$\bullet$`:        "•",
-	`$\cdot$`:          "·",
-	`$\star$`:          "★",
-	`$\checkmark$`:     "✓",
-}
-
-func replaceInlineLaTeX(content string) string {
-	if !strings.Contains(content, `$\`) {
-		return content
-	}
-	result := content
-	for latex, unicode := range latexToUnicode {
-		result = strings.ReplaceAll(result, latex, unicode)
-	}
-	// Strip any remaining unrecognized $\command$ patterns
-	result = inlineLaTeXPattern.ReplaceAllStringFunc(result, func(match string) string {
-		// Extract command name without $ and \
-		cmd := match[2 : len(match)-1]
-		return cmd
-	})
-	return result
-}
-
-// --- 10. Strip raw tool result JSON ---
-
-// toolResultJSONSignatures are field combinations that identify raw tool result
-// JSON leaked into assistant text. Each entry is a set of JSON keys that, when
-// ALL present in a single JSON object, indicate a tool result echo.
-var toolResultJSONSignatures = [][]string{
-	{"results", "count"},            // memory_search, skill_search
-	{"score", "snippet"},            // memory_search result item
-	{"path", "startline", "score"},  // memory_search result item (alt keys)
-	{"results", "hint"},             // memory_search with KG hint
-	{"sessions", "count"},           // sessions_list
-	{"messages", "count", "session_key"}, // sessions_history
-}
-
-// stripToolResultJSON uses a simple brace-matching scanner instead of regex
-// to correctly handle nested JSON objects/arrays.
-
-// containsToolResultSignature checks if a string contains enough JSON keys
-// from any known tool result signature.
-func containsToolResultSignature(block string) bool {
-	lower := strings.ToLower(block)
-	for _, sig := range toolResultJSONSignatures {
-		matched := 0
-		for _, key := range sig {
-			// Match "key": pattern (JSON key)
-			if strings.Contains(lower, `"`+key+`"`) {
-				matched++
-			}
-		}
-		if matched == len(sig) {
-			return true
-		}
-	}
-	return false
-}
-
-// stripToolResultJSON removes raw tool result JSON objects that LLMs sometimes
-// echo verbatim in their response text. Only strips blocks that match known
-// tool result signatures to avoid removing intentional JSON in responses.
-// Uses brace-matching to correctly handle nested JSON.
-func stripToolResultJSON(content string) string {
-	if !strings.Contains(content, `"results"`) &&
-		!strings.Contains(content, `"score"`) &&
-		!strings.Contains(content, `"snippet"`) &&
-		!strings.Contains(content, `"sessions"`) {
-		return content
-	}
-
-	var result strings.Builder
-	i := 0
-	changed := false
-
-	for i < len(content) {
-		// Look for start of JSON block: { or [ at start of line (possibly indented)
-		if content[i] == '{' || content[i] == '[' {
-			block, end := extractJSONBlock(content, i)
-			if block != "" && containsToolResultSignature(block) {
-				slog.Warn("stripped raw tool result JSON from assistant response",
-					"block_len", len(block),
-				)
-				changed = true
-				i = end
-				continue
-			}
-		}
-		result.WriteByte(content[i])
-		i++
-	}
-
-	if !changed {
-		return content
-	}
-	return strings.TrimSpace(result.String())
-}
-
-// extractJSONBlock extracts a balanced JSON block starting at pos.
-// Returns the block string and the position after the closing brace/bracket.
-// Returns ("", pos) if no balanced block is found or block is too short.
-func extractJSONBlock(content string, pos int) (string, int) {
-	open := content[pos]
-	var close byte
-	if open == '{' {
-		close = '}'
-	} else {
-		close = ']'
-	}
-
-	depth := 0
-	inString := false
-	escaped := false
-
-	for i := pos; i < len(content); i++ {
-		ch := content[i]
-		if escaped {
-			escaped = false
-			continue
-		}
-		if ch == '\\' && inString {
-			escaped = true
-			continue
-		}
-		if ch == '"' {
-			inString = !inString
-			continue
-		}
-		if inString {
-			continue
-		}
-		if ch == open {
-			depth++
-		} else if ch == close {
-			depth--
-			if depth == 0 {
-				block := content[pos : i+1]
-				if len(block) < 20 {
-					return "", pos
-				}
-				return block, i + 1
-			}
-		}
-	}
-	return "", pos
-}
-
-// --- 11. Output redaction (per-agent sensitive terms) ---
-
-// RedactSensitiveTerms performs case-insensitive replacement of all terms in content.
-// Used to enforce business-secret protection at the code level — LLM prompt rules
-// alone are insufficient because users can bypass them with indirect questions.
-// Applied at 3 points: streaming chunks, block.reply events, and final output.
-func RedactSensitiveTerms(content string, terms []string, replacement string) string {
-	if content == "" || len(terms) == 0 {
-		return content
-	}
-	lower := strings.ToLower(content)
-	result := content
-	redacted := false
-	for _, term := range terms {
-		if term == "" {
-			continue
-		}
-		termLower := strings.ToLower(term)
-		if !strings.Contains(lower, termLower) {
-			continue
-		}
-		// Case-insensitive replace: scan and rebuild
-		var b strings.Builder
-		b.Grow(len(result))
-		src := result
-		srcLower := strings.ToLower(src)
-		for {
-			idx := strings.Index(srcLower, termLower)
-			if idx < 0 {
-				b.WriteString(src)
-				break
-			}
-			b.WriteString(src[:idx])
-			b.WriteString(replacement)
-			src = src[idx+len(term):]
-			srcLower = srcLower[idx+len(term):]
-			redacted = true
-		}
-		result = b.String()
-		lower = strings.ToLower(result)
-	}
-	if redacted {
-		slog.Warn("security.output_redacted",
-			"terms_matched", true,
-			"original_len", len(content),
-			"redacted_len", len(result),
-		)
-	}
-	return result
-}
-
-// --- 12. Config leak detection (predefined agents) ---
+// --- 9. Config leak detection (predefined agents) ---
 
 // configLeakFileNames are internal file names that should not appear in user-facing output
 // when a predefined agent describes its procedures or configuration.

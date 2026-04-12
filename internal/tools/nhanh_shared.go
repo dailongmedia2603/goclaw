@@ -74,7 +74,7 @@ func ingestToKG(ctx context.Context, kgStore store.KnowledgeGraphStore, entities
 	// Run ingestion in background to avoid blocking tool response
 	bgCtx := context.WithoutCancel(ctx)
 	go func() {
-		if err := kgStore.IngestExtraction(bgCtx, agentID.String(), userID, entities, relations); err != nil {
+		if _, err := kgStore.IngestExtraction(bgCtx, agentID.String(), userID, entities, relations); err != nil {
 			slog.Warn("nhanh: KG ingestion failed", "error", err, "entities", len(entities), "relations", len(relations))
 		} else {
 			slog.Info("nhanh: KG ingestion complete", "entities", len(entities), "relations", len(relations))

@@ -29,6 +29,13 @@ export class HttpClient {
     });
   }
 
+  async patch<T>(path: string, body?: unknown): Promise<T> {
+    return this.request<T>(this.buildUrl(path), {
+      method: "PATCH",
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
   async delete<T>(path: string): Promise<T> {
     return this.request<T>(this.buildUrl(path), { method: "DELETE" });
   }
@@ -69,24 +76,18 @@ export class HttpClient {
   }
 
   async upload<T>(path: string, formData: FormData): Promise<T> {
-    const headers: Record<string, string> = {};
-    const token = this.getToken();
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    const userId = this.getUserId();
-    if (userId) headers["X-GoClaw-User-Id"] = userId;
-
     const res = await fetch(this.buildUrl(path), {
       method: "POST",
-      headers,
+      headers: this.authHeaders(),
       body: formData,
     });
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }));
-      throw new ApiError(
-        err.code ?? "HTTP_ERROR",
-        err.error ?? err.message ?? res.statusText,
-      );
+      const nested = typeof err.error === "object" && err.error !== null ? err.error : null;
+      const code = nested?.code ?? err.code ?? "HTTP_ERROR";
+      const message = nested?.message ?? (typeof err.error === "string" ? err.error : null) ?? err.message ?? res.statusText;
+      throw new ApiError(code, message);
     }
 
     return res.json() as Promise<T>;
@@ -100,6 +101,11 @@ export class HttpClient {
       }
     }
     return url.toString();
+  }
+
+  /** Public auth headers — for SSE streams and custom fetch calls. */
+  getAuthHeaders(): Record<string, string> {
+    return this.authHeaders();
   }
 
   /** Auth-only headers (no Content-Type), for SSE / blob requests. */
@@ -134,13 +140,14 @@ export class HttpClient {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }));
-      if (res.status === 401 || err.code === "TENANT_ACCESS_REVOKED") {
+      // Backend wraps errors as { "error": { "code": "...", "message": "..." } }
+      const nested = typeof err.error === "object" && err.error !== null ? err.error : null;
+      const code = nested?.code ?? err.code ?? "HTTP_ERROR";
+      const message = nested?.message ?? (typeof err.error === "string" ? err.error : null) ?? err.message ?? res.statusText;
+      if (res.status === 401 || code === "TENANT_ACCESS_REVOKED") {
         this.onAuthFailure?.();
       }
-      throw new ApiError(
-        err.code ?? "HTTP_ERROR",
-        err.error ?? err.message ?? res.statusText,
-      );
+      throw new ApiError(code, message);
     }
 
     return res.json() as Promise<T>;

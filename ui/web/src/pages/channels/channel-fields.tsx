@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { MultiUserPicker } from "@/components/shared/multi-user-picker";
 import {
   Select,
   SelectContent,
@@ -122,20 +123,23 @@ function FieldRenderer({
         </div>
       );
 
-    case "boolean":
+    case "boolean": {
+      const boolHint = resolvedHint || help;
       return (
-        <div className={`flex items-center gap-2${disabled ? " opacity-50" : ""}`}>
-          <Switch
-            id={id}
-            checked={(value as boolean) ?? (field.defaultValue as boolean) ?? false}
-            onCheckedChange={(v) => onChange(v)}
-            disabled={disabled}
-          />
-          <Label htmlFor={id}>{label}</Label>
-          {resolvedHint && <span className="text-xs text-muted-foreground ml-1">— {resolvedHint}</span>}
-          {!resolvedHint && help && <span className="text-xs text-muted-foreground ml-1">— {help}</span>}
+        <div className={`grid gap-1${disabled ? " opacity-50" : ""}`}>
+          <div className="flex items-center gap-2">
+            <Switch
+              id={id}
+              checked={(value as boolean) ?? (field.defaultValue as boolean) ?? false}
+              onCheckedChange={(v) => onChange(v)}
+              disabled={disabled}
+            />
+            <Label htmlFor={id}>{label}</Label>
+          </div>
+          {boolHint && <p className="text-xs text-muted-foreground ml-9">{boolHint}</p>}
         </div>
       );
+    }
 
     case "select":
       return (
@@ -274,16 +278,10 @@ function FieldRenderer({
       return (
         <div className="grid gap-1.5">
           <Label htmlFor={id}>{label}</Label>
-          <Textarea
-            id={id}
-            value={Array.isArray(value) ? (value as string[]).join("\n") : ""}
-            onChange={(e) => {
-              const lines = e.target.value.split(/[\n,]/).map((l) => l.trim()).filter(Boolean);
-              onChange(lines.length > 0 ? lines : undefined);
-            }}
+          <MultiUserPicker
+            value={(value as string[]) ?? []}
+            onChange={(v) => onChange(v.length > 0 ? v : undefined)}
             placeholder={field.placeholder ?? t("groupOverrides.fields.allowedUsersPlaceholder")}
-            rows={3}
-            className="font-mono text-sm"
           />
           {help && <p className="text-xs text-muted-foreground">{help}</p>}
         </div>

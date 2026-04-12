@@ -12,12 +12,13 @@ export function useMCP() {
   const http = useHttp();
   const queryClient = useQueryClient();
 
-  const { data: servers = [], isLoading: loading } = useQuery({
+  const { data: servers = [], isLoading: loading, isFetching: fetching } = useQuery({
     queryKey: queryKeys.mcp.all,
     queryFn: async () => {
       const res = await http.get<{ servers: MCPServerData[] }>("/v1/mcp/servers");
       return res.servers ?? [];
     },
+    staleTime: 60_000,
   });
 
   const invalidate = useCallback(
@@ -43,6 +44,11 @@ export function useMCP() {
   const updateServer = useCallback(
     async (id: string, data: Partial<MCPServerInput>) => {
       try {
+        if (data.enabled !== undefined) {
+          queryClient.setQueryData<MCPServerData[]>(queryKeys.mcp.all, (old) =>
+            old?.map((s) => (s.id === id ? { ...s, enabled: data.enabled! } : s)),
+          );
+        }
         await http.put(`/v1/mcp/servers/${id}`, data);
         await invalidate();
         toast.success(i18next.t("mcp:toast.updated"));
@@ -109,6 +115,19 @@ export function useMCP() {
     [http],
   );
 
+  const reconnectServer = useCallback(
+    async (id: string) => {
+      try {
+        await http.post(`/v1/mcp/servers/${id}/reconnect`, {});
+        toast.success(i18next.t("mcp:toast.reconnected"));
+      } catch (err) {
+        toast.error(i18next.t("mcp:toast.failedReconnect"), err instanceof Error ? err.message : "");
+        throw err;
+      }
+    },
+    [http],
+  );
+
   const listServerTools = useCallback(
     async (serverId: string) => {
       const res = await http.get<{ tools: MCPToolInfo[] }>(`/v1/mcp/servers/${serverId}/tools`);
@@ -144,6 +163,7 @@ export function useMCP() {
   return {
     servers,
     loading,
+    fetching,
     refresh: invalidate,
     createServer,
     updateServer,
@@ -153,6 +173,7 @@ export function useMCP() {
     revokeAgent,
     listGrantsByAgent,
     testConnection,
+    reconnectServer,
     listServerTools,
     getUserCredentials,
     setUserCredentials,

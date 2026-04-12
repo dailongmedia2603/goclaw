@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
@@ -15,6 +14,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/tools"
+	"github.com/nextlevelbuilder/goclaw/internal/workspace"
 )
 
 // contextSetupResult holds the outputs of injectContext that are needed by the main loop.
@@ -42,6 +42,15 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 	if req.UserID != "" {
 		ctx = store.WithUserID(ctx, req.UserID)
 	}
+	// Resolve merged tenant user identity for credential lookups.
+	// Keeps UserID unchanged (session/workspace scoping) but sets a separate
+	// CredentialUserID for SecureCLI, MCP, and other per-user features.
+	if l.userResolver != nil && req.UserID != "" {
+		credUserID := l.resolveCredentialUserID(ctx, *req)
+		if credUserID != "" && credUserID != req.UserID {
+			ctx = store.WithCredentialUserID(ctx, credUserID)
+		}
+	}
 	// Inject agent type into context for interceptor routing
 	if l.agentType != "" {
 		ctx = store.WithAgentType(ctx, l.agentType)
@@ -54,9 +63,19 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 	if req.SenderID != "" {
 		ctx = store.WithSenderID(ctx, req.SenderID)
 	}
-	// Inject global builtin tool settings for media tools (provider chain)
+	// Inject sender display name for bootstrap auto-contact
+	if req.SenderName != "" {
+		ctx = store.WithSenderName(ctx, req.SenderName)
+	}
+	// Inject global + per-agent builtin tool settings (tier 1+3).
+	// Media/provider-chain tools read the merged view via BuiltinToolSettingsFromCtx.
 	if l.builtinToolSettings != nil {
 		ctx = tools.WithBuiltinToolSettings(ctx, l.builtinToolSettings)
+	}
+	// Inject tenant-layer tool settings (tier 2). Merge with per-agent happens
+	// at read time — per-agent still wins at tool-name level.
+	if l.tenantToolSettings != nil {
+		ctx = tools.WithTenantToolSettings(ctx, l.tenantToolSettings)
 	}
 	// Inject channel type into context for tools (e.g. message tool needs it for Zalo group routing)
 	if req.ChannelType != "" {
@@ -96,36 +115,30 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 	if req.TeamTaskID != "" {
 		ctx = tools.WithTeamTaskID(ctx, req.TeamTaskID)
 	}
+	if req.DelegationID != "" {
+		ctx = tools.WithDelegationID(ctx, req.DelegationID)
+	}
 
-	// --- Workspace resolution (layered pipeline) ---
+	// --- Per-user setup: file seeding + workspace resolution ---
+	// Uses userSetups sync.Map to track both concerns atomically per user.
+	// Seeding must run before buildMessages→resolveContextFiles reads context files.
+	// Team sessions skip seeding: members process tasks from leader, not end-user onboarding.
+	isTeamSession := bootstrap.IsTeamSession(req.SessionKey)
+	channelMeta := l.buildChannelMeta(req)
+	setup := l.getOrCreateUserSetup(ctx, req.UserID, req.Channel, isTeamSession, channelMeta)
+
+	// Workspace resolution (layered pipeline).
 	// Layer order: tenant → team → project (future) → user/chat
 	// Two entry modes: solo agent (base = l.workspace) or team context (base = l.dataDir).
 	// Result is always a single folder set via WithToolWorkspace.
-
-	// Solo agent workspace: resolve base from user profile or agent config.
-	isTeamSession := bootstrap.IsTeamSession(req.SessionKey)
 	if l.workspace != "" && req.UserID != "" {
-		cachedWs, loaded := l.userWorkspaces.Load(req.UserID)
-		if !loaded {
-			ws := l.workspace
-			if l.ensureUserFiles != nil && !isTeamSession {
-				var err error
-				ws, err = l.ensureUserFiles(ctx, l.agentUUID, req.UserID, l.agentType, l.workspace, req.Channel)
-				if err != nil {
-					slog.Warn("failed to ensure user context files", "error", err)
-					ws = l.workspace
-				}
-			}
-			ws = config.ExpandHome(ws)
-			if !filepath.IsAbs(ws) {
-				ws, _ = filepath.Abs(ws)
-			}
-			l.userWorkspaces.Store(req.UserID, ws)
-			cachedWs = ws
+		ws := setup.workspace
+		if ws == "" {
+			ws = l.workspace
 		}
 		// Apply user isolation layer via pipeline.
 		shared := l.shouldShareWorkspace(req.UserID, req.PeerKind)
-		effectiveWorkspace := tools.ResolveWorkspace(cachedWs.(string),
+		effectiveWorkspace := tools.ResolveWorkspace(ws,
 			tools.UserChatLayer(tools.SanitizePathSegment(req.UserID), shared),
 		)
 		if l.shouldShareMemory() {
@@ -153,6 +166,9 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 	if req.TeamID != "" {
 		ctx = tools.WithToolTeamID(ctx, req.TeamID)
 	}
+	if req.LeaderAgentID != "" {
+		ctx = tools.WithLeaderAgentID(ctx, req.LeaderAgentID)
+	}
 
 	// Team workspace: auto-resolve for agents with team membership (not dispatched).
 	// Lead agents default to team workspace; non-lead members keep own workspace.
@@ -175,12 +191,47 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 				slog.Warn("failed to create team workspace directory", "workspace", wsDir, "error", err)
 			}
 			ctx = tools.WithToolTeamWorkspace(ctx, wsDir)
-			if team.LeadAgentID == l.agentUUID {
-				ctx = tools.WithToolWorkspace(ctx, wsDir)
-			}
+			// Leader keeps personal workspace (set at line 110-132) as default.
+			// Team workspace accessible via ToolTeamWorkspaceFromCtx for delegation.
 			if req.TeamID == "" {
 				ctx = tools.WithToolTeamID(ctx, team.ID.String())
 			}
+		}
+	}
+
+	// V3 workspace: resolve once, set immutable context.
+	{
+		var teamIDPtr *string
+		if req.TeamID != "" {
+			teamIDPtr = &req.TeamID
+		}
+		var teamWSConfig *workspace.TeamWorkspaceConfig
+		if resolvedTeamSettings != nil {
+			var cfg workspace.TeamWorkspaceConfig
+			if json.Unmarshal(resolvedTeamSettings, &cfg) == nil {
+				teamWSConfig = &cfg
+			}
+		}
+		resolver := workspace.NewResolver()
+		wc, wsErr := resolver.Resolve(ctx, workspace.ResolveParams{
+			// Filesystem path segment must use agent_key, not UUID — matches
+			// the v2 path in loop_pipeline_callbacks.go and the session_key
+			// anchor. See docs/agent-identity-conventions.md.
+			AgentID:    l.id,
+			AgentType:  l.agentType,
+			UserID:     req.UserID,
+			ChatID:     req.ChatID,
+			TenantID:   store.TenantIDFromContext(ctx).String(),
+			TenantSlug: store.TenantSlugFromContext(ctx),
+			PeerKind:   req.PeerKind,
+			TeamID:     teamIDPtr,
+			TeamConfig: teamWSConfig,
+			BaseDir:    l.dataDir,
+		})
+		if wsErr != nil {
+			slog.Warn("workspace resolution failed", "err", wsErr)
+		} else {
+			ctx = workspace.WithContext(ctx, wc)
 		}
 	}
 
@@ -218,6 +269,10 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 	// Inject agent key into context for tool-level resolution (multiple agents share tool registry)
 	ctx = tools.WithToolAgentKey(ctx, l.id)
 
+	// Inject delivered media tracker so write_file and message tool can coordinate:
+	// write_file(deliver=true) marks paths, message self-send guard checks before allowing.
+	ctx = tools.WithDeliveredMedia(ctx, tools.NewDeliveredMedia())
+
 	// Security: truncate oversized user messages gracefully (feed truncation notice into LLM)
 	maxChars := l.maxMessageChars
 	if maxChars <= 0 {
@@ -242,11 +297,14 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 	if l.provider != nil {
 		providerName = l.provider.Name()
 	}
+	// Extract resolved credential user ID (set earlier via WithCredentialUserID, empty if not resolved).
+	credUserID, _ := ctx.Value(store.CredentialUserIDKey).(string)
 	rc := &store.RunContext{
 		AgentID:             l.agentUUID,
 		AgentKey:            l.id,
 		TenantID:            l.tenantID,
 		UserID:              req.UserID,
+		CredentialUserID:    credUserID,
 		AgentType:           l.agentType,
 		SenderID:            req.SenderID,
 		SelfEvolve:          l.selfEvolve,
@@ -267,6 +325,7 @@ func (l *Loop) injectContext(ctx context.Context, req *RunRequest) (contextSetup
 		WorkspaceChannel:    req.WorkspaceChannel,
 		WorkspaceChatID:     req.WorkspaceChatID,
 		TeamTaskID:          req.TeamTaskID,
+		LeaderAgentID:       tools.LeaderAgentIDFromCtx(ctx),
 		AgentToolKey:        l.id,
 	}
 	ctx = store.WithRunContext(ctx, rc)

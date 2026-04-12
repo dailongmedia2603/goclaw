@@ -16,7 +16,14 @@ import (
 // buildSessionFilter builds a dynamic WHERE clause from SessionListOpts.
 // Returns the WHERE string (with leading " WHERE ") and the positional args.
 // The tableAlias is prepended to column names (e.g. "s" → "s.session_key").
-func buildSessionFilter(opts store.SessionListOpts, tableAlias string) (string, []any) {
+//
+// Tenant isolation precedence:
+//  1. opts.TenantID (if set) wins — admin tooling override path.
+//  2. Else if ctx is NOT cross-tenant, fall back to store.TenantIDFromContext(ctx).
+//     This matches the canonical pattern in List() above and prevents
+//     silent cross-tenant reads from callers that rely on ctx scoping.
+//  3. Else (cross-tenant ctx, no opts override) no tenant filter.
+func buildSessionFilter(ctx context.Context, opts store.SessionListOpts, tableAlias string) (string, []any) {
 	prefix := ""
 	if tableAlias != "" {
 		prefix = tableAlias + "."
@@ -41,9 +48,15 @@ func buildSessionFilter(opts store.SessionListOpts, tableAlias string) (string, 
 		args = append(args, opts.UserID)
 		idx++
 	}
-	if opts.TenantID != uuid.Nil {
+
+	// Resolve tenant filter — opts override beats ctx.
+	tenantID := opts.TenantID
+	if tenantID == uuid.Nil && !store.IsCrossTenant(ctx) {
+		tenantID = store.TenantIDFromContext(ctx)
+	}
+	if tenantID != uuid.Nil {
 		conditions = append(conditions, fmt.Sprintf("%stenant_id = $%d", prefix, idx))
-		args = append(args, opts.TenantID)
+		args = append(args, tenantID)
 		idx++
 	}
 	_ = idx // consumed
@@ -79,40 +92,18 @@ func (s *PGSessionStore) List(ctx context.Context, agentID string) []store.Sessi
 		where = " WHERE " + strings.Join(conditions, " AND ")
 	}
 
-	rows, err := s.db.QueryContext(ctx,
-		"SELECT session_key, messages, created_at, updated_at, label, channel, user_id, COALESCE(metadata, '{}') FROM sessions"+where+" ORDER BY updated_at DESC",
-		args...)
-	if err != nil {
+	var scanned []sessionListRow
+	if err := pkgSqlxDB.SelectContext(ctx, &scanned,
+		"SELECT session_key, messages, created_at, updated_at, label, channel, user_id, COALESCE(metadata, '{}') AS metadata FROM sessions"+where+" ORDER BY updated_at DESC",
+		args...); err != nil {
 		return nil
 	}
-	defer rows.Close()
 
 	var result []store.SessionInfo
-	for rows.Next() {
-		var key string
-		var msgsJSON []byte
-		var createdAt, updatedAt time.Time
-		var label, channel, userID *string
-		var metaJSON []byte
-		if err := rows.Scan(&key, &msgsJSON, &createdAt, &updatedAt, &label, &channel, &userID, &metaJSON); err != nil {
-			continue
-		}
+	for i := range scanned {
 		var msgs []providers.Message
-		json.Unmarshal(msgsJSON, &msgs)
-		var meta map[string]string
-		if len(metaJSON) > 0 {
-			json.Unmarshal(metaJSON, &meta)
-		}
-		result = append(result, store.SessionInfo{
-			Key:          key,
-			MessageCount: len(msgs),
-			Created:      createdAt,
-			Updated:      updatedAt,
-			Label:        derefStr(label),
-			Channel:      derefStr(channel),
-			UserID:       derefStr(userID),
-			Metadata:     meta,
-		})
+		json.Unmarshal(scanned[i].MsgsJSON, &msgs) //nolint:errcheck
+		result = append(result, scanned[i].toSessionInfo(len(msgs)))
 	}
 	return result
 }
@@ -124,7 +115,7 @@ func (s *PGSessionStore) ListPaged(ctx context.Context, opts store.SessionListOp
 	}
 	offset := max(opts.Offset, 0)
 
-	where, whereArgs := buildSessionFilter(opts, "")
+	where, whereArgs := buildSessionFilter(ctx, opts, "")
 
 	// Count total
 	var total int
@@ -135,43 +126,18 @@ func (s *PGSessionStore) ListPaged(ctx context.Context, opts store.SessionListOp
 
 	// Fetch page using jsonb_array_length to avoid loading full messages
 	nextIdx := len(whereArgs) + 1
-	selectQ := fmt.Sprintf(`SELECT session_key, jsonb_array_length(messages), created_at, updated_at, label, channel, user_id, COALESCE(metadata, '{}')
+	selectQ := fmt.Sprintf(`SELECT session_key, jsonb_array_length(messages) AS message_count, created_at, updated_at, label, channel, user_id, COALESCE(metadata, '{}') AS metadata
 		FROM sessions%s ORDER BY updated_at DESC LIMIT $%d OFFSET $%d`, where, nextIdx, nextIdx+1)
 	selectArgs := append(append([]any{}, whereArgs...), limit, offset)
 
-	rows, err := s.db.QueryContext(ctx, selectQ, selectArgs...)
-	if err != nil {
+	var scanned []sessionPagedRow
+	if err := pkgSqlxDB.SelectContext(ctx, &scanned, selectQ, selectArgs...); err != nil {
 		return store.SessionListResult{Sessions: []store.SessionInfo{}, Total: total}
 	}
-	defer rows.Close()
 
-	var result []store.SessionInfo
-	for rows.Next() {
-		var key string
-		var msgCount int
-		var createdAt, updatedAt time.Time
-		var label, channel, userID *string
-		var metaJSON []byte
-		if err := rows.Scan(&key, &msgCount, &createdAt, &updatedAt, &label, &channel, &userID, &metaJSON); err != nil {
-			continue
-		}
-		var meta map[string]string
-		if len(metaJSON) > 0 {
-			json.Unmarshal(metaJSON, &meta)
-		}
-		result = append(result, store.SessionInfo{
-			Key:          key,
-			MessageCount: msgCount,
-			Created:      createdAt,
-			Updated:      updatedAt,
-			Label:        derefStr(label),
-			Channel:      derefStr(channel),
-			UserID:       derefStr(userID),
-			Metadata:     meta,
-		})
-	}
-	if result == nil {
-		result = []store.SessionInfo{}
+	result := make([]store.SessionInfo, 0, len(scanned))
+	for i := range scanned {
+		result = append(result, scanned[i].toSessionInfo())
 	}
 	return store.SessionListResult{Sessions: result, Total: total}
 }
@@ -184,7 +150,7 @@ func (s *PGSessionStore) ListPagedRich(ctx context.Context, opts store.SessionLi
 	}
 	offset := max(opts.Offset, 0)
 
-	where, whereArgs := buildSessionFilter(opts, "s")
+	where, whereArgs := buildSessionFilter(ctx, opts, "s")
 
 	// Count total
 	var total int
@@ -194,12 +160,12 @@ func (s *PGSessionStore) ListPagedRich(ctx context.Context, opts store.SessionLi
 	}
 
 	// Fetch page with agent name via LEFT JOIN
-	const richCols = `s.session_key, jsonb_array_length(s.messages), s.created_at, s.updated_at,
-		s.label, s.channel, s.user_id, COALESCE(s.metadata, '{}'),
+	const richCols = `s.session_key, jsonb_array_length(s.messages) AS message_count, s.created_at, s.updated_at,
+		s.label, s.channel, s.user_id, COALESCE(s.metadata, '{}') AS metadata,
 		s.model, s.provider, s.input_tokens, s.output_tokens,
-		COALESCE(a.display_name, ''),
-		octet_length(s.messages::text) / 4 + 12000,
-		COALESCE(a.context_window, 200000), -- config.DefaultContextWindow
+		COALESCE(a.display_name, '') AS agent_name,
+		octet_length(s.messages::text) / 4 + 12000 AS estimated_tokens,
+		COALESCE(a.context_window, 200000) AS context_window,
 		s.compaction_count`
 
 	nextIdx := len(whereArgs) + 1
@@ -208,55 +174,14 @@ func (s *PGSessionStore) ListPagedRich(ctx context.Context, opts store.SessionLi
 		%s ORDER BY s.updated_at DESC LIMIT $%d OFFSET $%d`, richCols, where, nextIdx, nextIdx+1)
 	selectArgs := append(append([]any{}, whereArgs...), limit, offset)
 
-	rows, err := s.db.QueryContext(ctx, selectQ, selectArgs...)
-	if err != nil {
+	var scanned []sessionRichRow
+	if err := pkgSqlxDB.SelectContext(ctx, &scanned, selectQ, selectArgs...); err != nil {
 		return store.SessionListRichResult{Sessions: []store.SessionInfoRich{}, Total: total}
 	}
-	defer rows.Close()
 
-	var result []store.SessionInfoRich
-	for rows.Next() {
-		var key string
-		var msgCount int
-		var createdAt, updatedAt time.Time
-		var label, channel, userID *string
-		var metaJSON []byte
-		var model, provider *string
-		var inputTokens, outputTokens int64
-		var agentName string
-		var estimatedTokens, contextWindow, compactionCount int
-		if err := rows.Scan(&key, &msgCount, &createdAt, &updatedAt, &label, &channel, &userID, &metaJSON,
-			&model, &provider, &inputTokens, &outputTokens, &agentName,
-			&estimatedTokens, &contextWindow, &compactionCount); err != nil {
-			continue
-		}
-		var meta map[string]string
-		if len(metaJSON) > 0 {
-			json.Unmarshal(metaJSON, &meta)
-		}
-		result = append(result, store.SessionInfoRich{
-			SessionInfo: store.SessionInfo{
-				Key:          key,
-				MessageCount: msgCount,
-				Created:      createdAt,
-				Updated:      updatedAt,
-				Label:        derefStr(label),
-				Channel:      derefStr(channel),
-				UserID:       derefStr(userID),
-				Metadata:     meta,
-			},
-			Model:           derefStr(model),
-			Provider:        derefStr(provider),
-			InputTokens:     inputTokens,
-			OutputTokens:    outputTokens,
-			AgentName:       agentName,
-			EstimatedTokens: estimatedTokens,
-			ContextWindow:   contextWindow,
-			CompactionCount: compactionCount,
-		})
-	}
-	if result == nil {
-		result = []store.SessionInfoRich{}
+	result := make([]store.SessionInfoRich, 0, len(scanned))
+	for i := range scanned {
+		result = append(result, scanned[i].toSessionInfoRich())
 	}
 	return store.SessionListRichResult{Sessions: result, Total: total}
 }
@@ -281,7 +206,7 @@ func (s *PGSessionStore) Save(ctx context.Context, key string) error {
 		metaJSON, _ = json.Marshal(snapshot.Metadata)
 	}
 
-	_, err := s.db.ExecContext(ctx,
+	res, err := s.db.ExecContext(ctx,
 		`UPDATE sessions SET
 			messages = $1, summary = $2, model = $3, provider = $4, channel = $5,
 			input_tokens = $6, output_tokens = $7, compaction_count = $8,
@@ -298,7 +223,38 @@ func (s *PGSessionStore) Save(ctx context.Context, key string) error {
 		snapshot.TeamID,
 		key, tenantIDForInsert(ctx),
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		// Session not yet in DB (e.g. cron/heartbeat sessions) — insert it.
+		_, err = s.db.ExecContext(ctx,
+			`INSERT INTO sessions (id, session_key, messages, summary, model, provider, channel,
+				input_tokens, output_tokens, compaction_count,
+				memory_flush_compaction_count, memory_flush_at,
+				label, spawned_by, spawn_depth, agent_id, user_id, metadata, updated_at, team_id, tenant_id, created_at)
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+			 ON CONFLICT (tenant_id, session_key) DO UPDATE SET
+				messages = EXCLUDED.messages, summary = EXCLUDED.summary, model = EXCLUDED.model,
+				provider = EXCLUDED.provider, channel = EXCLUDED.channel,
+				input_tokens = EXCLUDED.input_tokens, output_tokens = EXCLUDED.output_tokens,
+				compaction_count = EXCLUDED.compaction_count,
+				memory_flush_compaction_count = EXCLUDED.memory_flush_compaction_count,
+				memory_flush_at = EXCLUDED.memory_flush_at,
+				label = EXCLUDED.label, spawned_by = EXCLUDED.spawned_by, spawn_depth = EXCLUDED.spawn_depth,
+				agent_id = EXCLUDED.agent_id, user_id = EXCLUDED.user_id, metadata = EXCLUDED.metadata,
+				updated_at = EXCLUDED.updated_at, team_id = EXCLUDED.team_id`,
+			uuid.Must(uuid.NewV7()), key, msgsJSON,
+			nilStr(snapshot.Summary), nilStr(snapshot.Model), nilStr(snapshot.Provider), nilStr(snapshot.Channel),
+			snapshot.InputTokens, snapshot.OutputTokens, snapshot.CompactionCount,
+			snapshot.MemoryFlushCompactionCount, snapshot.MemoryFlushAt,
+			nilStr(snapshot.Label), nilStr(snapshot.SpawnedBy), snapshot.SpawnDepth,
+			nilSessionUUID(snapshot.AgentUUID), nilStr(snapshot.UserID), metaJSON, snapshot.Updated,
+			snapshot.TeamID, tenantIDForInsert(ctx), snapshot.Updated,
+		)
+		return err
+	}
+	return nil
 }
 
 func (s *PGSessionStore) LastUsedChannel(ctx context.Context, agentID string) (string, string) {

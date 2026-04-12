@@ -6,13 +6,17 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/nextlevelbuilder/goclaw/internal/bootstrap"
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
+	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
+	"github.com/nextlevelbuilder/goclaw/internal/memory"
 	mcpbridge "github.com/nextlevelbuilder/goclaw/internal/mcp"
 	"github.com/nextlevelbuilder/goclaw/internal/media"
+	"github.com/nextlevelbuilder/goclaw/internal/providerresolve"
 	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/sandbox"
 	"github.com/nextlevelbuilder/goclaw/internal/skills"
@@ -24,7 +28,9 @@ import (
 // ResolverDeps holds shared dependencies for the agent resolver.
 type ResolverDeps struct {
 	AgentStore     store.AgentStore
+	ProviderStore  store.ProviderStore
 	ProviderReg    *providers.Registry
+	ModelRegistry  providers.ModelRegistry // per-model context window + capabilities lookup
 	Bus            bus.EventPublisher
 	Sessions       store.SessionStore
 	Tools          *tools.Registry
@@ -34,10 +40,13 @@ type ResolverDeps struct {
 	OnEvent        func(AgentEvent)
 	TraceCollector *tracing.Collector
 
-	// Per-user file seeding + dynamic context loading
-	EnsureUserFiles   EnsureUserFilesFunc
+	// Per-user profile + file seeding + dynamic context loading
+	EnsureUserProfile EnsureUserProfileFunc
+	SeedUserFiles     SeedUserFilesFunc
 	ContextFileLoader ContextFileLoaderFunc
 	BootstrapCleanup  BootstrapCleanupFunc
+	CacheInvalidate   CacheInvalidateFunc
+	DefaultTimezone   string // system default timezone for bootstrap pre-fill
 
 	// Security
 	InjectionAction string // "log", "warn", "block", "off"
@@ -87,6 +96,12 @@ type ResolverDeps struct {
 	// Memory store for extractive memory fallback
 	MemoryStore store.MemoryStore
 
+	// V3 evolution metrics store
+	EvolutionMetricsStore store.EvolutionMetricsStore
+
+	// Contact store for user identity resolution (channel contacts → tenant users)
+	ContactStore store.ContactStore
+
 	// Tenant store for workspace path resolution
 	TenantStore store.TenantStore
 
@@ -96,6 +111,15 @@ type ResolverDeps struct {
 
 	// Global workspace root (GOCLAW_WORKSPACE)
 	Workspace string
+
+	// V3 auto-inject: episodic memory injection into system prompt (nil = disabled)
+	AutoInjector memory.AutoInjector
+
+	// V3 domain event bus for consolidation pipeline (nil = disabled)
+	DomainBus eventbus.DomainEventBus
+
+	// Vault hook: called when a text file is uploaded by user (nil = no vault registration)
+	OnTextUploaded func(ctx context.Context, path, content string)
 }
 
 // NewManagedResolver creates a ResolverFunc that builds Loops from DB agent data.
@@ -120,7 +144,7 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 		}
 
 		// Resolve provider (tenant-aware: tries tenant-specific first, falls back to master)
-		provider, err := deps.ProviderReg.GetForTenant(ag.TenantID, ag.Provider)
+		provider, err := providerresolve.ResolveConfiguredProvider(deps.ProviderReg, ag)
 		if err != nil {
 			// Fallback to any available provider for this tenant
 			names := deps.ProviderReg.ListForTenant(ag.TenantID)
@@ -130,15 +154,21 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			provider, _ = deps.ProviderReg.GetForTenant(ag.TenantID, names[0])
 			slog.Warn("agent provider not found, using fallback",
 				"agent", agentKey, "wanted", ag.Provider, "using", names[0])
-			if tl := ag.ParseThinkingLevel(); tl != "" && tl != "off" {
+			if rc := ag.ParseReasoningConfig(); rc.Effort != "" && rc.Effort != "off" {
 				slog.Warn("agent thinking may not be supported by fallback provider",
-					"agent", agentKey, "thinking_level", tl,
+					"agent", agentKey, "thinking_level", rc.Effort,
 					"wanted_provider", ag.Provider, "fallback_provider", names[0])
 			}
 		}
 
 		if provider == nil {
 			return nil, fmt.Errorf("no provider available for agent %s", agentKey)
+		}
+		providerReasoningDefaults := (*store.ProviderReasoningConfig)(nil)
+		if deps.ProviderStore != nil {
+			if providerData, err := deps.ProviderStore.GetProviderByName(ctx, provider.Name()); err == nil && providerData != nil {
+				providerReasoningDefaults = store.ParseProviderReasoningConfig(providerData.Settings)
+			}
 		}
 
 		// Load bootstrap files from DB
@@ -236,6 +266,10 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 				workspace = config.TenantWorkspace(deps.Workspace, ag.TenantID, tenantSlug)
 			}
 		}
+		// Fallback to global workspace if per-agent workspace is empty
+		if workspace == "" && deps.Workspace != "" {
+			workspace = deps.Workspace
+		}
 		if workspace != "" {
 			if err := os.MkdirAll(workspace, 0755); err != nil {
 				slog.Warn("failed to create agent workspace directory", "workspace", workspace, "agent", agentKey, "error", err)
@@ -252,32 +286,36 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 		// one agent pollute the shared deps. Tools and become visible to ALL agents
 		// (even those without MCP grants), because FilterTools reads from registry.List().
 		hasMCPTools := false
+		var mcpUserCredSrvs []store.MCPAccessInfo
 		if deps.MCPStore != nil {
 			if toolsReg == deps.Tools {
 				toolsReg = deps.Tools.Clone()
 			}
 			var mcpOpts []mcpbridge.ManagerOption
-		mcpOpts = append(mcpOpts, mcpbridge.WithStore(deps.MCPStore))
-		if deps.MCPPool != nil {
-			mcpOpts = append(mcpOpts, mcpbridge.WithPool(deps.MCPPool))
-		}
-		mcpMgr := mcpbridge.NewManager(toolsReg, mcpOpts...)
+			mcpOpts = append(mcpOpts, mcpbridge.WithStore(deps.MCPStore))
+			if deps.MCPPool != nil {
+				mcpOpts = append(mcpOpts, mcpbridge.WithPool(deps.MCPPool))
+			}
+			mcpMgr := mcpbridge.NewManager(toolsReg, mcpOpts...)
 			if err := mcpMgr.LoadForAgent(ctx, ag.ID, ""); err != nil {
 				slog.Warn("failed to load MCP servers for agent", "agent", agentKey, "error", err)
-			} else if mcpMgr.IsSearchMode() {
-				// Search mode: too many tools — register mcp_tool_search meta-tool.
-				// Also wire lazy activator so deferred tools can be called by name directly.
-				toolsReg.SetDeferredActivator(mcpMgr.ActivateToolIfDeferred)
-				searchTool := mcpbridge.NewMCPToolSearchTool(mcpMgr)
-				toolsReg.Register(searchTool)
-				hasMCPTools = true
-				slog.Info("mcp.agent.search_mode", "agent", agentKey,
-					"deferred_tools", len(mcpMgr.DeferredToolInfos()))
 			} else {
-				toolNames := mcpMgr.ToolNames()
-				if len(toolNames) > 0 {
+				mcpUserCredSrvs = mcpMgr.UserCredServers()
+				if mcpMgr.IsSearchMode() {
+					// Search mode: too many tools — register mcp_tool_search meta-tool.
+					// Also wire lazy activator so deferred tools can be called by name directly.
+					toolsReg.SetDeferredActivator(mcpMgr.ActivateToolIfDeferred)
+					searchTool := mcpbridge.NewMCPToolSearchTool(mcpMgr)
+					toolsReg.Register(searchTool)
 					hasMCPTools = true
-					slog.Info("mcp.agent.tools_loaded", "agent", agentKey, "tools", len(toolNames))
+					slog.Info("mcp.agent.search_mode", "agent", agentKey,
+						"deferred_tools", len(mcpMgr.DeferredToolInfos()))
+				} else {
+					toolNames := mcpMgr.ToolNames()
+					if len(toolNames) > 0 {
+						hasMCPTools = true
+						slog.Info("mcp.agent.tools_loaded", "agent", agentKey, "tools", len(toolNames))
+					}
 				}
 			}
 		}
@@ -305,7 +343,11 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 		}
 
 		// Load per-tenant tool exclusions (disabled tools for this agent's tenant)
-		var disabledTools map[string]bool
+		// AND per-tenant tool settings overlay (tier 2 in the 4-tier cascade).
+		var (
+			disabledTools      map[string]bool
+			tenantToolSettings tools.BuiltinToolSettings
+		)
 		if deps.BuiltinToolTenantCfgs != nil && ag.TenantID != uuid.Nil {
 			if disabled, err := deps.BuiltinToolTenantCfgs.ListDisabled(ctx, ag.TenantID); err == nil && len(disabled) > 0 {
 				disabledTools = make(map[string]bool, len(disabled))
@@ -313,6 +355,16 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 					disabledTools[name] = true
 				}
 				slog.Debug("tenant tool exclusions", "agent", agentKey, "tenant", ag.TenantID, "disabled", len(disabled))
+			}
+			if settings, err := deps.BuiltinToolTenantCfgs.ListAllSettings(ctx, ag.TenantID); err != nil {
+				// Log but don't fail agent creation — fall back to global/hardcoded defaults.
+				slog.Warn("failed to load tenant tool settings", "agent", agentKey, "tenant", ag.TenantID, "error", err)
+			} else if len(settings) > 0 {
+				tenantToolSettings = make(tools.BuiltinToolSettings, len(settings))
+				for name, raw := range settings {
+					tenantToolSettings[name] = []byte(raw)
+				}
+				slog.Debug("tenant tool settings loaded", "agent", agentKey, "tenant", ag.TenantID, "tools", len(tenantToolSettings))
 			}
 		}
 
@@ -338,14 +390,47 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			dataDir = config.TenantDataDir(deps.DataDir, ag.TenantID, tenantSlug)
 		}
 
+		// v3 feature flags (from other_config JSONB).
+		// NOTE: flags are immutable per-Loop — changes via admin API take effect on next session only.
+		// In-flight loops continue with the flags set at creation. This is by design:
+		// CacheKindAgent invalidation destroys the old Loop, and the next request creates a new one.
+		v3f := ag.ParseV3Flags()
+
+		// v3 orchestration mode: resolve from team membership + agent links
+		orchMode := ResolveOrchestrationMode(ctx, ag.ID, deps.TeamStore, deps.AgentLinkStore)
+
+		// Populate delegation targets for prompt injection (only when mode >= delegate).
+		var delegateTargets []DelegateTargetEntry
+		if orchMode != ModeSpawn && deps.AgentLinkStore != nil {
+			if links, err := deps.AgentLinkStore.DelegateTargets(ctx, ag.ID); err == nil {
+				for _, link := range links {
+					delegateTargets = append(delegateTargets, DelegateTargetEntry{
+						AgentKey:    link.TargetAgentKey,
+						DisplayName: link.TargetDisplayName,
+						Description: link.Description,
+					})
+				}
+			}
+		}
+
+		// v3 evolution metrics: only wire store when feature flag enabled
+		var evoMetricsStore store.EvolutionMetricsStore
+		if v3f.EvolutionMetrics && deps.EvolutionMetricsStore != nil {
+			evoMetricsStore = deps.EvolutionMetricsStore
+		}
+
 		restrictVal := true // always restrict agents to their workspace
 		loop := NewLoop(LoopConfig{
 			ID:                     ag.AgentKey,
+			DisplayName:            ag.DisplayName,
 			AgentUUID:              ag.ID,
 			TenantID:               ag.TenantID,
 			AgentType:              ag.AgentType,
+			IsTeamLead:             isTeamLead,
+			AutoInjector:          deps.AutoInjector,
 			Provider:               provider,
 			Model:                  ag.Model,
+			ModelRegistry:          deps.ModelRegistry,
 			ContextWindow:          contextWindow,
 			MaxTokens:              ag.ParseMaxTokens(),
 			MaxIterations:          maxIter,
@@ -356,6 +441,7 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			MemoryCfg:              ag.ParseMemoryConfig(),
 			SandboxCfg:             sandboxCfgOverride,
 			Bus:                    deps.Bus,
+			DomainBus:              deps.DomainBus,
 			Sessions:               deps.Sessions,
 			Tools:                  toolsReg,
 			ToolPolicy:             deps.ToolPolicy,
@@ -364,9 +450,12 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			SkillAllowList:         skillAllowList,
 			HasMemory:              hasMemory,
 			ContextFiles:           contextFiles,
-			EnsureUserFiles:        deps.EnsureUserFiles,
+			EnsureUserProfile:      deps.EnsureUserProfile,
+			SeedUserFiles:          deps.SeedUserFiles,
 			ContextFileLoader:      deps.ContextFileLoader,
 			BootstrapCleanup:       deps.BootstrapCleanup,
+			CacheInvalidate:        deps.CacheInvalidate,
+			DefaultTimezone:        deps.DefaultTimezone,
 			OnEvent:                deps.OnEvent,
 			TraceCollector:         deps.TraceCollector,
 			InjectionAction:        deps.InjectionAction,
@@ -377,8 +466,11 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			SandboxContainerDir:    sandboxContainerDir,
 			SandboxWorkspaceAccess: sandboxWorkspaceAccess,
 			BuiltinToolSettings:    builtinSettings,
+			TenantToolSettings:     tenantToolSettings,
 			DisabledTools:          disabledTools,
-			ThinkingLevel:          ag.ParseThinkingLevel(),
+			ReasoningConfig:        store.ResolveEffectiveReasoningConfig(providerReasoningDefaults, ag.ParseReasoningConfig()),
+			PromptMode:             PromptMode(ag.ParsePromptMode()),
+			PinnedSkills:           ag.ParsePinnedSkills(),
 			SelfEvolve:             ag.ParseSelfEvolve(),
 			SkillEvolve:            ag.AgentType == store.AgentTypePredefined && ag.ParseSkillEvolve(),
 			SkillNudgeInterval:     ag.ParseSkillNudgeInterval(),
@@ -387,12 +479,19 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 			ConfigPermStore:        deps.ConfigPermStore,
 			TeamStore:              deps.TeamStore,
 			SecureCLIStore:         deps.SecureCLIStore,
+			OnTextUploaded:         deps.OnTextUploaded,
 			MediaStore:             deps.MediaStore,
 			ModelPricing:           deps.ModelPricing,
 			BudgetMonthlyCents:     derefInt(ag.BudgetMonthlyCents),
 			TracingStore:           deps.TracingStore,
 			MemoryStore:            deps.MemoryStore,
-			OutputRedact:           ag.ParseOutputRedact(),
+			MCPStore:               deps.MCPStore,
+			MCPPool:                deps.MCPPool,
+			MCPUserCredSrvs:        mcpUserCredSrvs,
+			OrchMode:               orchMode,
+			DelegateTargets:        delegateTargets,
+			EvolutionMetricsStore:  evoMetricsStore,
+			UserResolver:           newContactResolver(deps.ContactStore),
 		})
 
 		slog.Info("resolved agent from DB", "agent", agentKey, "model", ag.Model, "provider", ag.Provider)
@@ -402,10 +501,17 @@ func NewManagedResolver(deps ResolverDeps) ResolverFunc {
 
 // InvalidateAgent removes an agent from the router cache, forcing re-resolution.
 // Used when agent config is updated via API.
+// Matches both plain key ("agentKey") and tenant-scoped key ("tenantID:agentKey")
+// via exact-segment match (prevents substring collisions like "sub-foo" matching
+// when invalidating "foo"). Empty agentKey is rejected to prevent wildcard wipes.
 func (r *Router) InvalidateAgent(agentKey string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	delete(r.agents, agentKey)
+	for key := range r.agents {
+		if matchAgentCacheKey(key, agentKey) {
+			delete(r.agents, key)
+		}
+	}
 	slog.Debug("invalidated agent cache", "agent", agentKey)
 }
 
@@ -416,6 +522,27 @@ func (r *Router) InvalidateAll() {
 	defer r.mu.Unlock()
 	r.agents = make(map[string]*agentEntry)
 	slog.Debug("invalidated all agent caches")
+}
+
+// InvalidateTenant clears all cached agents for a single tenant.
+// Cache keys are "tenantID:agentKey" when tenant-scoped (see agentCacheKey).
+// Non-tenant entries (bare "agentKey") are untouched. uuid.Nil is a no-op —
+// callers use InvalidateAll for global invalidation.
+func (r *Router) InvalidateTenant(tenantID uuid.UUID) {
+	if tenantID == uuid.Nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	prefix := tenantID.String() + ":"
+	var deleted int
+	for key := range r.agents {
+		if strings.HasPrefix(key, prefix) {
+			delete(r.agents, key)
+			deleted++
+		}
+	}
+	slog.Debug("invalidated tenant agent cache", "tenant", tenantID, "count", deleted)
 }
 
 // resolveTenantSlug looks up the tenant slug for workspace path resolution.
@@ -437,4 +564,3 @@ func derefInt(p *int) int {
 	}
 	return *p
 }
-

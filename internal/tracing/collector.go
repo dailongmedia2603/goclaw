@@ -4,10 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"os"
-	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -17,7 +15,9 @@ import (
 const (
 	defaultFlushInterval = 5 * time.Second
 	defaultBufferSize    = 1000
-	previewMaxLen        = 500
+	previewMaxLen        = 40_000
+	traceRetention       = 7 * 24 * time.Hour // auto-delete traces older than 7 days
+	pruneInterval        = 8 * time.Hour
 )
 
 // SpanExporter is implemented by backends that receive span data alongside
@@ -101,6 +101,7 @@ func (c *Collector) SetExporter(exp SpanExporter) {
 func (c *Collector) Start() {
 	c.wg.Add(1)
 	go c.flushLoop()
+	go c.recoverStaleTraces() // fix orphan traces from previous crash
 	slog.Info("tracing collector started")
 }
 
@@ -205,15 +206,58 @@ func (c *Collector) flushLoop() {
 	ticker := time.NewTicker(defaultFlushInterval)
 	defer ticker.Stop()
 
+	pruneTicker := time.NewTicker(pruneInterval)
+	defer pruneTicker.Stop()
+
+	// Run initial prune shortly after startup.
+	go c.pruneOldTraces()
+
 	for {
 		select {
 		case <-ticker.C:
 			c.flush()
+		case <-pruneTicker.C:
+			c.pruneOldTraces()
 		case <-c.stopCh:
-			// Drain remaining spans
 			c.flush()
 			return
 		}
+	}
+}
+
+// recoverStaleTraces marks "running" traces older than 30 min as "error".
+// Called once on startup to fix orphans left by a previous crash or stuck goroutine.
+func (c *Collector) recoverStaleTraces() {
+	const staleThreshold = 30 * time.Minute
+	cutoff := time.Now().UTC().Add(-staleThreshold)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	recovered, err := c.store.RecoverStaleRunningTraces(ctx, cutoff)
+	if err != nil {
+		slog.Warn("tracing: failed to recover stale running traces", "error", err)
+		return
+	}
+	if recovered > 0 {
+		slog.Info("tracing: recovered stale running traces on startup",
+			"count", recovered, "older_than", cutoff.Format(time.RFC3339))
+	}
+}
+
+// pruneOldTraces deletes traces and spans older than traceRetention.
+func (c *Collector) pruneOldTraces() {
+	cutoff := time.Now().UTC().Add(-traceRetention)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	deleted, err := c.store.DeleteTracesOlderThan(ctx, cutoff)
+	if err != nil {
+		slog.Warn("tracing: prune old traces failed", "error", err)
+		return
+	}
+	if deleted > 0 {
+		slog.Info("tracing: pruned old traces", "deleted", deleted, "older_than", cutoff.Format(time.RFC3339))
 	}
 }
 
@@ -296,15 +340,7 @@ doneUpdates:
 	}
 }
 
-// truncatePreviewStr sanitizes and truncates a string based on verbose mode.
+// truncatePreviewStr sanitizes and truncates a string by removing the middle.
 func (c *Collector) truncatePreviewStr(s string) string {
-	limit := c.PreviewMaxLen()
-	s = strings.ToValidUTF8(s, "")
-	if len(s) <= limit {
-		return s
-	}
-	for limit > 0 && !utf8.RuneStart(s[limit]) {
-		limit--
-	}
-	return s[:limit] + "..."
+	return TruncateMid(s, c.PreviewMaxLen())
 }

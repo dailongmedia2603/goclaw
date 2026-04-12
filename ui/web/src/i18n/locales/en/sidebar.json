@@ -12,7 +12,7 @@
     "overview": "Overview",
     "chat": "Chat",
     "agents": "Agents",
-    "agentTeams": "Agent Teams",
+    "agentTeams": "Agent Link & Team",
     "sessions": "Sessions",
     "pendingMessages": "Pending Messages",
     "channels": "Channels",
@@ -24,6 +24,7 @@
     "builtinTools": "Built-in Tools",
     "mcpServers": "MCP Servers",
     "memory": "Memory",
+    "vault": "Vault",
     "knowledgeGraph": "Knowledge Graph",
     "traces": "Traces",
     "realtimeEvents": "Realtime Events",
@@ -33,6 +34,7 @@
     "providers": "Providers",
     "config": "Config",
     "approvals": "Approvals",
+    "importExport": "Import & Export",
     "nodes": "Nodes",
     "tts": "TTS",
     "activity": "Activity",
@@ -40,6 +42,7 @@
     "apiKeys": "API Keys",
     "apiDocs": "API Docs",
     "packages": "Packages",
-    "tenants": "Tenants"
+    "tenants": "Tenants",
+    "backupRestore": "Backup & Restore"
   }
 }

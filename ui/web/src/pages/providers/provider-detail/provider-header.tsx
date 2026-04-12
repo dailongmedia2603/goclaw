@@ -20,6 +20,9 @@ export function ProviderHeader({ provider, onBack, onAdvanced, onDelete }: Provi
   const typeInfo = PROVIDER_TYPES.find((pt) => pt.value === provider.provider_type);
   const typeLabel = typeInfo?.label ?? provider.provider_type;
   const displayTitle = provider.display_name || provider.name;
+  const subtitle = provider.provider_type === "chatgpt_oauth"
+    ? t("card.oauthAlias", { name: provider.name })
+    : provider.name;
 
   return (
     <TooltipProvider>
@@ -50,12 +53,12 @@ export function ProviderHeader({ provider, onBack, onAdvanced, onDelete }: Provi
                 {provider.enabled ? tc("enabled") : tc("disabled")}
               </TooltipContent>
             </Tooltip>
-            <Badge variant="outline" className="text-[10px]">
+            <Badge variant="outline" className="text-2xs">
               {typeLabel}
             </Badge>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-            <span className="font-mono text-[11px]">{provider.name}</span>
+            <span className="font-mono text-xs-plus">{subtitle}</span>
             <span className="text-border">·</span>
             <span>{typeLabel}</span>
           </div>

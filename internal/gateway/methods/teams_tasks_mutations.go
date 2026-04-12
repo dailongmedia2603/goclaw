@@ -151,7 +151,8 @@ func (m *TeamsMethods) handleTaskAssign(ctx context.Context, client *gateway.Cli
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidID, "taskId")))
 		return
 	}
-	agentID, err := uuid.Parse(params.AgentID)
+	// Accept agent_key or UUID for assignee.
+	agentID, err := resolveAgentUUIDCached(ctx, m.agentRouter, m.agentStore, params.AgentID)
 	if err != nil {
 		client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgInvalidID, "agentId")))
 		return
@@ -405,6 +406,7 @@ func (m *TeamsMethods) dispatchTaskToAgent(ctx context.Context, task *store.Team
 		Content:  content,
 		UserID:   userID,
 		AgentID:  ag.AgentKey,
+		TenantID: store.TenantIDFromContext(ctx),
 		Metadata: meta,
 	})
 	slog.Info("teams.tasks.dispatch: sent task to agent",

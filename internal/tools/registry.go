@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -16,7 +17,9 @@ import (
 // Registry manages tool registration and execution.
 type Registry struct {
 	tools       map[string]Tool
-	aliases     map[string]string // alias name → canonical tool name
+	metadata    map[string]ToolMetadata // per-tool capability metadata
+	aliases     map[string]string       // alias name → canonical tool name
+	disabled    map[string]bool         // tools disabled via admin UI (kept in registry, excluded from List)
 	mu          sync.RWMutex
 	rateLimiter *ToolRateLimiter // nil = no rate limiting
 	scrubbing   bool             // scrub credentials from output (default true)
@@ -29,7 +32,9 @@ type Registry struct {
 func NewRegistry() *Registry {
 	return &Registry{
 		tools:     make(map[string]Tool),
+		metadata:  make(map[string]ToolMetadata),
 		aliases:   make(map[string]string),
+		disabled:  make(map[string]bool),
 		scrubbing: true, // enabled by default
 	}
 }
@@ -71,6 +76,27 @@ func (r *Registry) Register(tool Tool) {
 	r.tools[tool.Name()] = tool
 }
 
+// RegisterWithMetadata adds a tool with explicit capability metadata.
+func (r *Registry) RegisterWithMetadata(tool Tool, meta ToolMetadata) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	name := tool.Name()
+	r.tools[name] = tool
+	meta.Name = name
+	r.metadata[name] = meta
+}
+
+// GetMetadata returns capability metadata for a tool.
+// Returns inferred defaults if no explicit metadata was registered.
+func (r *Registry) GetMetadata(name string) ToolMetadata {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if m, ok := r.metadata[name]; ok {
+		return m
+	}
+	return inferMetadata(name)
+}
+
 // RegisterAlias maps an alias name to a canonical tool name.
 // Rejected if alias collides with an existing real tool.
 func (r *Registry) RegisterAlias(alias, canonical string) {
@@ -93,11 +119,18 @@ func (r *Registry) Aliases() map[string]string {
 }
 
 // resolve looks up a tool by name, checking real tools first, then aliases.
+// Disabled tools are excluded.
 func (r *Registry) resolve(name string) (Tool, bool) {
 	if t, ok := r.tools[name]; ok {
+		if r.disabled[name] {
+			return nil, false
+		}
 		return t, true
 	}
 	if canonical, ok := r.aliases[name]; ok {
+		if r.disabled[canonical] {
+			return nil, false
+		}
 		t, ok := r.tools[canonical]
 		return t, ok
 	}
@@ -213,15 +246,37 @@ func safeExecute(tool Tool, ctx context.Context, args map[string]any) (result *R
 
 // ProviderDefs returns tool definitions for LLM provider APIs.
 // Includes alias definitions (same params/description, alias name).
+// Results are sorted by tool name for deterministic ordering (prompt caching).
 func (r *Registry) ProviderDefs() []providers.ToolDefinition {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	defs := make([]providers.ToolDefinition, 0, len(r.tools)+len(r.aliases))
-	for _, tool := range r.tools {
-		defs = append(defs, ToProviderDef(tool))
+	// Sort canonical tool names for deterministic ordering.
+	sortedNames := make([]string, 0, len(r.tools))
+	for name := range r.tools {
+		if !r.disabled[name] {
+			sortedNames = append(sortedNames, name)
+		}
 	}
-	for alias, canonical := range r.aliases {
+	slices.Sort(sortedNames)
+
+	defs := make([]providers.ToolDefinition, 0, len(sortedNames)+len(r.aliases))
+	for _, name := range sortedNames {
+		defs = append(defs, ToProviderDef(r.tools[name]))
+	}
+
+	// Sort alias names for deterministic ordering.
+	sortedAliases := make([]string, 0, len(r.aliases))
+	for alias := range r.aliases {
+		sortedAliases = append(sortedAliases, alias)
+	}
+	slices.Sort(sortedAliases)
+
+	for _, alias := range sortedAliases {
+		canonical := r.aliases[alias]
+		if r.disabled[canonical] {
+			continue
+		}
 		tool, ok := r.tools[canonical]
 		if !ok {
 			continue
@@ -239,14 +294,34 @@ func (r *Registry) ProviderDefs() []providers.ToolDefinition {
 }
 
 // List returns all registered canonical tool names (excludes aliases).
+// Results are sorted lexicographically for deterministic ordering — critical
+// for LLM prompt caching (Anthropic/OpenAI cache by exact prefix match).
 func (r *Registry) List() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	names := make([]string, 0, len(r.tools))
 	for name := range r.tools {
-		names = append(names, name)
+		if !r.disabled[name] {
+			names = append(names, name)
+		}
 	}
+	slices.Sort(names)
 	return names
+}
+
+// Disable marks a tool as disabled (excluded from List and policy evaluation)
+// without removing it from the registry. Can be re-enabled later.
+func (r *Registry) Disable(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.disabled[name] = true
+}
+
+// Enable re-enables a previously disabled tool.
+func (r *Registry) Enable(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.disabled, name)
 }
 
 // Count returns the number of registered tools.
@@ -264,11 +339,15 @@ func (r *Registry) Clone() *Registry {
 	defer r.mu.RUnlock()
 	clone := &Registry{
 		tools:       make(map[string]Tool, len(r.tools)),
+		metadata:    make(map[string]ToolMetadata, len(r.metadata)),
 		aliases:     make(map[string]string, len(r.aliases)),
+		disabled:    make(map[string]bool, len(r.disabled)),
 		rateLimiter: r.rateLimiter,
 		scrubbing:   r.scrubbing,
 	}
 	maps.Copy(clone.tools, r.tools)
+	maps.Copy(clone.metadata, r.metadata)
 	maps.Copy(clone.aliases, r.aliases)
+	maps.Copy(clone.disabled, r.disabled)
 	return clone
 }

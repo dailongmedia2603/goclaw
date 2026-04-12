@@ -24,13 +24,18 @@ import (
 func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client, req *protocol.RequestFrame) {
 	locale := store.LocaleFromContext(ctx)
 	var params struct {
-		Name      string   `json:"name"`
-		Workspace string   `json:"workspace"`
-		Emoji     string   `json:"emoji"`
-		Avatar    string   `json:"avatar"`
-		AgentType string   `json:"agent_type"`          // "open" (default) or "predefined"
-		OwnerIDs  []string `json:"owner_ids,omitempty"` // first entry used as DB owner_id; falls back to "system"
-		TenantID  string   `json:"tenant_id"`           // required for cross-tenant callers; ignored otherwise
+		Name              string   `json:"name"`
+		Workspace         string   `json:"workspace"`
+		Emoji             string   `json:"emoji"`
+		Avatar            string   `json:"avatar"`
+		Provider          string   `json:"provider"`
+		Model             string   `json:"model"`
+		AgentType         string   `json:"agent_type"`          // "open" (default) or "predefined"
+		OwnerIDs          []string `json:"owner_ids,omitempty"` // first entry used as DB owner_id; falls back to "system"
+		TenantID          string   `json:"tenant_id"`           // required for cross-tenant callers; ignored otherwise
+		ContextWindow     int      `json:"context_window"`
+		MaxToolIterations int      `json:"max_tool_iterations"`
+		BudgetCents       *int     `json:"budget_monthly_cents"`
 		// Per-agent config overrides
 		ToolsConfig      json.RawMessage `json:"tools_config,omitempty"`
 		SubagentsConfig  json.RawMessage `json:"subagents_config,omitempty"`
@@ -39,6 +44,18 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 		CompactionConfig json.RawMessage `json:"compaction_config,omitempty"`
 		ContextPruning   json.RawMessage `json:"context_pruning,omitempty"`
 		OtherConfig      json.RawMessage `json:"other_config,omitempty"`
+		// Promoted config fields (Emoji already above)
+		AgentDescription    string          `json:"agent_description"`
+		ThinkingLevel       string          `json:"thinking_level"`
+		MaxTokens           int             `json:"max_tokens"`
+		SelfEvolve          bool            `json:"self_evolve"`
+		SkillEvolve         bool            `json:"skill_evolve"`
+		SkillNudgeInterval  int             `json:"skill_nudge_interval"`
+		ReasoningConfig     json.RawMessage `json:"reasoning_config,omitempty"`
+		WorkspaceSharing    json.RawMessage `json:"workspace_sharing,omitempty"`
+		ChatGPTOAuthRouting json.RawMessage `json:"chatgpt_oauth_routing,omitempty"`
+		ShellDenyGroups     json.RawMessage `json:"shell_deny_groups,omitempty"`
+		KGDedupConfig       json.RawMessage `json:"kg_dedup_config,omitempty"`
 	}
 	if req.Params != nil {
 		json.Unmarshal(req.Params, &params)
@@ -50,8 +67,8 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 	}
 
 	agentType := params.AgentType
-	if agentType == "" {
-		agentType = store.AgentTypeOpen
+	if agentType == "" || agentType == store.AgentTypeOpen {
+		agentType = store.AgentTypePredefined // v3: open agents deprecated, default to predefined
 	}
 
 	agentID := config.NormalizeAgentID(params.Name)
@@ -101,15 +118,27 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 			tenantID = client.TenantID()
 		}
 
+		provider := params.Provider
+		if provider == "" {
+			provider = m.cfg.Agents.Defaults.Provider
+		}
+		model := params.Model
+		if model == "" {
+			model = m.cfg.Agents.Defaults.Model
+		}
+
 		agentData := &store.AgentData{
 			AgentKey:         agentID,
 			DisplayName:      params.Name,
 			OwnerID:          ownerID,
 			TenantID:         tenantID,
 			AgentType:        agentType,
-			Provider:         m.cfg.Agents.Defaults.Provider,
-			Model:            m.cfg.Agents.Defaults.Model,
+			Provider:         provider,
+			Model:            model,
 			Workspace:        ws,
+			ContextWindow:     params.ContextWindow,
+			MaxToolIterations: params.MaxToolIterations,
+			BudgetMonthlyCents: params.BudgetCents,
 			Status:           store.AgentStatusActive,
 			ToolsConfig:      params.ToolsConfig,
 			SubagentsConfig:  params.SubagentsConfig,
@@ -117,7 +146,19 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 			MemoryConfig:     params.MemoryConfig,
 			CompactionConfig: params.CompactionConfig,
 			ContextPruning:   params.ContextPruning,
-			OtherConfig:      params.OtherConfig,
+			OtherConfig:         params.OtherConfig,
+			Emoji:               params.Emoji,
+			AgentDescription:    params.AgentDescription,
+			ThinkingLevel:       params.ThinkingLevel,
+			MaxTokens:           params.MaxTokens,
+			SelfEvolve:          params.SelfEvolve,
+			SkillEvolve:         params.SkillEvolve,
+			SkillNudgeInterval:  params.SkillNudgeInterval,
+			ReasoningConfig:     params.ReasoningConfig,
+			WorkspaceSharing:    params.WorkspaceSharing,
+			ChatGPTOAuthRouting: params.ChatGPTOAuthRouting,
+			ShellDenyGroups:     params.ShellDenyGroups,
+			KGDedupConfig:       params.KGDedupConfig,
 		}
 		if err := m.agentStore.Create(ctx, agentData); err != nil {
 			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, i18n.T(locale, i18n.MsgFailedToCreate, "agent", fmt.Sprintf("%v", err))))
@@ -139,38 +180,6 @@ func (m *AgentsMethods) handleCreate(ctx context.Context, client *gateway.Client
 
 		// Invalidate router cache so resolver re-loads from DB
 		m.agents.InvalidateAgent(agentID)
-	} else {
-		// --- Fallback: config.json + filesystem ---
-		if _, ok := m.cfg.Agents.List[agentID]; ok {
-			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInvalidRequest, i18n.T(locale, i18n.MsgAlreadyExists, "agent", agentID)))
-			return
-		}
-
-		spec := config.AgentSpec{
-			DisplayName: params.Name,
-			Workspace:   ws,
-		}
-		if params.Emoji != "" || params.Avatar != "" {
-			spec.Identity = &config.IdentityConfig{
-				Emoji: params.Emoji,
-			}
-		}
-
-		if m.cfg.Agents.List == nil {
-			m.cfg.Agents.List = make(map[string]config.AgentSpec)
-		}
-		m.cfg.Agents.List[agentID] = spec
-
-		if err := config.Save(m.cfgPath, m.cfg); err != nil {
-			client.SendResponse(protocol.NewErrorResponse(req.ID, protocol.ErrInternal, i18n.T(locale, i18n.MsgFailedToSave, "config", err.Error())))
-			return
-		}
-
-		// Append identity metadata to IDENTITY.md
-		if params.Name != "" || params.Emoji != "" || params.Avatar != "" {
-			identityPath := filepath.Join(ws, "IDENTITY.md")
-			appendIdentityFields(identityPath, params.Name, params.Emoji, params.Avatar)
-		}
 	}
 
 	// Both modes: create workspace dir + seed filesystem backup

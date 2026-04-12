@@ -58,13 +58,23 @@ func (cs *Service) Start() error {
 		cs.store = Store{Version: 1}
 	}
 
-	// Compute next runs for all enabled jobs
+	// Compute next runs for all enabled jobs: fix NULL and past-due next_run_at.
+	// Past-due jobs happen when the service was stopped and their scheduled time passed.
+	// Without this, ALL past-due jobs would fire simultaneously on the first tick.
+	// NOTE: After prolonged downtime, all past-due "every" jobs with the same interval
+	// will synchronize (all get next_run_at = now + interval). This is inherent because
+	// the original schedule anchor is not persisted. After the first execution cycle,
+	// anchor-based scheduling in executeJobByID preserves spacing going forward.
 	now := nowMS()
 	for i := range cs.store.Jobs {
 		job := &cs.store.Jobs[i]
-		if job.Enabled && job.State.NextRunAtMS == nil {
+		if job.Enabled && (job.State.NextRunAtMS == nil || *job.State.NextRunAtMS <= now) {
 			next := cs.computeNextRun(&job.Schedule, now)
 			job.State.NextRunAtMS = next
+			// Disable past-due one-time "at" jobs instead of leaving them as zombies
+			if next == nil && job.Schedule.Kind == "at" {
+				job.Enabled = false
+			}
 		}
 	}
 	if err := cs.saveUnsafe(); err != nil {
@@ -114,10 +124,10 @@ func (cs *Service) AddJob(name string, schedule Schedule, message string, delive
 		Payload: Payload{
 			Kind:    "agent_turn",
 			Message: message,
-			Deliver: deliver,
-			Channel: channel,
-			To:      to,
 		},
+		Deliver:        deliver,
+		DeliverChannel: channel,
+		DeliverTo:      to,
 		CreatedAtMS:    now,
 		UpdatedAtMS:    now,
 		DeleteAfterRun: schedule.Kind == "at",
@@ -236,13 +246,19 @@ func (cs *Service) UpdateJob(jobID string, patch JobPatch) (*Job, error) {
 			job.Payload.Message = patch.Message
 		}
 		if patch.Deliver != nil {
-			job.Payload.Deliver = *patch.Deliver
+			job.Deliver = *patch.Deliver
 		}
-		if patch.Channel != nil {
-			job.Payload.Channel = *patch.Channel
+		if patch.DeliverChannel != nil {
+			job.DeliverChannel = *patch.DeliverChannel
 		}
-		if patch.To != nil {
-			job.Payload.To = *patch.To
+		if patch.DeliverTo != nil {
+			job.DeliverTo = *patch.DeliverTo
+		}
+		if patch.WakeHeartbeat != nil {
+			job.WakeHeartbeat = *patch.WakeHeartbeat
+		}
+		if patch.Stateless != nil {
+			job.Stateless = *patch.Stateless
 		}
 		if patch.DeleteAfterRun != nil {
 			job.DeleteAfterRun = *patch.DeleteAfterRun

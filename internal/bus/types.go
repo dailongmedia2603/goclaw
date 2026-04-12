@@ -3,6 +3,7 @@ package bus
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -98,6 +99,7 @@ const (
 	TopicSystemConfigChanged   = "system_config:changed"
 	TopicPairingRevoked        = "pairing:revoked"
 	TopicAgentStatusChanged    = "agent:status_changed"
+	TopicAgentDeleted          = "agent:deleted"
 )
 
 // EventPairingRevoked is the event name broadcast when a paired device is revoked.
@@ -119,6 +121,13 @@ type AgentStatusChangedPayload struct {
 	NewStatus string `json:"new_status"`
 }
 
+// AgentDeletedPayload carries agent deletion info for async cleanup (e.g. orphaned provider removal).
+type AgentDeletedPayload struct {
+	AgentKey string    `json:"agent_key"`
+	Provider string    `json:"provider,omitempty"` // provider name for orphan cleanup
+	TenantID uuid.UUID `json:"tenant_id,omitempty"`
+}
+
 // AuditEventPayload carries audit log data emitted by handlers.
 // A single subscriber persists these to the activity_logs table.
 type AuditEventPayload struct {
@@ -133,10 +142,16 @@ type AuditEventPayload struct {
 }
 
 // CacheInvalidatePayload signals cache layers to evict stale entries.
-// Used with protocol.EventCacheInvalidate events.
+// Used with protocol.EventCacheInvalidate events. Events are delivered
+// in-process via MessageBus and never marshaled to the wire, so the json
+// tags are documentation-only (and omitempty on uuid.UUID is a no-op
+// because uuid.UUID is [16]byte — all-zero arrays don't count as empty).
 type CacheInvalidatePayload struct {
 	Kind string `json:"kind"` // CacheKind* constants
 	Key  string `json:"key"`  // agent_key, agent_id, etc. Empty = invalidate all
+	// TenantID scopes the invalidation to a single tenant. uuid.Nil means
+	// global (master admin action) — subscribers treat it as "invalidate all".
+	TenantID uuid.UUID `json:"tenant_id"`
 }
 
 // MessageHandler handles an inbound message from a specific channel.
@@ -159,4 +174,14 @@ type MessageRouter interface {
 	ConsumeInbound(ctx context.Context) (InboundMessage, bool)
 	PublishOutbound(msg OutboundMessage)
 	SubscribeOutbound(ctx context.Context) (OutboundMessage, bool)
+}
+
+// IsInternalSender returns true if the senderID belongs to an internal system
+// component (not a real channel user). These should not be stored as contacts.
+func IsInternalSender(senderID string) bool {
+	return strings.HasPrefix(senderID, "system:") ||
+		strings.HasPrefix(senderID, "notification:") ||
+		strings.HasPrefix(senderID, "teammate:") ||
+		strings.HasPrefix(senderID, "ticker:") ||
+		senderID == "session_send_tool"
 }

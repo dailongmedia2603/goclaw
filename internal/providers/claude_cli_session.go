@@ -166,6 +166,8 @@ func bridgeContextFromOpts(opts map[string]any) BridgeContext {
 		ChatID:    extractStringOpt(opts, OptChatID),
 		PeerKind:  extractStringOpt(opts, OptPeerKind),
 		Workspace: extractStringOpt(opts, OptWorkspace),
+		TenantID:  extractStringOpt(opts, OptTenantID),
+		LocalKey:  extractStringOpt(opts, OptLocalKey),
 	}
 }
 
@@ -205,13 +207,24 @@ func sessionFileExists(workDir string, sessionID uuid.UUID) bool {
 	return err == nil
 }
 
-// buildStreamJSONInput creates stream-json stdin for vision (images + text).
+// buildStreamJSONInput creates stream-json stdin for multimodal input
+// (images/documents + text). The content block type is chosen from MIME:
+//   - application/pdf → "document" (Anthropic PDF support, Claude 3.5+)
+//   - image/*         → "image"
+//
+// MIME types that fit neither are emitted as "image" for backwards
+// compatibility; the upstream Anthropic API will reject them explicitly
+// rather than silently misroute.
 func buildStreamJSONInput(text string, images []ImageContent) *bytes.Reader {
 	var contentBlocks []map[string]any
 
 	for _, img := range images {
+		blockType := "image"
+		if img.MimeType == "application/pdf" {
+			blockType = "document"
+		}
 		contentBlocks = append(contentBlocks, map[string]any{
-			"type": "image",
+			"type": blockType,
 			"source": map[string]any{
 				"type":       "base64",
 				"media_type": img.MimeType,
@@ -271,7 +284,8 @@ func ResetCLISession(baseWorkDir, sessionKey string) {
 	}
 }
 
-// filterCLIEnv removes CLAUDE* env vars to prevent nested session conflicts.
+// filterCLIEnv removes CLAUDE* env vars to prevent nested session conflicts,
+// but preserves CLAUDE_CODE_OAUTH_TOKEN for authentication.
 func filterCLIEnv(environ []string) []string {
 	var filtered []string
 	for _, e := range environ {
@@ -279,8 +293,9 @@ func filterCLIEnv(environ []string) []string {
 		if before, _, ok := strings.Cut(e, "="); ok {
 			key = before
 		}
-		// Filter out variables that could cause nested CLI conflicts
-		if strings.HasPrefix(key, "CLAUDE") {
+		// Filter out variables that could cause nested CLI conflicts,
+		// but preserve auth token needed by the subprocess.
+		if strings.HasPrefix(key, "CLAUDE") && key != "CLAUDE_CODE_OAUTH_TOKEN" {
 			continue
 		}
 		filtered = append(filtered, e)

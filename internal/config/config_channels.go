@@ -132,12 +132,14 @@ type SlackConfig struct {
 }
 
 type WhatsAppConfig struct {
-	Enabled     bool                `json:"enabled"`
-	BridgeURL   string              `json:"bridge_url"`
-	AllowFrom   FlexibleStringSlice `json:"allow_from"`
-	DMPolicy    string              `json:"dm_policy,omitempty"`    // "open" (default), "allowlist", "disabled"
-	GroupPolicy string              `json:"group_policy,omitempty"` // "open" (default), "allowlist", "disabled"
-	BlockReply  *bool               `json:"block_reply,omitempty"`  // override gateway block_reply (nil = inherit)
+	Enabled        bool                `json:"enabled"`
+	AuthDir        string              `json:"auth_dir,omitempty"`        // optional: SQLite auth dir override (desktop)
+	AllowFrom      FlexibleStringSlice `json:"allow_from"`
+	DMPolicy       string              `json:"dm_policy,omitempty"`       // "pairing" (default for DB instances), "open", "allowlist", "disabled"
+	GroupPolicy    string              `json:"group_policy,omitempty"`    // "pairing" (default for DB instances), "open" (default for config), "allowlist", "disabled"
+	RequireMention *bool               `json:"require_mention,omitempty"` // only respond in groups when bot is @mentioned (default false)
+	HistoryLimit   int                 `json:"history_limit,omitempty"`   // max pending group messages for context (default 200, 0=disabled)
+	BlockReply     *bool               `json:"block_reply,omitempty"`     // override gateway block_reply (nil = inherit)
 }
 
 type ZaloConfig struct {
@@ -213,6 +215,9 @@ type ProvidersConfig struct {
 	OllamaCloud ProviderConfig  `json:"ollama_cloud"` // Ollama Cloud (API key required)
 	ClaudeCLI   ClaudeCLIConfig `json:"claude_cli"`
 	ACP         ACPConfig       `json:"acp"`
+	Novita         ProviderConfig  `json:"novita"`          // Novita AI (OpenAI-compatible endpoint)
+	BytePlus       ProviderConfig  `json:"byteplus"`        // BytePlus ModelArk (Seed 2.0)
+	BytePlusCoding ProviderConfig  `json:"byteplus_coding"` // BytePlus ModelArk Coding Plan
 }
 
 // OllamaConfig configures a local (or self-hosted) Ollama instance.
@@ -281,6 +286,12 @@ func (p *ProvidersConfig) APIBaseForType(providerType string) string {
 		return p.ZaiCoding.APIBase
 	case "ollama_cloud":
 		return p.OllamaCloud.APIBase
+	case "novita":
+		return p.Novita.APIBase
+	case "byteplus":
+		return p.BytePlus.APIBase
+	case "byteplus_coding":
+		return p.BytePlusCoding.APIBase
 	default:
 		return ""
 	}
@@ -307,7 +318,10 @@ func (c *Config) HasAnyProvider() bool {
 		p.Ollama.Host != "" ||
 		p.OllamaCloud.APIKey != "" ||
 		p.ClaudeCLI.CLIPath != "" ||
-		p.ACP.Binary != ""
+		p.ACP.Binary != "" ||
+		p.Novita.APIKey != "" ||
+		p.BytePlus.APIKey != "" ||
+		p.BytePlusCoding.APIKey != ""
 }
 
 // QuotaWindow defines request limits per time window. Zero means unlimited.
@@ -345,6 +359,8 @@ type GatewayConfig struct {
 	BlockReply              *bool        `json:"block_reply,omitempty"`                // deliver intermediate text during tool iterations (default false)
 	ToolStatus              *bool        `json:"tool_status,omitempty"`                // show tool name in streaming preview during tool execution (default true)
 	TaskRecoveryIntervalSec int          `json:"task_recovery_interval_sec,omitempty"` // team task recovery ticker interval in seconds (default 300 = 5min)
+	BackgroundProvider      string       `json:"background_provider,omitempty"`        // LLM provider for background workers (vault enrichment, consolidation)
+	BackgroundModel         string       `json:"background_model,omitempty"`           // LLM model for background workers
 }
 
 // ToolsConfig controls tool availability, policy, and web search.
@@ -475,8 +491,23 @@ type ToolPolicySpec struct {
 }
 
 type WebToolsConfig struct {
-	Brave      BraveConfig      `json:"brave"`
-	DuckDuckGo DuckDuckGoConfig `json:"duckduckgo"`
+	ProviderOrder []string         `json:"provider_order,omitempty"`
+	Exa           ExaConfig        `json:"exa"`
+	Tavily        TavilyConfig     `json:"tavily"`
+	Brave         BraveConfig      `json:"brave"`
+	DuckDuckGo    DuckDuckGoConfig `json:"duckduckgo"`
+}
+
+type ExaConfig struct {
+	Enabled    bool   `json:"enabled"`
+	APIKey     string `json:"api_key"`
+	MaxResults int    `json:"max_results"`
+}
+
+type TavilyConfig struct {
+	Enabled    bool   `json:"enabled"`
+	APIKey     string `json:"api_key"`
+	MaxResults int    `json:"max_results"`
 }
 
 type BraveConfig struct {
