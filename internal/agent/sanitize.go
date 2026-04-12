@@ -286,7 +286,13 @@ func extractAnswerTag(content string) string {
 	if len(parts) == 0 {
 		return ""
 	}
-	return strings.Join(parts, "\n\n")
+	result := strings.Join(parts, "\n\n")
+	slog.Info("reasoning.guard.answer_tag_extracted",
+		"matches", len(matches),
+		"result_len", len(result),
+		"result_preview", truncateForLog(result, 200),
+	)
+	return result
 }
 
 // --- 3. Thinking/reasoning tags ---

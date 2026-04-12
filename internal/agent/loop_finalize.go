@@ -24,7 +24,21 @@ func (l *Loop) finalizeRun(
 	toolTiming ToolTimingMap,
 ) *RunResult {
 	// 5. Full sanitization pipeline (matching TS extractAssistantText + sanitizeUserFacingText)
+	preSanitize := rs.finalContent
 	rs.finalContent = SanitizeAssistantContent(rs.finalContent)
+
+	// Log reasoning guard diagnostics for the final message.
+	if isReasoningPrefix(preSanitize) || strings.Contains(strings.ToLower(preSanitize), "<answer>") {
+		slog.Info("reasoning.guard.final_sanitize",
+			"agent", l.id, "session", req.SessionKey,
+			"pre_len", len(preSanitize),
+			"pre_preview", truncateForLog(preSanitize, 300),
+			"post_len", len(rs.finalContent),
+			"post_preview", truncateForLog(rs.finalContent, 300),
+			"had_answer_tag", strings.Contains(strings.ToLower(preSanitize), "<answer>"),
+			"had_reasoning_prefix", isReasoningPrefix(preSanitize),
+		)
+	}
 
 	// 5a. Output redaction: strip business-secret terms at code level (post-sanitize, pre-NO_REPLY).
 	// Catches any term the LLM leaked despite prompt rules — definitive last-mile filter.

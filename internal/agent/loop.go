@@ -673,17 +673,30 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 		// Checking the RAW content BEFORE sanitize is critical — the sanitizer may
 		// partially strip the reasoning header, leaving meta-reasoning content that
 		// no longer starts with "Reasoning:" and thus bypasses downstream filters.
-		if resp.Content != "" && !isReasoningPrefix(resp.Content) {
-			sanitized := l.redact(SanitizeAssistantContent(resp.Content))
-			if sanitized != "" && !IsSilentReply(sanitized) {
-				rs.blockReplies++
-				rs.lastBlockReply = sanitized
-				emitRun(AgentEvent{
-					Type:    protocol.AgentEventBlockReply,
-					AgentID: l.id,
-					RunID:   req.RunID,
-					Payload: map[string]string{"content": sanitized},
-				})
+		if resp.Content != "" {
+			if isReasoningPrefix(resp.Content) {
+				slog.Info("reasoning.guard.block_reply_suppressed",
+					"agent", l.id, "run", req.RunID, "iteration", rs.iteration,
+					"raw_len", len(resp.Content),
+					"raw_preview", truncateForLog(resp.Content, 200),
+				)
+			} else {
+				sanitized := l.redact(SanitizeAssistantContent(resp.Content))
+				if sanitized != "" && !IsSilentReply(sanitized) {
+					rs.blockReplies++
+					rs.lastBlockReply = sanitized
+					slog.Info("reasoning.guard.block_reply_emitted",
+						"agent", l.id, "run", req.RunID, "iteration", rs.iteration,
+						"sanitized_len", len(sanitized),
+						"sanitized_preview", truncateForLog(sanitized, 200),
+					)
+					emitRun(AgentEvent{
+						Type:    protocol.AgentEventBlockReply,
+						AgentID: l.id,
+						RunID:   req.RunID,
+						Payload: map[string]string{"content": sanitized},
+					})
+				}
 			}
 		}
 
