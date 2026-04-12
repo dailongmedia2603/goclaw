@@ -187,6 +187,29 @@ func BuildSystemPrompt(cfg SystemPromptConfig) string {
 	// 3. ## Safety
 	lines = append(lines, buildSafetySection()...)
 
+	// 3.1. Thinking format — force all models to wrap internal reasoning in tags.
+	// Models with native thinking (Claude, GPT o-series) already separate reasoning;
+	// the tags they emit are harmlessly stripped by stripThinkingTags. For models
+	// without native thinking (Gemma, some Gemini variants), this instruction is
+	// critical — without it they leak raw "Reasoning:" text to users.
+	lines = append(lines,
+		"## Thinking Format (MANDATORY)",
+		"",
+		"When you need to reason or think through a problem before responding, wrap ALL internal thoughts in <thought>...</thought> tags.",
+		"Content inside <thought> tags is automatically hidden from the user. Content outside the tags is shown.",
+		"",
+		"Correct format:",
+		"<thought>",
+		"[your internal analysis, planning, persona lookup — invisible to user]",
+		"</thought>",
+		"[your actual response to the user — this is what they see]",
+		"",
+		"NEVER output bare \"Reasoning:\" or \"Thinking:\" text outside of <thought> tags.",
+		"NEVER start your response with untagged reasoning. If you need to think, use <thought> tags.",
+		"Violation: raw reasoning visible to users = broken experience.",
+		"",
+	)
+
 	// 3.2. Identity anchoring (predefined agents only — prevent social engineering)
 	if cfg.AgentType == store.AgentTypePredefined {
 		lines = append(lines,

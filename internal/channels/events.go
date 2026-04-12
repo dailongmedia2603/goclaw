@@ -470,8 +470,11 @@ func stripStreamReasoningPrefix(text string) string {
 		}
 	}
 
-	// Tier 2: first blank-line separator.
-	if idx := strings.Index(trimmed, "\n\n"); idx >= 0 {
+	// Tier 2: LAST blank-line separator. The answer is typically the last
+	// paragraph — using LastIndex instead of Index avoids showing mid-
+	// reasoning paragraphs when the model emits multi-paragraph thinking
+	// without a closing tag or explicit marker.
+	if idx := strings.LastIndex(trimmed, "\n\n"); idx >= 0 {
 		after := strings.TrimLeft(trimmed[idx+2:], "\n")
 		if after != "" {
 			return after
