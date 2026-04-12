@@ -323,7 +323,7 @@ var thinkingTagPatterns = []*regexp.Regexp{
 // Everything from the start through the closing tag is stripped; only the
 // actual answer remains.
 var reasoningToCloseTagPattern = regexp.MustCompile(
-	`(?is)^[\s]*(?:reasoning|thinking):.*?</\s*(?:thought|think(?:ing)?)\s*>`,
+	`(?is)^[\s]*(?:reasoning|thinking):?.*?</\s*(?:thought|think(?:ing)?)\s*>`,
 )
 
 // orphanThinkClosePattern strips orphaned closing tags (e.g. </thought>)
@@ -335,7 +335,9 @@ func stripThinkingTags(content string) string {
 	if !strings.Contains(lower, "<think") && !strings.Contains(lower, "<thought") &&
 		!strings.Contains(lower, "<antthinking") &&
 		!strings.Contains(lower, "</think") && !strings.Contains(lower, "</thought") &&
-		!strings.Contains(lower, "reasoning:") && !strings.Contains(lower, "thinking:") {
+		!strings.Contains(lower, "reasoning:") && !strings.Contains(lower, "thinking:") &&
+		!strings.HasPrefix(strings.TrimLeft(lower, " \t\n\r"), "reasoning\n") &&
+		!strings.HasPrefix(strings.TrimLeft(lower, " \t\n\r"), "thinking\n") {
 		return content
 	}
 	result := content
@@ -412,8 +414,10 @@ func stripLeadingReasoningBlock(content string) string {
 	}
 
 	// Must start with a reasoning header (case-insensitive ASCII fold).
+	// Handles both "Reasoning:" (with colon) and "Reasoning\n" (newline, no colon).
 	lower := strings.ToLower(trimmed)
-	if !strings.HasPrefix(lower, "reasoning:") && !strings.HasPrefix(lower, "thinking:") {
+	if !strings.HasPrefix(lower, "reasoning:") && !strings.HasPrefix(lower, "thinking:") &&
+		!strings.HasPrefix(lower, "reasoning\n") && !strings.HasPrefix(lower, "thinking\n") {
 		return content
 	}
 

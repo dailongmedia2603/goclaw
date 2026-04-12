@@ -476,8 +476,10 @@ func stripStreamReasoningPrefix(text string) string {
 	}
 	lower := strings.ToLower(trimmed)
 
-	// Complete prefix: "reasoning:" or "thinking:" at start.
-	if strings.HasPrefix(lower, "reasoning:") || strings.HasPrefix(lower, "thinking:") {
+	// Complete prefix: "reasoning:" / "thinking:" (with colon) or
+	// "reasoning\n" / "thinking\n" (with newline, no colon) at start.
+	if strings.HasPrefix(lower, "reasoning:") || strings.HasPrefix(lower, "thinking:") ||
+		strings.HasPrefix(lower, "reasoning\n") || strings.HasPrefix(lower, "thinking\n") {
 		// Only un-suppress when we find a structural closing tag.
 		// Everything else → suppress entirely; let the sanitize pipeline handle it.
 		if loc := thinkCloseRe.FindStringIndex(trimmed); loc != nil {
