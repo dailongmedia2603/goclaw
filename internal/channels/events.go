@@ -458,8 +458,19 @@ func formatReasoningPreview(thinking string) string {
 func stripStreamReasoningPrefix(text string) string {
 	trimmed := strings.TrimLeft(text, " \t\n\r")
 	lower := strings.ToLower(trimmed)
-	if !strings.HasPrefix(lower, "reasoning:") && !strings.HasPrefix(lower, "thinking:") {
-		return text
+
+	isComplete := strings.HasPrefix(lower, "reasoning:") || strings.HasPrefix(lower, "thinking:")
+
+	// Partial header: the very first streaming chunk may deliver just the word
+	// "Reasoning" before the colon arrives in the next chunk. If we let it
+	// through, stream.Update shows "Reasoning" to the user and subsequent
+	// chunks can't un-show it. Suppress these partial prefixes by returning "".
+	if !isComplete {
+		word := strings.TrimRight(lower, " \t\n\r:")
+		if word == "reasoning" || word == "thinking" {
+			return "" // partial header still arriving — suppress display
+		}
+		return text // not a reasoning prefix at all
 	}
 
 	// Tier 1: find </thought>, </think>, </thinking> closing tag.
