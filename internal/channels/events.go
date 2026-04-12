@@ -212,8 +212,16 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 				fullText := rc.streamBuffer
 				currentStream := rc.stream
 				rc.mu.Unlock()
-				if currentStream != nil && fullText != "" {
-					currentStream.Update(ctx, fullText)
+
+				// Strip leading "Reasoning:"/"Thinking:" blocks from the
+				// stream display. Gemma-4-31b-it emits chain of thought as
+				// plain text before the answer — without this, the user sees
+				// raw reasoning in the streaming message. The final sanitize
+				// pipeline also strips this at finalize time, but the
+				// streaming message is what the user sees first.
+				displayText := stripStreamReasoningPrefix(fullText)
+				if currentStream != nil && displayText != "" {
+					currentStream.Update(ctx, displayText)
 				}
 			}
 		case protocol.AgentEventRunCompleted:
@@ -432,12 +440,49 @@ func formatReasoningPreview(thinking string) string {
 	return text
 }
 
-// Note: sanitizeStreamBuffer was removed (2026-04-10). The text-based
-// "Reasoning:" prefix stripping had a broken bullet-list detection that
-// drained non-empty answers to empty. Reasoning content is routed via
-// ChatEventThinking (native provider separation) and <think> XML tags
-// are handled by SplitThinkTags — no text heuristic needed on the
-// streaming buffer. See plans/260410-remove-reasoning-text-heuristic/.
+// stripStreamReasoningPrefix removes leading "Reasoning:" / "Thinking:" blocks
+// from the streaming buffer so the user never sees raw chain-of-thought text.
+//
+// Detection is tiered (same strategy as the post-response sanitize pipeline):
+//
+//  1. "Reasoning: ... </thought>" — Gemma emits an orphaned closing tag.
+//     Everything from start through the closing tag is stripped.
+//  2. Blank-line fallback — first "\n\n" after the header. Content before the
+//     separator is stripped; the answer after it is returned.
+//  3. No boundary found yet (still streaming) — returns "" so the stream
+//     shows nothing until the answer portion arrives.
+//
+// This function is called on every stream.Update() with the full accumulated
+// buffer. It is intentionally lightweight (no regex compilation — reuses the
+// package-level thinkCloseRe).
+func stripStreamReasoningPrefix(text string) string {
+	trimmed := strings.TrimLeft(text, " \t\n\r")
+	lower := strings.ToLower(trimmed)
+	if !strings.HasPrefix(lower, "reasoning:") && !strings.HasPrefix(lower, "thinking:") {
+		return text
+	}
+
+	// Tier 1: find </thought>, </think>, </thinking> closing tag.
+	if loc := thinkCloseRe.FindStringIndex(trimmed); loc != nil {
+		after := strings.TrimLeft(trimmed[loc[1]:], " \t\n\r")
+		if after != "" {
+			return after
+		}
+	}
+
+	// Tier 2: first blank-line separator.
+	if idx := strings.Index(trimmed, "\n\n"); idx >= 0 {
+		after := strings.TrimLeft(trimmed[idx+2:], "\n")
+		if after != "" {
+			return after
+		}
+	}
+
+	// No boundary yet — content is still arriving. Return empty so the
+	// stream message stays blank (typing indicator remains visible) until
+	// the answer portion starts streaming.
+	return ""
+}
 
 // resolveToolReactionStatus maps a tool name to a reaction status string.
 // Returns tool-specific statuses ("web", "coding") that activate existing
