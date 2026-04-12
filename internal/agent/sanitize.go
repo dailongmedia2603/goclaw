@@ -245,6 +245,24 @@ var thinkingTagPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?is)<antthinking\b.*?</antthinking>`),
 }
 
+// reasoningToCloseTagPattern matches the Gemma-specific pattern where
+// "Reasoning:" (plain text) acts as the opening delimiter and an orphaned
+// </thought>, </think>, or </thinking> acts as the closing delimiter.
+// Gemma-4-31b-it via Google AI Studio consistently emits this pattern:
+//
+//	Reasoning:
+//	<multi-paragraph chain of thought>
+//	</thought>
+//	<actual answer>
+//
+// The regex is anchored to the start of content (^) with optional leading
+// whitespace, and uses lazy matching (.*?) to stop at the FIRST closing tag.
+// Everything from the start through the closing tag is stripped; only the
+// actual answer remains.
+var reasoningToCloseTagPattern = regexp.MustCompile(
+	`(?is)^[\s]*(?:reasoning|thinking):.*?</\s*(?:thought|think(?:ing)?)\s*>`,
+)
+
 // orphanThinkClosePattern strips orphaned closing tags (e.g. </thought>)
 // that survive when the opening tag was consumed in an earlier streaming chunk.
 var orphanThinkClosePattern = regexp.MustCompile(`(?i)</\s*(?:think(?:ing)?|thought|antthinking)\s*>`)
@@ -253,11 +271,17 @@ func stripThinkingTags(content string) string {
 	lower := strings.ToLower(content)
 	if !strings.Contains(lower, "<think") && !strings.Contains(lower, "<thought") &&
 		!strings.Contains(lower, "<antthinking") &&
-		!strings.Contains(lower, "</think") && !strings.Contains(lower, "</thought") {
+		!strings.Contains(lower, "</think") && !strings.Contains(lower, "</thought") &&
+		!strings.Contains(lower, "reasoning:") && !strings.Contains(lower, "thinking:") {
 		return content
 	}
 	result := content
-	// 1. Strip matched pairs first
+
+	// 0. Gemma-specific: strip "Reasoning: ... </thought>" blocks.
+	// Must run BEFORE paired-tag stripping since there is no opening <thought>.
+	result = reasoningToCloseTagPattern.ReplaceAllString(result, "")
+
+	// 1. Strip matched pairs (<think>...</think>, <thought>...</thought>, etc.)
 	for _, pat := range thinkingTagPatterns {
 		result = pat.ReplaceAllString(result, "")
 	}

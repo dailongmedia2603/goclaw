@@ -98,6 +98,46 @@ func TestSanitizeAssistantContent_Pipeline(t *testing.T) {
 			want:  "some content",
 		},
 
+		// --- Group C2: Gemma "Reasoning: ... </thought>" pattern ---
+		// Gemma-4-31b-it uses "Reasoning:" as opening delimiter and orphaned
+		// </thought> as closing delimiter, with NO opening <thought> tag. The
+		// reasoningToCloseTagPattern handles this in stripThinkingTags.
+		{
+			name: "gemma_reasoning_thought_close_single_para",
+			input: "Reasoning:\nThe user asked X.\n</thought>\nHere is the answer.",
+			want:  "Here is the answer.",
+		},
+		{
+			name: "gemma_reasoning_thought_close_multi_para",
+			input: "Reasoning:\nThe user sent /start.\n\n" +
+				"According to SOUL.md I should be casual.\n\n" +
+				"I should avoid robotic phrases.\n</thought>" +
+				"Chào bạn, mình đây!",
+			want: "Chào bạn, mình đây!",
+		},
+		{
+			name: "gemma_reasoning_thought_close_no_space_after_tag",
+			input: "Reasoning:\nthought process here.</thought>Actual answer starts here.",
+			want:  "Actual answer starts here.",
+		},
+		{
+			name: "gemma_reasoning_think_close_variant",
+			input: "Reasoning:\nanalysis.\n</think>\nFinal answer.",
+			want:  "Final answer.",
+		},
+		{
+			name: "gemma_thinking_thought_close",
+			input: "Thinking:\nstep by step.\n</thought>\nDone.",
+			want:  "Done.",
+		},
+		{
+			// No closing tag at all — falls through to step 3b
+			// (stripLeadingReasoningBlock) which uses blank-line fallback.
+			name: "gemma_reasoning_no_close_tag_falls_through",
+			input: "Reasoning:\nquick thought\n\nActual answer here.",
+			want:  "Actual answer here.",
+		},
+
 		// --- Group D: Leading Reasoning/Thinking header (narrow stripper, 2026-04-12) ---
 		// stripLeadingReasoningBlock removes a "Reasoning:"/"Thinking:" paragraph at
 		// the very start of the response, up to the first blank-line separator.
