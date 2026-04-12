@@ -266,6 +266,17 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 			return // streaming already delivered via chunks
 		}
 
+		// Suppress block replies that are reasoning-only (Gemma leak).
+		// The sanitize pipeline already ran on this content (loop.go:669),
+		// but intermediate block replies during tool iterations may contain
+		// just a reasoning prefix with no answer boundary — the sanitizer
+		// can't strip what has no answer yet. Suppress entirely; the final
+		// Send() will deliver the clean, complete response.
+		content = stripStreamReasoningPrefix(content)
+		if content == "" {
+			return
+		}
+
 		// Build outbound metadata: copy routing fields but strip reply_to_message_id
 		// (block replies are standalone) and placeholder_key (reserve for final message).
 		var outMeta map[string]string
