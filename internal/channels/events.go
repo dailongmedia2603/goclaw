@@ -440,62 +440,48 @@ func formatReasoningPreview(thinking string) string {
 	return text
 }
 
-// stripStreamReasoningPrefix removes leading "Reasoning:" / "Thinking:" blocks
-// from the streaming buffer so the user never sees raw chain-of-thought text.
+// stripStreamReasoningPrefix suppresses streaming display when the response
+// starts with "Reasoning:" or "Thinking:". Returns "" to prevent stream.Update
+// from showing raw chain-of-thought text to the user.
 //
-// Detection is tiered (same strategy as the post-response sanitize pipeline):
+// The only exception: when a </thought> or </think> closing tag is found, the
+// content AFTER the tag is returned (the actual answer). This handles models
+// that properly close their reasoning blocks during streaming.
 //
-//  1. "Reasoning: ... </thought>" — Gemma emits an orphaned closing tag.
-//     Everything from start through the closing tag is stripped.
-//  2. Blank-line fallback — first "\n\n" after the header. Content before the
-//     separator is stripped; the answer after it is returned.
-//  3. No boundary found yet (still streaming) — returns "" so the stream
-//     shows nothing until the answer portion arrives.
-//
-// This function is called on every stream.Update() with the full accumulated
-// buffer. It is intentionally lightweight (no regex compilation — reuses the
-// package-level thinkCloseRe).
+// For all other cases (no closing tag, no marker, multi-paragraph reasoning),
+// the function returns "" — the stream message stays blank (typing indicator
+// remains visible) and the final sanitize pipeline + Send() delivers the clean
+// answer as the definitive message. This eliminates ALL heuristic-based
+// boundary detection (blank lines, answer markers) from the streaming path,
+// which proved unreliable across Gemma's varying output formats.
 func stripStreamReasoningPrefix(text string) string {
 	trimmed := strings.TrimLeft(text, " \t\n\r")
+	if trimmed == "" {
+		return ""
+	}
 	lower := strings.ToLower(trimmed)
 
-	isComplete := strings.HasPrefix(lower, "reasoning:") || strings.HasPrefix(lower, "thinking:")
-
-	// Partial header: the very first streaming chunk may deliver just the word
-	// "Reasoning" before the colon arrives in the next chunk. If we let it
-	// through, stream.Update shows "Reasoning" to the user and subsequent
-	// chunks can't un-show it. Suppress these partial prefixes by returning "".
-	if !isComplete {
-		word := strings.TrimRight(lower, " \t\n\r:")
-		if word == "reasoning" || word == "thinking" {
-			return "" // partial header still arriving — suppress display
+	// Complete prefix: "reasoning:" or "thinking:" at start.
+	if strings.HasPrefix(lower, "reasoning:") || strings.HasPrefix(lower, "thinking:") {
+		// Only un-suppress when we find a structural closing tag.
+		// Everything else → suppress entirely; let the sanitize pipeline handle it.
+		if loc := thinkCloseRe.FindStringIndex(trimmed); loc != nil {
+			after := strings.TrimLeft(trimmed[loc[1]:], " \t\n\r")
+			if after != "" {
+				return after
+			}
 		}
-		return text // not a reasoning prefix at all
+		return ""
 	}
 
-	// Tier 1: find </thought>, </think>, </thinking> closing tag.
-	if loc := thinkCloseRe.FindStringIndex(trimmed); loc != nil {
-		after := strings.TrimLeft(trimmed[loc[1]:], " \t\n\r")
-		if after != "" {
-			return after
-		}
+	// Partial prefix: buffer content could become "reasoning:" or "thinking:".
+	// e.g. first chunk = "Reasoning" (no colon yet). Suppress to avoid flashing.
+	word := strings.TrimRight(lower, " \t\n\r:")
+	if word == "reasoning" || word == "thinking" {
+		return ""
 	}
 
-	// Tier 2: LAST blank-line separator. The answer is typically the last
-	// paragraph — using LastIndex instead of Index avoids showing mid-
-	// reasoning paragraphs when the model emits multi-paragraph thinking
-	// without a closing tag or explicit marker.
-	if idx := strings.LastIndex(trimmed, "\n\n"); idx >= 0 {
-		after := strings.TrimLeft(trimmed[idx+2:], "\n")
-		if after != "" {
-			return after
-		}
-	}
-
-	// No boundary yet — content is still arriving. Return empty so the
-	// stream message stays blank (typing indicator remains visible) until
-	// the answer portion starts streaming.
-	return ""
+	return text
 }
 
 // resolveToolReactionStatus maps a tool name to a reaction status string.
