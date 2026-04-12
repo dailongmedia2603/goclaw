@@ -665,7 +665,15 @@ func (l *Loop) runLoop(ctx context.Context, req RunRequest) (*RunResult, error) 
 
 		// Emit block.reply for intermediate assistant content during tool iterations.
 		// Non-streaming channels (Zalo, Discord, WhatsApp) would otherwise lose this text.
-		if resp.Content != "" {
+		//
+		// Reasoning suppression: if the RAW model response starts with "Reasoning:"
+		// or "Thinking:", suppress the block reply entirely. These intermediate
+		// responses are chain-of-thought text that should never reach the user.
+		// The final message (via finalizeRun → Send) delivers the clean answer.
+		// Checking the RAW content BEFORE sanitize is critical — the sanitizer may
+		// partially strip the reasoning header, leaving meta-reasoning content that
+		// no longer starts with "Reasoning:" and thus bypasses downstream filters.
+		if resp.Content != "" && !isReasoningPrefix(resp.Content) {
 			sanitized := l.redact(SanitizeAssistantContent(resp.Content))
 			if sanitized != "" && !IsSilentReply(sanitized) {
 				rs.blockReplies++

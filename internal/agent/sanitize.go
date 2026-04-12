@@ -242,6 +242,19 @@ func stripBareToolCallText(content string) string {
 	return strings.TrimSpace(result)
 }
 
+// isReasoningPrefix checks if content starts with "Reasoning:" or "Thinking:"
+// (case-insensitive, ignoring leading whitespace). Used to suppress block
+// replies that are chain-of-thought text before they ever reach the sanitize
+// pipeline — checking RAW content avoids the partial-strip problem where
+// sanitize removes the prefix but leaves meta-reasoning content behind.
+func isReasoningPrefix(content string) bool {
+	lower := strings.ToLower(strings.TrimLeft(content, " \t\n\r"))
+	return strings.HasPrefix(lower, "reasoning:") ||
+		strings.HasPrefix(lower, "thinking:") ||
+		strings.HasPrefix(lower, "reasoning\n") ||
+		strings.HasPrefix(lower, "thinking\n")
+}
+
 // --- 2c. Answer tag extraction ---
 
 // answerTagPattern matches <answer>...</answer> tags. Uses lazy matching
