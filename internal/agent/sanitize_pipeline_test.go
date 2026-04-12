@@ -98,6 +98,36 @@ func TestSanitizeAssistantContent_Pipeline(t *testing.T) {
 			want:  "some content",
 		},
 
+		// --- Group B2: Answer tag extraction (additive approach) ---
+		// extractAnswerTag extracts ONLY content inside <answer>...</answer>,
+		// discarding all reasoning/meta content outside.
+		{
+			name:  "answer_tag_basic",
+			input: "Reasoning:\nthinking...\n<answer>Hello world!</answer>",
+			want:  "Hello world!",
+		},
+		{
+			name:  "answer_tag_with_thought_tags",
+			input: "<thought>analysis</thought>\n<answer>Clean response here.</answer>",
+			want:  "Clean response here.",
+		},
+		{
+			name:  "answer_tag_multiline",
+			input: "Reasoning:\nstuff\n<answer>\nLine 1.\n\nLine 2.\n</answer>",
+			want:  "Line 1.\n\nLine 2.",
+		},
+		{
+			name:  "answer_tag_no_reasoning_passthrough",
+			input: "<answer>Just a clean answer.</answer>",
+			want:  "Just a clean answer.",
+		},
+		{
+			// No <answer> tag → falls through to existing stripping logic.
+			name:  "no_answer_tag_falls_through",
+			input: "Reasoning:\nthought\n\nActual answer here.",
+			want:  "Actual answer here.",
+		},
+
 		// --- Group C2: Gemma "Reasoning: ... </thought>" pattern ---
 		// Gemma-4-31b-it uses "Reasoning:" as opening delimiter and orphaned
 		// </thought> as closing delimiter, with NO opening <thought> tag. The

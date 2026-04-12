@@ -70,6 +70,16 @@ func SanitizeAssistantContent(content string) string {
 	// 2b. Strip bare function-call-as-text (e.g. take_snapshot(targetId="..."))
 	content = stripBareToolCallText(content)
 
+	// 2c. Extract <answer> tags (additive extraction — most reliable).
+	// If the model wrapped its response in <answer>...</answer>, extract ONLY
+	// that content and discard everything else (reasoning, meta-analysis, etc.).
+	// This is the primary defense against reasoning leaks — it doesn't matter
+	// WHAT the reasoning looks like, only the marked answer survives.
+	// Falls through to subtractive stripping if no <answer> tags found.
+	if extracted := extractAnswerTag(content); extracted != "" {
+		content = extracted
+	}
+
 	// 3. Strip thinking/reasoning tags (<think>, <thinking>, <thought>, <antThinking>)
 	content = stripThinkingTags(content)
 
@@ -230,6 +240,40 @@ func stripBareToolCallText(content string) string {
 		return ""
 	})
 	return strings.TrimSpace(result)
+}
+
+// --- 2c. Answer tag extraction ---
+
+// answerTagPattern matches <answer>...</answer> tags. Uses lazy matching
+// to handle multiple occurrences — FindAllStringSubmatch returns all matches
+// and we concatenate them.
+var answerTagPattern = regexp.MustCompile(`(?is)<answer\b[^>]*>(.*?)</answer>`)
+
+// extractAnswerTag extracts content from <answer>...</answer> tags.
+// Returns the concatenated content of ALL <answer> blocks (preserving order),
+// or "" if no tags are found (caller falls through to subtractive stripping).
+//
+// This is the additive complement to stripThinkingTags: instead of removing
+// reasoning (which requires knowing where it ends), we extract ONLY what
+// the model explicitly marked as the answer. Everything outside is discarded.
+func extractAnswerTag(content string) string {
+	if !strings.Contains(strings.ToLower(content), "<answer") {
+		return ""
+	}
+	matches := answerTagPattern.FindAllStringSubmatch(content, -1)
+	if len(matches) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, m := range matches {
+		if trimmed := strings.TrimSpace(m[1]); trimmed != "" {
+			parts = append(parts, trimmed)
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 // --- 3. Thinking/reasoning tags ---

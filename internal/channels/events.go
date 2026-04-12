@@ -272,6 +272,10 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 		// just a reasoning prefix with no answer boundary — the sanitizer
 		// can't strip what has no answer yet. Suppress entirely; the final
 		// Send() will deliver the clean, complete response.
+		//
+		// Also handles <answer> tag extraction: if the model wrapped its
+		// response in <answer> tags but the sanitizer left reasoning around
+		// it, stripStreamReasoningPrefix catches the remaining prefix.
 		content = stripStreamReasoningPrefix(content)
 		if content == "" {
 			return

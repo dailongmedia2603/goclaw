@@ -187,26 +187,26 @@ func BuildSystemPrompt(cfg SystemPromptConfig) string {
 	// 3. ## Safety
 	lines = append(lines, buildSafetySection()...)
 
-	// 3.1. Thinking format — force all models to wrap internal reasoning in tags.
-	// Models with native thinking (Claude, GPT o-series) already separate reasoning;
-	// the tags they emit are harmlessly stripped by stripThinkingTags. For models
-	// without native thinking (Gemma, some Gemini variants), this instruction is
-	// critical — without it they leak raw "Reasoning:" text to users.
+	// 3.1. Response format — force models to use <answer> tags.
+	// This is the most reliable defense against reasoning leaks:
+	// instead of trying to strip reasoning (subtractive, fragile heuristics),
+	// we extract ONLY the content the model explicitly marks as the answer
+	// (additive, robust). The sanitize pipeline extracts <answer> content
+	// and discards everything else.
 	lines = append(lines,
-		"## Thinking Format (MANDATORY)",
+		"## Response Format (MANDATORY — follow EXACTLY)",
 		"",
-		"When you need to reason or think through a problem before responding, wrap ALL internal thoughts in <thought>...</thought> tags.",
-		"Content inside <thought> tags is automatically hidden from the user. Content outside the tags is shown.",
+		"You MUST wrap your final response to the user in <answer>...</answer> tags.",
+		"Everything outside <answer> tags is automatically hidden from the user.",
 		"",
-		"Correct format:",
-		"<thought>",
-		"[your internal analysis, planning, persona lookup — invisible to user]",
-		"</thought>",
-		"[your actual response to the user — this is what they see]",
+		"Format:",
+		"<answer>",
+		"[Your actual response to the user — ONLY this part is visible]",
+		"</answer>",
 		"",
-		"NEVER output bare \"Reasoning:\" or \"Thinking:\" text outside of <thought> tags.",
-		"NEVER start your response with untagged reasoning. If you need to think, use <thought> tags.",
-		"Violation: raw reasoning visible to users = broken experience.",
+		"If you need to think/reason first, put it BEFORE the <answer> tag (it will be hidden).",
+		"The user ONLY sees content inside <answer>...</answer>.",
+		"ALWAYS include <answer> tags in EVERY response. No exceptions.",
 		"",
 	)
 
