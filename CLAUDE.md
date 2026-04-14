@@ -101,6 +101,12 @@ docker run -d --name pgtest -p 5433:5432 -e POSTGRES_PASSWORD=test -e POSTGRES_D
 TEST_DATABASE_URL="postgres://postgres:test@localhost:5433/goclaw_test?sslmode=disable" \
   go test -v -tags integration ./tests/integration/
 
+# Layered tests
+make test-invariants  # P0 - tenant isolation (blocking)
+make test-contracts   # P1 - API schemas (requires server)
+make test-scenarios   # P2 - user journeys (requires server)
+make test-critical    # P0 + P1 (pre-merge)
+
 cd ui/web && pnpm install && pnpm dev   # Web dashboard (dev)
 
 # Desktop (Wails + SQLite)
@@ -117,13 +123,16 @@ make desktop-dmg VERSION=0.1.0               # Create .dmg installer (macOS only
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
 | `ci.yaml` | push main, PR→main/dev | Go build+test+vet, Web build |
-| `release.yaml` | push main | semantic-release → binaries + Docker (4 variants + web) + Discord |
+| `release.yaml` | tag `v[0-9]+.[0-9]+.[0-9]+` | Binaries + Docker (4 variants + web) + Discord |
 | `release-beta.yaml` | tag `v*-beta*` / `v*-rc*` | Beta binaries + Docker + GitHub prerelease |
 | `release-desktop.yaml` | tag `lite-v*` | Desktop app (macOS+Windows), auto prerelease for `-beta`/`-rc` tags |
 
 ### Creating Releases
 
-**Standard release** — merge `dev` → `main`. `go-semantic-release` auto-creates version from conventional commits.
+**Standard release** — manual tag push after merging `dev` → `main`:
+```bash
+git tag v3.0.0 && git push origin v3.0.0
+```
 
 **Beta release** (from dev):
 ```bash
@@ -152,10 +161,10 @@ Published to GHCR (`ghcr.io/nextlevelbuilder/goclaw`) and Docker Hub (`digitop/g
 
 ### Tag Pattern Safety
 
-- `release.yaml`: branch-triggered (push main) → `go-semantic-release` creates clean `vX.Y.Z` tags
+- `release.yaml`: tag-triggered (`v[0-9]+.[0-9]+.[0-9]+`) — clean semver only, no beta/rc
 - `release-beta.yaml`: tag-triggered (`v*-beta*`, `v*-rc*`) — never matches clean semver
 - `release-desktop.yaml`: tag-triggered (`lite-v*`) — `lite-` prefix prevents overlap
-- No workflow triggers overlap — each tag pattern is distinct
+- No workflow triggers overlap — each tag pattern is distinct. Merging to `main` only triggers CI, not release
 
 ## Desktop Edition (Lite)
 
