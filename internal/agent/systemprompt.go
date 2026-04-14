@@ -248,44 +248,6 @@ func BuildSystemPrompt(cfg SystemPromptConfig) string {
 		lines = append(lines, "")
 	}
 
-	// 1.5. First-run bootstrap override (must be early so model sees it first)
-	if cfg.IsBootstrap {
-		// Open agents: slim mode, only write_file available
-		lines = append(lines,
-			"## FIRST RUN — MANDATORY",
-			"",
-			"BOOTSTRAP.md is loaded below in Project Context. This is your FIRST interaction with this user.",
-			"You MUST follow BOOTSTRAP.md instructions immediately.",
-			"Do NOT give a generic greeting. Do NOT ignore this. Read BOOTSTRAP.md and follow it NOW.",
-			"",
-			"Note: During onboarding you only have write_file available.",
-			"After completing bootstrap, your full capabilities will be unlocked.",
-			"Focus on getting to know the user — do not attempt tasks requiring other tools.",
-			"",
-		)
-	} else if hasBootstrapFile(cfg.ContextFiles) {
-		// Predefined agents: full capabilities, but MUST complete bootstrap
-		lines = append(lines,
-			"## FIRST RUN — MANDATORY",
-			"",
-			"BOOTSTRAP.md is loaded below. This is your FIRST interaction with this user.",
-			"You MUST complete the onboarding described in BOOTSTRAP.md.",
-			"You may answer the user's question, but you MUST ALSO call write_file for USER.md and BOOTSTRAP.md before your response ends.",
-			"If the user's first message contains enough info (name, language, timezone), write USER.md immediately — do NOT wait for multiple turns.",
-			"",
-		)
-	} else if content := findContextFileContent(cfg.ContextFiles, bootstrap.UserFile); content != "" && !isUserFilePopulated(content) {
-		// BOOTSTRAP.md already cleaned up but USER.md is still blank — persistent nudge
-		lines = append(lines,
-			"## USER PROFILE INCOMPLETE",
-			"",
-			"USER.md exists but hasn't been filled in yet.",
-			"During conversation, naturally learn the user's name, language, and timezone.",
-			"Once you have this info, silently call write_file to update USER.md with their details.",
-			"",
-		)
-	}
-
 	// 1.7. # Persona — full+task get full persona (SOUL.md+IDENTITY.md), minimal/none skip
 	personaFiles, otherFiles := splitPersonaFiles(cfg.ContextFiles)
 	if (isFull || isTask) && len(personaFiles) > 0 {
