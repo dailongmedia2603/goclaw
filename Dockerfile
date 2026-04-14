@@ -108,6 +108,10 @@ RUN set -eux; \
         npm install -g --cache /tmp/npm-cache @anthropic-ai/claude-code@^2.1.91; \
         rm -rf /tmp/npm-cache; \
     fi; \
+    if [ "$ENABLE_NODE" = "true" ] || [ "$ENABLE_FULL_SKILLS" = "true" ] || [ "$ENABLE_CLAUDE_CLI" = "true" ]; then \
+        npm install -g --cache /tmp/npm-cache @larksuiteoapi/lark-mcp || true; \
+        rm -rf /tmp/npm-cache; \
+    fi; \
     rm -f /tmp/requirements-base.txt /tmp/requirements-skills.txt
 
 # Non-root user
