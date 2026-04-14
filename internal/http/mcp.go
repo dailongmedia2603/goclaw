@@ -88,6 +88,11 @@ func (h *MCPHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/mcp/export/preview", h.adminAuth(h.handleMCPExportPreview))
 	mux.HandleFunc("GET /v1/mcp/export", h.adminAuth(h.handleMCPExport))
 	mux.HandleFunc("POST /v1/mcp/import", h.adminAuth(h.handleMCPImport))
+
+	// Preset catalog (reads: viewer+, writes: admin+)
+	mux.HandleFunc("GET /v1/mcp/presets", h.auth(h.handleListPresets))
+	mux.HandleFunc("POST /v1/mcp/presets/{id}/servers", h.adminAuth(h.handleCreateFromPreset))
+	mux.HandleFunc("PUT /v1/mcp/presets/{id}/servers/{serverID}", h.adminAuth(h.handleUpdateFromPreset))
 }
 
 func (h *MCPHandler) auth(next http.HandlerFunc) http.HandlerFunc {
