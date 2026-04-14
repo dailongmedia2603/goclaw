@@ -2,6 +2,21 @@
 
 All notable changes to GoClaw are documented here. For full documentation, see [docs.goclaw.sh](https://docs.goclaw.sh).
 
+## Unreleased
+
+### Added
+
+- **MCP Preset Registry** — first-class preset catalog on the `/mcp` page. "Add Server" splits into "From Preset" (guided setup) and "Custom (Advanced)" (manual).
+- **Lark preset** — connect Goclaw agents to Lark Open Platform (messages, docs, calendar, contacts) via `@larksuiteoapi/lark-mcp`. Dedicated form with App ID, App Secret, Domain (Lark International / Feishu China), Token Mode, Tool Presets. Full UI at `/mcp` with Test Connection + preset badge on list rows. See [docs/mcp-lark-preset.md](docs/mcp-lark-preset.md).
+- Docker `:latest`, `:otel`, and `:full` variants now include Node.js and pre-install `@larksuiteoapi/lark-mcp` so MCP presets requiring `npx` work out of the box.
+- New HTTP endpoints: `GET /v1/mcp/presets`, `POST /v1/mcp/presets/{id}/servers`, `PUT /v1/mcp/presets/{id}/servers/{serverID}` (admin-only writes, viewer-level reads).
+- New i18n keys under `mcp:presets.*` and `mcp:presets.lark.*` for en/vi/zh.
+
+### Security
+
+- Lark App Secret is delivered to the subprocess via `LARK_APP_SECRET` env var only — never via CLI args, so it does not appear in `ps aux` / `/proc/*/cmdline`.
+- Preset endpoints sanitize responses: `api_key` returned empty, `env.LARK_APP_SECRET` masked to `***`.
+
 ## Project Status
 
 ### Implemented & Tested in Production
