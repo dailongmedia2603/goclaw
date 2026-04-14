@@ -55,6 +55,7 @@
     "create": "Create",
     "update": "Update",
     "saving": "Saving...",
+    "optional": "optional",
     "errors": {
       "nameRequired": "Name and transport are required",
       "nameSlug": "Name must be a valid slug (lowercase letters, numbers, hyphens only)",
@@ -129,5 +130,66 @@
     "saveFailed": "Failed to save credentials",
     "deleteFailed": "Failed to delete credentials",
     "mergeHint": "Chat users (Telegram, Discord, etc.) must be merged into a tenant user first via Contacts page before they can have per-user credentials."
+  },
+  "addFromPreset": "From Preset",
+  "addFromPresetHint": "Guided setup for popular services",
+  "addCustom": "Custom (Advanced)",
+  "addCustomHint": "Manually configure command, URL, transport",
+  "common": {
+    "comingSoon": "Coming soon"
+  },
+  "presets": {
+    "catalog": {
+      "title": "Choose a Preset",
+      "description": "Quick-connect to popular services with guided setup.",
+      "select": "Select"
+    },
+    "custom": {
+      "title": "Custom MCP Server",
+      "description": "Manually configure command, URL, and transport."
+    },
+    "lark": {
+      "createTitle": "Add Lark Connection",
+      "editTitle": "Edit Lark Connection",
+      "fields": {
+        "displayName": "Display Name",
+        "appId": "App ID",
+        "appSecret": "App Secret",
+        "domain": "Domain",
+        "tokenMode": "Token Mode",
+        "toolPresets": "Tool Presets",
+        "timeoutSec": "Timeout (seconds)"
+      },
+      "placeholders": {
+        "displayName": "Lark — Production"
+      },
+      "hints": {
+        "findAppId": "Find App ID & Secret in Lark Developer Console:",
+        "leaveEmptyToKeep": "Leave empty to keep existing secret"
+      },
+      "domains": {
+        "international": "Lark (International / Vietnam)",
+        "feishu": "Feishu (China)"
+      },
+      "tokenMode": {
+        "tenant": "Tenant (app-level, recommended)",
+        "user": "User (OAuth)"
+      },
+      "tools": {
+        "default": "Default (messages, calendar, docs)",
+        "im": "Messaging only",
+        "calendar": "Calendar only",
+        "docs": "Docs & Wiki only",
+        "contact": "Contacts & Org chart only"
+      },
+      "errors": {
+        "secretRequired": "App Secret is required",
+        "secretRequiredForTest": "App Secret is required to test the connection",
+        "userModeUnsupported": "User OAuth mode is not supported yet. Use Tenant mode."
+      },
+      "userModeComingSoon": "User OAuth mode is coming soon. Use Tenant mode for now.",
+      "created": "Lark connection created",
+      "updated": "Lark connection updated"
+    }
   }
 }

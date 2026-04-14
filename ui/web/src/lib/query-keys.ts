@@ -31,6 +31,7 @@ export const queryKeys = {
   },
   mcp: {
     all: ["mcp"] as const,
+    presets: ["mcp", "presets"] as const,
   },
   channels: {
     all: ["channels"] as const,

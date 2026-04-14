@@ -10,7 +10,11 @@ export interface MCPServerData {
   env: Record<string, string> | null;
   tool_prefix: string;
   timeout_sec: number;
-  settings?: { require_user_credentials?: boolean };
+  settings?: {
+    require_user_credentials?: boolean;
+    preset?: string;
+    preset_config?: Record<string, unknown>;
+  };
   enabled: boolean;
   created_by: string;
   agent_count?: number;

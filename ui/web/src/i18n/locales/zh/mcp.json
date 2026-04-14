@@ -52,6 +52,7 @@
     "testing": "测试中...",
     "toolsFound": "发现 {{count}} 个工具",
     "cancel": "取消",
+    "optional": "可选",
     "create": "创建",
     "update": "更新",
     "saving": "保存中...",
@@ -129,5 +130,66 @@
     "saveFailed": "保存凭据失败",
     "deleteFailed": "删除凭据失败",
     "mergeHint": "聊天用户（Telegram、Discord 等）需要先通过联系人页面合并为租户用户，才能设置独立凭证。"
+  },
+  "addFromPreset": "从预设添加",
+  "addFromPresetHint": "流行服务的引导式配置",
+  "addCustom": "自定义（高级）",
+  "addCustomHint": "手动配置命令、URL、传输方式",
+  "common": {
+    "comingSoon": "即将推出"
+  },
+  "presets": {
+    "catalog": {
+      "title": "选择预设",
+      "description": "引导式快速配置流行服务。",
+      "select": "选择"
+    },
+    "custom": {
+      "title": "自定义 MCP 服务器",
+      "description": "手动配置命令、URL 和传输方式。"
+    },
+    "lark": {
+      "createTitle": "添加 Lark 连接",
+      "editTitle": "编辑 Lark 连接",
+      "fields": {
+        "displayName": "显示名称",
+        "appId": "App ID",
+        "appSecret": "App Secret",
+        "domain": "域",
+        "tokenMode": "Token 模式",
+        "toolPresets": "工具集",
+        "timeoutSec": "超时（秒）"
+      },
+      "placeholders": {
+        "displayName": "Lark — Production"
+      },
+      "hints": {
+        "findAppId": "在 Lark 开发者控制台中查找 App ID 与 Secret：",
+        "leaveEmptyToKeep": "留空以保留现有密钥"
+      },
+      "domains": {
+        "international": "Lark（国际 / 越南）",
+        "feishu": "飞书（中国）"
+      },
+      "tokenMode": {
+        "tenant": "租户（应用级，推荐）",
+        "user": "用户（OAuth）"
+      },
+      "tools": {
+        "default": "默认（消息、日历、文档）",
+        "im": "仅消息",
+        "calendar": "仅日历",
+        "docs": "仅文档与 Wiki",
+        "contact": "仅联系人与组织架构"
+      },
+      "errors": {
+        "secretRequired": "App Secret 为必填",
+        "secretRequiredForTest": "测试连接需要 App Secret",
+        "userModeUnsupported": "暂不支持用户 OAuth 模式，请使用租户模式。"
+      },
+      "userModeComingSoon": "用户 OAuth 模式即将推出。目前请使用租户模式。",
+      "created": "Lark 连接已创建",
+      "updated": "Lark 连接已更新"
+    }
   }
 }

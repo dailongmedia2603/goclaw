@@ -52,6 +52,7 @@
     "testing": "Đang kiểm tra...",
     "toolsFound": "Tìm thấy {{count}} công cụ",
     "cancel": "Hủy",
+    "optional": "tùy chọn",
     "create": "Tạo",
     "update": "Cập nhật",
     "saving": "Đang lưu...",
@@ -129,5 +130,66 @@
     "saveFailed": "Lưu credentials thất bại",
     "deleteFailed": "Xóa credentials thất bại",
     "mergeHint": "Người dùng chat (Telegram, Discord...) cần được gộp vào tenant user qua trang Contacts trước khi có thể thiết lập credentials riêng."
+  },
+  "addFromPreset": "Từ mẫu có sẵn",
+  "addFromPresetHint": "Cấu hình nhanh cho dịch vụ phổ biến",
+  "addCustom": "Tùy chỉnh (Nâng cao)",
+  "addCustomHint": "Cấu hình thủ công command, URL, transport",
+  "common": {
+    "comingSoon": "Sắp có"
+  },
+  "presets": {
+    "catalog": {
+      "title": "Chọn mẫu cấu hình",
+      "description": "Kết nối nhanh các dịch vụ phổ biến với form cấu hình có hướng dẫn.",
+      "select": "Chọn"
+    },
+    "custom": {
+      "title": "MCP Server tùy chỉnh",
+      "description": "Tự cấu hình command, URL và transport."
+    },
+    "lark": {
+      "createTitle": "Thêm kết nối Lark",
+      "editTitle": "Sửa kết nối Lark",
+      "fields": {
+        "displayName": "Tên hiển thị",
+        "appId": "App ID",
+        "appSecret": "App Secret",
+        "domain": "Miền",
+        "tokenMode": "Chế độ Token",
+        "toolPresets": "Nhóm công cụ",
+        "timeoutSec": "Timeout (giây)"
+      },
+      "placeholders": {
+        "displayName": "Lark — Production"
+      },
+      "hints": {
+        "findAppId": "Tìm App ID & Secret ở Lark Developer Console:",
+        "leaveEmptyToKeep": "Để trống để giữ secret hiện tại"
+      },
+      "domains": {
+        "international": "Lark (Quốc tế / Việt Nam)",
+        "feishu": "Feishu (Trung Quốc)"
+      },
+      "tokenMode": {
+        "tenant": "Tenant (cấp ứng dụng, khuyến nghị)",
+        "user": "User (OAuth)"
+      },
+      "tools": {
+        "default": "Mặc định (tin nhắn, lịch, tài liệu)",
+        "im": "Chỉ tin nhắn",
+        "calendar": "Chỉ lịch",
+        "docs": "Chỉ Docs & Wiki",
+        "contact": "Chỉ danh bạ & sơ đồ tổ chức"
+      },
+      "errors": {
+        "secretRequired": "Bắt buộc nhập App Secret",
+        "secretRequiredForTest": "Cần App Secret để test kết nối",
+        "userModeUnsupported": "Chưa hỗ trợ chế độ User OAuth. Vui lòng dùng chế độ Tenant."
+      },
+      "userModeComingSoon": "Chế độ User OAuth sắp ra mắt. Vui lòng dùng chế độ Tenant.",
+      "created": "Đã tạo kết nối Lark",
+      "updated": "Đã cập nhật kết nối Lark"
+    }
   }
 }
