@@ -1,0 +1,53 @@
+{
+  "type": "object",
+  "required": ["app_id", "domain", "token_mode", "tool_presets"],
+  "properties": {
+    "display_name": {
+      "type": "string",
+      "maxLength": 80
+    },
+    "app_id": {
+      "type": "string",
+      "pattern": "^cli_[A-Za-z0-9]+$",
+      "minLength": 5,
+      "maxLength": 100
+    },
+    "app_secret": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "domain": {
+      "type": "string",
+      "enum": [
+        "https://open.larksuite.com",
+        "https://open.feishu.cn"
+      ]
+    },
+    "token_mode": {
+      "type": "string",
+      "enum": ["tenant_access_token", "user_access_token"]
+    },
+    "tool_presets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": [
+          "preset.default",
+          "preset.im.default",
+          "preset.calendar.default",
+          "preset.docs.default",
+          "preset.contact.default"
+        ]
+      }
+    },
+    "timeout_sec": {
+      "type": "integer",
+      "minimum": 10,
+      "maximum": 600
+    },
+    "enabled": {
+      "type": "boolean"
+    }
+  }
+}
