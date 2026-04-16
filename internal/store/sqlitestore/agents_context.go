@@ -160,6 +160,28 @@ func (s *SQLiteAgentStore) DeleteUserContextFile(ctx context.Context, agentID uu
 	return err
 }
 
+// DeleteUserInstance removes a user's profile and all their context files for an agent.
+// This triggers re-seeding on the user's next chat.
+func (s *SQLiteAgentStore) DeleteUserInstance(ctx context.Context, agentID uuid.UUID, userID string) error {
+	tClause, tArgs, err := scopeClause(ctx)
+	if err != nil {
+		return err
+	}
+	baseArgs := append([]any{agentID, userID}, tArgs...)
+	if _, err := s.db.ExecContext(ctx,
+		"DELETE FROM user_context_files WHERE agent_id = ? AND user_id = ?"+tClause,
+		baseArgs...); err != nil {
+		return err
+	}
+	_, _ = s.db.ExecContext(ctx,
+		"DELETE FROM user_agent_overrides WHERE agent_id = ? AND user_id = ?"+tClause,
+		baseArgs...)
+	_, err = s.db.ExecContext(ctx,
+		"DELETE FROM user_agent_profiles WHERE agent_id = ? AND user_id = ?"+tClause,
+		baseArgs...)
+	return err
+}
+
 func (s *SQLiteAgentStore) MigrateUserDataOnMerge(ctx context.Context, oldUserIDs []string, newUserID string) error {
 	if len(oldUserIDs) == 0 {
 		return nil

@@ -7,6 +7,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -116,6 +118,38 @@ func (s *SQLiteTenantStore) GetTenantsByIDs(ctx context.Context, ids []uuid.UUID
 
 func (s *SQLiteTenantStore) UpdateTenant(ctx context.Context, id uuid.UUID, updates map[string]any) error {
 	return execMapUpdate(ctx, s.db, "tenants", id, updates)
+}
+
+// DeleteTenant removes a tenant and all associated data in a transaction.
+// The master tenant cannot be deleted.
+func (s *SQLiteTenantStore) DeleteTenant(ctx context.Context, id uuid.UUID) error {
+	if id == store.MasterTenantID {
+		return fmt.Errorf("cannot delete master tenant")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	childTables := []string{
+		"kg_relations", "kg_entities",
+		"memory_chunks", "memory_documents",
+		"user_context_files", "agent_context_files",
+		"cron_jobs", "sessions", "agents",
+		"api_keys", "llm_providers",
+		"system_configs", "tenant_users",
+	}
+	for _, table := range childTables {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE tenant_id = ?", id); err != nil {
+			slog.Warn("tenant delete: skip table", "table", table, "error", err)
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM tenants WHERE id = ?", id); err != nil {
+		return fmt.Errorf("delete tenant: %w", err)
+	}
+	return tx.Commit()
 }
 
 // ============================================================

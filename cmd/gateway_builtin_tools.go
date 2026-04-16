@@ -71,6 +71,10 @@ func builtinToolSeedData() []store.BuiltinToolDef {
 			Requires: []string{"tts_provider"},
 			Metadata: json.RawMessage(`{"config_hint":"Config → TTS"}`),
 		},
+		{Name: "stt", DisplayName: "Speech-to-Text", Description: "Transcribe voice/audio messages to text using ElevenLabs Scribe or a proxy service", Category: "media", Enabled: true,
+			Requires: []string{"stt_provider"},
+			Metadata: json.RawMessage(`{"config_hint":"Config → Audio → STT"}`),
+		},
 
 		// browser
 		{Name: "browser", DisplayName: "Cloak Browser", Description: "Stealth browser automation: navigate pages, click elements, fill forms, take screenshots — powered by CloakBrowser", Category: "browser", Enabled: true,
