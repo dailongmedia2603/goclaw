@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -27,7 +29,15 @@ type matrixClient struct {
 
 	mu          sync.Mutex
 	mgmtRoomIDs map[string]string // loginID(FB user ID) → Matrix management room ID (cached)
-	roomToThread map[string]string // Matrix room ID → FB thread ID (cached after first lookup)
+	roomInfo    map[string]roomInfoCache // Matrix room ID → thread ID + isGroup (cached)
+}
+
+// roomInfoCache caches per-room metadata derived from Matrix state events.
+type roomInfoCache struct {
+	threadID   string
+	isGroup    bool
+	threadName string            // group title for groups; other party's name for DMs
+	ghostNames map[string]string // ghost MXID → display name
 }
 
 func newMatrixClient(baseURL, accessToken string) *matrixClient {
@@ -38,7 +48,7 @@ func newMatrixClient(baseURL, accessToken string) *matrixClient {
 			Timeout: 60 * time.Second,
 		},
 		mgmtRoomIDs: make(map[string]string),
-		roomToThread: make(map[string]string),
+		roomInfo:    make(map[string]roomInfoCache),
 	}
 }
 
@@ -210,49 +220,160 @@ func (c *matrixClient) FindPortalRoomForThread(ctx context.Context, threadID str
 }
 
 // RememberThreadRoom stores a known thread→room mapping (populated from /sync events).
+// Does not set isGroup — callers who know the flag should use RememberRoomInfo.
 func (c *matrixClient) RememberThreadRoom(threadID, roomID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.mgmtRoomIDs[threadID] = roomID
-	c.roomToThread[roomID] = threadID
+	prev := c.roomInfo[roomID]
+	prev.threadID = threadID
+	c.roomInfo[roomID] = prev
+}
+
+// RememberRoomInfo caches both thread ID and group flag for a room.
+// threadName and ghostNames are optional — pass "" / nil to keep defaults.
+func (c *matrixClient) RememberRoomInfo(roomID, threadID string, isGroup bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if threadID != "" {
+		c.mgmtRoomIDs[threadID] = roomID
+	}
+	prev := c.roomInfo[roomID]
+	c.roomInfo[roomID] = roomInfoCache{
+		threadID:   threadID,
+		isGroup:    isGroup,
+		threadName: prev.threadName,
+		ghostNames: prev.ghostNames,
+	}
+}
+
+// RememberRoomInfoFull stores all room metadata atomically (used by FetchRoomInfo).
+func (c *matrixClient) RememberRoomInfoFull(roomID, threadID string, isGroup bool, threadName string, ghostNames map[string]string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if threadID != "" {
+		c.mgmtRoomIDs[threadID] = roomID
+	}
+	c.roomInfo[roomID] = roomInfoCache{
+		threadID:   threadID,
+		isGroup:    isGroup,
+		threadName: threadName,
+		ghostNames: ghostNames,
+	}
+}
+
+// RoomInfoCached returns cached (threadID, isGroup, ok) for a room.
+func (c *matrixClient) RoomInfoCached(roomID string) (string, bool, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ri, ok := c.roomInfo[roomID]
+	return ri.threadID, ri.isGroup, ok && ri.threadID != ""
+}
+
+// RoomMetadata returns threadName + a shallow copy of the ghost name map.
+// Empty threadName / nil map if the room hasn't been fetched yet.
+func (c *matrixClient) RoomMetadata(roomID string) (threadName string, ghostNames map[string]string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ri, ok := c.roomInfo[roomID]
+	if !ok {
+		return "", nil
+	}
+	names := make(map[string]string, len(ri.ghostNames))
+	for k, v := range ri.ghostNames {
+		names[k] = v
+	}
+	return ri.threadName, names
 }
 
 // ThreadIDForRoom returns a cached FB thread ID for a Matrix room, or "" if unknown.
 func (c *matrixClient) ThreadIDForRoom(roomID string) string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.roomToThread[roomID]
+	return c.roomInfo[roomID].threadID
 }
 
-// FetchThreadIDForRoom fetches the m.bridge state event from a room and extracts
-// the remote thread ID. Result is cached. Returns "" if the room has no bridge state.
-func (c *matrixClient) FetchThreadIDForRoom(ctx context.Context, roomID string) (string, error) {
-	if cached := c.ThreadIDForRoom(roomID); cached != "" {
-		return cached, nil
+// FetchRoomInfo fetches /rooms/{id}/state (for threadID) and /joined_members
+// (for isGroup) and derives both.
+// - threadID: from m.bridge / uk.half-shot.bridge state event's channel.id.
+// - isGroup: true when the room has 3+ distinct mautrix-meta ghost users
+//   (@meta_<fb_id>:...). DM portals have exactly 2 ghosts (self + other);
+//   FB groups require ≥ 3 participants so group portals have ≥ 3 ghosts.
+// Result is cached. Returns ("", false, nil) when the room has no bridge state.
+func (c *matrixClient) FetchRoomInfo(ctx context.Context, roomID string) (string, bool, error) {
+	if tid, grp, ok := c.RoomInfoCached(roomID); ok {
+		return tid, grp, nil
 	}
-	// Matrix API: GET /rooms/{roomID}/state — returns all state events.
-	req, err := c.authReq(ctx, http.MethodGet, "/_matrix/client/v3/rooms/"+roomID+"/state", nil)
+	// 1. Scan state for m.bridge (threadID).
+	stateReq, err := c.authReq(ctx, http.MethodGet, "/_matrix/client/v3/rooms/"+roomID+"/state", nil)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	var events []map[string]any
-	if err := c.do(req, &events); err != nil {
-		return "", err
+	if err := c.do(stateReq, &events); err != nil {
+		return "", false, err
 	}
-	// Search for m.bridge or uk.half-shot.bridge.
+	var threadID, threadName string
 	for _, ev := range events {
 		evType, _ := ev["type"].(string)
-		if evType != "m.bridge" && evType != "uk.half-shot.bridge" {
-			continue
-		}
-		content, _ := ev["content"].(map[string]any)
-		channel, _ := content["channel"].(map[string]any)
-		if id, ok := channel["id"].(string); ok && id != "" {
-			c.RememberThreadRoom(id, roomID)
-			return id, nil
+		switch evType {
+		case "m.bridge", "uk.half-shot.bridge":
+			content, _ := ev["content"].(map[string]any)
+			channel, _ := content["channel"].(map[string]any)
+			if id, ok := channel["id"].(string); ok && id != "" {
+				threadID = id
+			}
+			if name, _ := channel["displayname"].(string); name != "" {
+				threadName = name
+			}
+		case "m.room.name":
+			content, _ := ev["content"].(map[string]any)
+			if name, _ := content["name"].(string); name != "" && threadName == "" {
+				threadName = name
+			}
 		}
 	}
-	return "", nil
+
+	// 2. Fetch joined members for ghost count + display names.
+	membersReq, err := c.authReq(ctx, http.MethodGet, "/_matrix/client/v3/rooms/"+roomID+"/joined_members", nil)
+	if err != nil {
+		return "", false, err
+	}
+	var memResp struct {
+		Joined map[string]struct {
+			DisplayName string `json:"display_name"`
+		} `json:"joined"`
+	}
+	if err := c.do(membersReq, &memResp); err != nil {
+		slog.Warn("matrix.joined_members_failed", "room_id", roomID, "err", err)
+		if threadID != "" {
+			c.RememberRoomInfo(roomID, threadID, false)
+		}
+		return threadID, false, nil
+	}
+	ghostCount := 0
+	ghostNames := make(map[string]string)
+	for mxid, info := range memResp.Joined {
+		if strings.HasPrefix(mxid, "@meta_") {
+			ghostCount++
+			if info.DisplayName != "" {
+				ghostNames[mxid] = info.DisplayName
+			}
+		}
+	}
+	isGroup := ghostCount >= 3
+
+	if threadID != "" {
+		c.RememberRoomInfoFull(roomID, threadID, isGroup, threadName, ghostNames)
+	}
+	return threadID, isGroup, nil
+}
+
+// FetchThreadIDForRoom is a thin wrapper around FetchRoomInfo for callers that
+// only care about the thread ID.
+func (c *matrixClient) FetchThreadIDForRoom(ctx context.Context, roomID string) (string, error) {
+	tid, _, err := c.FetchRoomInfo(ctx, roomID)
+	return tid, err
 }
 
 func truncate(s string, n int) string {

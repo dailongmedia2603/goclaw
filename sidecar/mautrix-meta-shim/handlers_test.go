@@ -183,13 +183,13 @@ func TestExtractThreadIDFromState(t *testing.T) {
 			},
 		},
 	}
-	if got := extractThreadIDFromState(events); got != "thread-abc123" {
+	if got := func() string { id, _ := extractRoomInfoFromState(events); return id }(); got != "thread-abc123" {
 		t.Errorf("got=%q want=thread-abc123", got)
 	}
 }
 
 func TestExtractThreadIDFromState_Missing(t *testing.T) {
-	if got := extractThreadIDFromState(nil); got != "" {
+	if got := func() string { id, _ := extractRoomInfoFromState(nil); return id }(); got != "" {
 		t.Errorf("expected empty, got %q", got)
 	}
 }

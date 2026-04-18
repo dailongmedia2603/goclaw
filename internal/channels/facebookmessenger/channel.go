@@ -310,6 +310,21 @@ func (c *Channel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Populate / refresh channel_contacts so the UI can show human-readable
+	// names (sender name for DMs, group title for groups) instead of raw FB IDs.
+	if cc := c.ContactCollector(); cc != nil {
+		peerKind := "user"
+		if event.IsGroup {
+			peerKind = "group"
+		}
+		cc.EnsureContact(r.Context(), c.Type(), c.Name(),
+			event.SenderID, "", event.SenderName, "", peerKind, "user", "", "")
+		if event.IsGroup && event.ThreadName != "" {
+			cc.EnsureContact(r.Context(), c.Type(), c.Name(),
+				event.ThreadID, "", event.ThreadName, "", "group", "group", "", "")
+		}
+	}
+
 	// DM / group policy (pairing / allowlist / disabled / open).
 	// For pairing, this creates a pairing record visible in the admin UI and
 	// sends a short prompt to the sender so they know the request is pending.

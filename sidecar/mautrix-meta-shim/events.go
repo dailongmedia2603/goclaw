@@ -37,6 +37,7 @@ type SidecarEvent struct {
 	EventType  string          `json:"event_type"`
 	MessageID  string          `json:"message_id"`
 	ThreadID   string          `json:"thread_id"`
+	ThreadName string          `json:"thread_name,omitempty"`
 	IsGroup    bool            `json:"is_group"`
 	SenderID   string          `json:"sender_id"`
 	SenderName string          `json:"sender_name,omitempty"`
@@ -147,29 +148,39 @@ func syncLoop(ctx context.Context, mc *matrixClient, wf *webhookForwarder) {
 		}
 
 		for roomID, roomData := range resp.Rooms.Join {
-			// Record room for future resolution.
-			threadID := extractThreadIDFromState(roomData.State.Events)
-			if threadID != "" {
-				mc.RememberThreadRoom(threadID, roomID)
+			// Resolve thread ID + isGroup + display names for this room.
+			// Use cached metadata when present; otherwise do a one-shot fetch of
+			// room state + joined_members (names live in the latter and are not
+			// delivered via /sync state deltas on every poll).
+			var threadID string
+			var isGroup bool
+			if tid, grp, ok := mc.RoomInfoCached(roomID); ok {
+				threadID, isGroup = tid, grp
 			} else {
-				// State events are only delivered once per sync; fall back to cache or
-				// fetch the full room state on-demand to recover the thread ID.
-				threadID = mc.ThreadIDForRoom(roomID)
-				if threadID == "" {
-					fetchCtx, fcancel := context.WithTimeout(ctx, 10*time.Second)
-					if fetched, err := mc.FetchThreadIDForRoom(fetchCtx, roomID); err != nil {
-						slog.Warn("sync.fetch_thread_id_failed", "room_id", roomID, "err", err)
-					} else {
-						threadID = fetched
-					}
-					fcancel()
+				fetchCtx, fcancel := context.WithTimeout(ctx, 10*time.Second)
+				if tid, grp, err := mc.FetchRoomInfo(fetchCtx, roomID); err != nil {
+					slog.Warn("sync.fetch_room_info_failed", "room_id", roomID, "err", err)
+					// Fall back to bridge state embedded in the sync response.
+					tid, grp = extractRoomInfoFromState(roomData.State.Events)
+					threadID, isGroup = tid, grp
+				} else {
+					threadID, isGroup = tid, grp
 				}
+				fcancel()
 			}
 
+			threadName, ghostNames := mc.RoomMetadata(roomID)
 			for _, ev := range roomData.Timeline.Events {
 				outEv, ok := translateTimelineEvent(ev, roomID, threadID)
 				if !ok {
 					continue
+				}
+				outEv.IsGroup = isGroup
+				outEv.ThreadName = threadName
+				if sender, _ := ev["sender"].(string); sender != "" {
+					if name, ok := ghostNames[sender]; ok {
+						outEv.SenderName = name
+					}
 				}
 				if err := wf.Post(ctx, outEv); err != nil {
 					slog.Warn("sync.webhook_post_failed", "err", err, "msg_id", outEv.MessageID)
@@ -226,19 +237,28 @@ func translateTimelineEvent(ev map[string]any, roomID, threadID string) (Sidecar
 	}, true
 }
 
-// extractThreadIDFromState parses m.bridge state events to find the remote thread ID.
-// Returns "" if not found.
-func extractThreadIDFromState(stateEvents []map[string]any) string {
+// extractRoomInfoFromState scans state events and returns (threadID, isGroup).
+// threadID: from m.bridge / uk.half-shot.bridge state event's channel.id.
+// isGroup: true when an m.room.name state event is present. mautrix-meta sets a
+// room name on group portals but leaves DM portals nameless.
+func extractRoomInfoFromState(stateEvents []map[string]any) (string, bool) {
+	var threadID string
+	var isGroup bool
 	for _, ev := range stateEvents {
 		evType, _ := ev["type"].(string)
-		if evType != "m.bridge" && evType != "uk.half-shot.bridge" {
-			continue
-		}
-		content, _ := ev["content"].(map[string]any)
-		channel, _ := content["channel"].(map[string]any)
-		if id, ok := channel["id"].(string); ok && id != "" {
-			return id
+		switch evType {
+		case "m.bridge", "uk.half-shot.bridge":
+			content, _ := ev["content"].(map[string]any)
+			channel, _ := content["channel"].(map[string]any)
+			if id, ok := channel["id"].(string); ok && id != "" {
+				threadID = id
+			}
+		case "m.room.name":
+			content, _ := ev["content"].(map[string]any)
+			if name, _ := content["name"].(string); name != "" {
+				isGroup = true
+			}
 		}
 	}
-	return ""
+	return threadID, isGroup
 }

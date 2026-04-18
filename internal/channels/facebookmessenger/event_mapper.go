@@ -16,6 +16,7 @@ type sidecarInboundEvent struct {
 	EventType  string         `json:"event_type"`            // "message" | "reaction" | "typing" | "read_receipt" | ...
 	MessageID  string         `json:"message_id"`
 	ThreadID   string         `json:"thread_id"`    // FB thread/chat ID
+	ThreadName string         `json:"thread_name,omitempty"` // group title / DM display name
 	IsGroup    bool           `json:"is_group"`
 	SenderID   string         `json:"sender_id"`    // FB user ID
 	SenderName string         `json:"sender_name,omitempty"`
