@@ -33,6 +33,10 @@ func NewChannelInstancesHandler(s store.ChannelInstanceStore, agentStore store.A
 
 // RegisterRoutes registers all channel instance routes on the given mux.
 func (h *ChannelInstancesHandler) RegisterRoutes(mux *http.ServeMux) {
+	// Facebook Messenger (Personal) re-auth proxy — mounted on /api/... to match
+	// the fetch path used by the UI cookie wizard.
+	h.RegisterFBMLoginRoute(mux)
+
 	// Channel instance CRUD (reads: viewer+, writes: admin+)
 	mux.HandleFunc("GET /v1/channels/instances", h.auth(h.handleList))
 	mux.HandleFunc("POST /v1/channels/instances", h.adminAuth(h.handleCreate))
