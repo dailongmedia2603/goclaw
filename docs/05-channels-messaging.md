@@ -728,3 +728,9 @@ flowchart TD
 | [09-security.md](./09-security.md) | Group file writer restrictions, security logging |
 | [11-agent-teams.md](./11-agent-teams.md) | Team message routing, delegation result delivery |
 | [project-changelog.md](./project-changelog.md) | Phase 5 audio manager & unified STT implementation |
+
+## Facebook Messenger (Personal) — Experimental
+
+See [channels/facebook-personal.md](channels/facebook-personal.md) for the full guide and [channels/facebook-personal-security.md](channels/facebook-personal-security.md) for the security model.
+
+Unlike `facebook` (Fanpage / Graph API webhook), the `facebook_personal` channel connects to a **personal** Messenger account via an external `mautrix-meta` sidecar (AGPL-3.0, separate process) and handles 1:1 DM + group chat. This feature is **experimental** and **violates Meta ToS** — enable at your own risk.

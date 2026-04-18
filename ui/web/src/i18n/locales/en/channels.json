@@ -497,5 +497,46 @@
     "relinkDevice": "Re-link Device",
     "connectedSuccess": "✅ WhatsApp connected successfully!",
     "tabQrCode": "QR Code"
+  },
+  "facebook_personal": {
+    "label": "Facebook Messenger (Personal)",
+    "warningTitle": "⚠️ Experimental & Unofficial",
+    "warningBody": "This channel uses unofficial Messenger automation via the mautrix-meta sidecar. Your Facebook account may be permanently banned. No SLA is provided. Bring-your-own-risk.",
+    "tosTitle": "Read before enabling",
+    "tosRiskBan": "Meta may permanently ban your Facebook account",
+    "tosRiskProtocolBreak": "Facebook changes break the service on 1-7 day cycles",
+    "tosRiskNoSla": "This is experimental — no uptime guarantee",
+    "tosRiskLegal": "Automated messaging may violate local anti-spam laws (EU DMA, GDPR)",
+    "tosAckLabel": "I understand the risks and accept full responsibility",
+    "auth": {
+      "title": "Login with Facebook cookies",
+      "howtoTitle": "How to get cookies:",
+      "howtoStep1": "Open messenger.com in a private/incognito window",
+      "howtoStep2": "Log in with your Facebook account",
+      "howtoStep3": "Open DevTools → Application/Storage → Cookies → https://www.messenger.com",
+      "howtoStep4": "Copy values for: c_user, xs, datr, sb, fr",
+      "howtoStep5": "Paste each value into the fields below",
+      "cookiesLabel": "Cookies",
+      "submit": "Login",
+      "submitting": "Logging in...",
+      "genericError": "Login failed — verify cookies and try again",
+      "success": "✅ Logged in as {{name}}"
+    },
+    "reauth": {
+      "title": "Re-authenticate {{name}}",
+      "description": "Your Facebook session expired or was invalidated. Paste fresh cookies to reconnect."
+    },
+    "status": {
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "checkpoint": "Facebook checkpoint — please re-authenticate",
+      "sidecarDown": "Sidecar unreachable — check mautrix-meta container"
+    },
+    "errors": {
+      "sidecarUnreachable": "Cannot reach sidecar at {{url}}",
+      "signatureInvalid": "Webhook signature verification failed",
+      "cookieExpired": "Facebook cookies have expired — please re-authenticate",
+      "tosAckRequired": "You must acknowledge the experimental feature risks before saving"
+    }
   }
 }

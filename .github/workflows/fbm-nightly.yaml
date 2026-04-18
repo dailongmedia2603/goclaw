@@ -1,0 +1,81 @@
+name: FBM Nightly Smoke
+
+# Nightly build of the facebook_personal channel stack + a short Docker Compose
+# E2E smoke test. Does NOT hit real Facebook — uses the fbm-mock harness under
+# tests/integration/fbm-mock/.
+#
+# Purpose: catch breaking upstream changes (mautrix/meta protocol shifts, GoClaw
+# interface breakage, Docker base image issues) before they surface to users.
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC daily
+  workflow_dispatch: {}
+  pull_request:
+    paths:
+      - "internal/channels/facebookmessenger/**"
+      - "sidecar/mautrix-meta-shim/**"
+      - "tests/integration/fbm-mock/**"
+      - "tests/integration/docker-compose.fbm.yml"
+      - ".github/workflows/fbm-nightly.yaml"
+
+jobs:
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: Build PG edition
+        run: go build ./...
+      - name: Build SQLite/desktop edition
+        run: go build -tags sqliteonly ./...
+      - name: Vet
+        run: go vet ./internal/channels/facebookmessenger/... ./cmd/...
+      - name: Test facebookmessenger
+        run: go test -race -count=1 -cover ./internal/channels/facebookmessenger/...
+      - name: Test sidecar shim
+        working-directory: sidecar/mautrix-meta-shim
+        run: |
+          go build ./...
+          go test -race -count=1 -cover ./...
+      - name: Test fbm-mock
+        working-directory: tests/integration/fbm-mock
+        run: go build ./...
+
+  upstream-safety:
+    name: Upstream-safety verify
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+      - name: Check core files untouched
+        run: |
+          git fetch origin main --depth=50
+          ./scripts/verify-fbm-upstream-safety.sh origin/main
+
+  compose-smoke:
+    name: Docker Compose smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: unit
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build mock sidecar image
+        working-directory: tests/integration/fbm-mock
+        run: docker build -t fbm-mock:ci .
+      - name: Sanity — image runs
+        run: |
+          docker run -d --name fbm-mock-ci \
+            -p 29318:29318 \
+            -e MOCK_AUTH_TOKEN=t \
+            -e MOCK_HMAC_SECRET=s \
+            -e MOCK_WEBHOOK_URL=http://localhost:1 \
+            fbm-mock:ci
+          sleep 5
+          curl -sf http://localhost:29318/healthz | grep ok
+          docker stop fbm-mock-ci && docker rm fbm-mock-ci

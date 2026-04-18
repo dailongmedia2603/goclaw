@@ -206,6 +206,14 @@ func init() {
 		MsgSTTWhatsappPrivacyWarning: "Enabling STT for WhatsApp breaks end-to-end encryption for voice messages sent to this agent.",
 		MsgVoiceMessageFallback:      "[Voice message]",
 
+		// Facebook Messenger (personal)
+		MsgFBMSidecarUnreachable: "cannot reach mautrix-meta sidecar at %s",
+		MsgFBMSignatureInvalid:   "webhook signature verification failed",
+		MsgFBMSignatureExpired:   "webhook signature timestamp outside 60s window",
+		MsgFBMSendFailed:         "send to Facebook Messenger failed: %s",
+		MsgFBMCookieExpired:      "Facebook cookies expired — please re-authenticate",
+		MsgFBMToSAckRequired:     "you must acknowledge the experimental feature risks before enabling this channel",
+
 		// Hooks
 		MsgHookInvalidMatcher:          "invalid matcher regex: %s",
 		MsgHookCommandDisabledStandard: "command-type hooks are only available on Lite edition",

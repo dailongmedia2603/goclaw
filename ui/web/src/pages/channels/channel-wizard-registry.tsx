@@ -50,12 +50,15 @@ import { ZaloAuthStep, ZaloConfigStep, ZaloEditConfig } from "./zalo/zalo-wizard
 import { ZaloPersonalQRDialog } from "./zalo/zalo-personal-qr-dialog";
 import { WhatsAppAuthStep } from "./whatsapp/whatsapp-wizard-steps";
 import { WhatsAppReauthDialog } from "./whatsapp/whatsapp-reauth-dialog";
+import { FBMAuthStep } from "./facebook-messenger/fbm-auth-step";
+import { FBMReauthDialog } from "./facebook-messenger/fbm-reauth-dialog";
 
 // --- Component registries ---
 
 export const wizardAuthSteps: Record<string, ComponentType<WizardAuthStepProps>> = {
   zalo_personal: ZaloAuthStep,
   whatsapp: WhatsAppAuthStep,
+  facebook_personal: FBMAuthStep,
 };
 
 export const wizardConfigSteps: Record<string, ComponentType<WizardConfigStepProps>> = {
@@ -70,6 +73,7 @@ export const wizardEditConfigs: Record<string, ComponentType<WizardEditConfigPro
 export const reauthDialogs: Record<string, ComponentType<ReauthDialogProps>> = {
   zalo_personal: ZaloPersonalQRDialog,
   whatsapp: WhatsAppReauthDialog,
+  facebook_personal: FBMReauthDialog,
 };
 
 /** Set of channel types that support re-authentication from the table */

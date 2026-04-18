@@ -210,6 +210,14 @@ const (
 	MsgTenantMismatch      = "error.tenant_mismatch"        // "tenant user does not belong to this tenant"
 	MsgTenantScopeRequired = "error.tenant_scope_required"  // "tenant scope is required for this operation"
 
+	// --- Facebook Messenger (personal) channel ---
+	MsgFBMSidecarUnreachable = "channel.fbm.sidecar_unreachable" // "cannot reach mautrix-meta sidecar at %s"
+	MsgFBMSignatureInvalid   = "channel.fbm.signature_invalid"   // "webhook signature verification failed"
+	MsgFBMSignatureExpired   = "channel.fbm.signature_expired"   // "webhook signature timestamp outside 60s window"
+	MsgFBMSendFailed         = "channel.fbm.send_failed"         // "send to Facebook Messenger failed: %s"
+	MsgFBMCookieExpired      = "channel.fbm.cookie_expired"      // "Facebook cookies expired — please re-authenticate"
+	MsgFBMToSAckRequired     = "channel.fbm.tos_ack_required"    // "you must acknowledge the experimental feature risks before enabling this channel"
+
 	// --- Hooks ---
 	MsgHookInvalidMatcher           = "hook.invalid_matcher"            // "invalid matcher regex: %s"
 	MsgHookCommandDisabledStandard  = "hook.command_disabled_standard"  // "command-type hooks are only available on Lite edition"

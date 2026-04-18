@@ -206,6 +206,14 @@ func init() {
 		MsgSTTWhatsappPrivacyWarning: "Bật STT cho WhatsApp sẽ phá vỡ mã hóa đầu cuối cho tin nhắn thoại gửi đến agent này.",
 		MsgVoiceMessageFallback:      "[Tin nhắn thoại]",
 
+		// Facebook Messenger (personal)
+		MsgFBMSidecarUnreachable: "không kết nối được mautrix-meta sidecar tại %s",
+		MsgFBMSignatureInvalid:   "xác thực chữ ký webhook thất bại",
+		MsgFBMSignatureExpired:   "timestamp chữ ký webhook quá 60 giây",
+		MsgFBMSendFailed:         "gửi tới Facebook Messenger thất bại: %s",
+		MsgFBMCookieExpired:      "Cookie Facebook đã hết hạn — vui lòng đăng nhập lại",
+		MsgFBMToSAckRequired:     "bạn phải xác nhận rủi ro tính năng thử nghiệm trước khi bật kênh này",
+
 		// Hooks
 		MsgHookInvalidMatcher:          "biểu thức regex matcher không hợp lệ: %s",
 		MsgHookCommandDisabledStandard: "hook loại command chỉ khả dụng trên phiên bản Lite",

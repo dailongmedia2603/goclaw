@@ -412,5 +412,46 @@
     "relinkDevice": "Liên kết lại",
     "connectedSuccess": "✅ Kết nối WhatsApp thành công!",
     "tabQrCode": "Mã QR"
+  },
+  "facebook_personal": {
+    "label": "Facebook Messenger (Cá nhân)",
+    "warningTitle": "⚠️ Thử nghiệm & Không chính thức",
+    "warningBody": "Kênh này dùng automation không chính thức qua sidecar mautrix-meta. Tài khoản Facebook của bạn có thể bị khóa vĩnh viễn. Không có cam kết SLA. Tự chịu trách nhiệm.",
+    "tosTitle": "Đọc kỹ trước khi bật",
+    "tosRiskBan": "Meta có thể khóa vĩnh viễn tài khoản Facebook của bạn",
+    "tosRiskProtocolBreak": "Facebook thay đổi giao thức có thể làm hỏng dịch vụ chu kỳ 1-7 ngày",
+    "tosRiskNoSla": "Đây là tính năng thử nghiệm — không bảo đảm uptime",
+    "tosRiskLegal": "Automation tin nhắn có thể vi phạm luật chống spam địa phương (EU DMA, GDPR)",
+    "tosAckLabel": "Tôi hiểu rủi ro và chấp nhận hoàn toàn trách nhiệm",
+    "auth": {
+      "title": "Đăng nhập bằng cookies Facebook",
+      "howtoTitle": "Cách lấy cookies:",
+      "howtoStep1": "Mở messenger.com ở chế độ ẩn danh / riêng tư",
+      "howtoStep2": "Đăng nhập bằng tài khoản Facebook của bạn",
+      "howtoStep3": "Mở DevTools → Application/Storage → Cookies → https://www.messenger.com",
+      "howtoStep4": "Copy giá trị của: c_user, xs, datr, sb, fr",
+      "howtoStep5": "Dán từng giá trị vào các ô bên dưới",
+      "cookiesLabel": "Cookies",
+      "submit": "Đăng nhập",
+      "submitting": "Đang đăng nhập...",
+      "genericError": "Đăng nhập thất bại — kiểm tra lại cookies và thử lại",
+      "success": "✅ Đã đăng nhập với tên {{name}}"
+    },
+    "reauth": {
+      "title": "Đăng nhập lại {{name}}",
+      "description": "Phiên đăng nhập Facebook đã hết hạn hoặc bị hủy. Dán cookies mới để kết nối lại."
+    },
+    "status": {
+      "connected": "Đã kết nối",
+      "disconnected": "Mất kết nối",
+      "checkpoint": "Facebook yêu cầu xác minh — vui lòng đăng nhập lại",
+      "sidecarDown": "Không kết nối được sidecar — kiểm tra container mautrix-meta"
+    },
+    "errors": {
+      "sidecarUnreachable": "Không kết nối được sidecar tại {{url}}",
+      "signatureInvalid": "Xác thực chữ ký webhook thất bại",
+      "cookieExpired": "Cookies Facebook đã hết hạn — vui lòng đăng nhập lại",
+      "tosAckRequired": "Bạn phải xác nhận rủi ro tính năng thử nghiệm trước khi lưu"
+    }
   }
 }

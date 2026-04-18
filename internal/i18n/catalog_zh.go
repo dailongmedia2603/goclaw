@@ -206,6 +206,14 @@ func init() {
 		MsgSTTWhatsappPrivacyWarning: "为 WhatsApp 启用 STT 将破坏发送至此 Agent 的语音消息的端对端加密。",
 		MsgVoiceMessageFallback:      "[语音消息]",
 
+		// Facebook Messenger (personal)
+		MsgFBMSidecarUnreachable: "无法连接 mautrix-meta sidecar: %s",
+		MsgFBMSignatureInvalid:   "webhook 签名验证失败",
+		MsgFBMSignatureExpired:   "webhook 签名时间戳超过 60 秒窗口",
+		MsgFBMSendFailed:         "发送到 Facebook Messenger 失败: %s",
+		MsgFBMCookieExpired:      "Facebook Cookie 已过期 — 请重新认证",
+		MsgFBMToSAckRequired:     "启用此通道前必须确认实验性功能风险",
+
 		// Hooks
 		MsgHookInvalidMatcher:          "无效的匹配器正则表达式: %s",
 		MsgHookCommandDisabledStandard: "命令类型钩子仅在 Lite 版本可用",

@@ -76,6 +76,11 @@ export const credentialsSchema: Record<string, FieldDef[]> = {
     { key: "app_secret", label: "App Secret", type: "password", required: true, help: "From Facebook Developer Console → Your App → Settings → Basic" },
     { key: "verify_token", label: "Webhook Verify Token", type: "password", required: true, help: "A secret string you choose, used to verify the webhook URL" },
   ],
+  facebook_personal: [
+    { key: "sidecar_url", label: "Sidecar URL", type: "text", required: true, placeholder: "http://fbm-sidecar:29318", help: "Base URL of the mautrix-meta-shim sidecar (separate container)" },
+    { key: "auth_token", label: "Sidecar Auth Token", type: "password", required: true, help: "Bearer token GoClaw uses to authenticate outbound calls to the sidecar. Matches FBM_AUTH_TOKEN in sidecar env." },
+    { key: "webhook_secret", label: "Webhook HMAC Secret", type: "password", required: true, help: "HMAC-SHA256 key to verify inbound webhook signatures. Matches FBM_HMAC_SECRET in sidecar env." },
+  ],
   pancake: [
     { key: "api_key", label: "API Key", type: "password", required: true, help: "Pancake user-level API key from pages.fm account settings" },
     { key: "page_access_token", label: "Page Access Token", type: "password", required: true, help: "Page-level token from Pancake dashboard → Page Settings" },
@@ -193,6 +198,15 @@ export const configSchema: Record<string, FieldDef[]> = {
     { key: "first_inbox_message", label: "First Inbox DM Text", type: "textarea", help: "Custom DM sent to first-time commenters. Defaults to Vietnamese if empty." },
     { key: "allow_from", label: "Allowed Users", type: "tags", help: "Facebook user IDs" },
     { key: "block_reply", label: "Block Reply", type: "select", options: blockReplyOptions, defaultValue: "inherit" },
+  ],
+  facebook_personal: [
+    { key: "account_label", label: "Account Label", type: "text", placeholder: "e.g. Alice's FB", help: "Display-only label to distinguish multiple instances" },
+    { key: "dm_policy", label: "DM Policy", type: "select", options: dmPolicyOptions, defaultValue: "pairing" },
+    { key: "group_policy", label: "Group Policy", type: "select", options: groupPolicyOptions, defaultValue: "disabled", help: "Group chat has higher ban risk — disabled by default" },
+    { key: "rate_limit_per_min", label: "Rate Limit (messages/minute)", type: "number", defaultValue: 20, help: "Outbound message cap per minute to mitigate ban risk. Recommend ≤ 30." },
+    { key: "allow_from", label: "Allowed Users", type: "tags", help: "Facebook user IDs to whitelist" },
+    { key: "block_reply", label: "Block Reply", type: "select", options: blockReplyOptions, defaultValue: "inherit" },
+    { key: "experimental_ack", label: "I acknowledge the risks (experimental)", type: "boolean", required: true, defaultValue: false, help: "⚠️ Facebook Messenger personal automation violates Meta ToS. Your account may be banned. Required to enable channel." },
   ],
   pancake: [
     { key: "page_id", label: "Page ID", type: "text", required: true, help: "Pancake internal page ID (numeric, from Pancake dashboard)" },

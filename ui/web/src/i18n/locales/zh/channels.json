@@ -412,5 +412,46 @@
     "relinkDevice": "重新连接",
     "connectedSuccess": "✅ WhatsApp 连接成功！",
     "tabQrCode": "二维码"
+  },
+  "facebook_personal": {
+    "label": "Facebook Messenger (个人)",
+    "warningTitle": "⚠️ 实验性 & 非官方",
+    "warningBody": "此通道通过 mautrix-meta sidecar 使用非官方 Messenger 自动化。您的 Facebook 账户可能被永久封禁。不提供 SLA 保证。风险自负。",
+    "tosTitle": "启用前请仔细阅读",
+    "tosRiskBan": "Meta 可能永久封禁您的 Facebook 账户",
+    "tosRiskProtocolBreak": "Facebook 协议变更会导致服务中断,周期约 1-7 天",
+    "tosRiskNoSla": "这是实验性功能 — 不保证可用性",
+    "tosRiskLegal": "自动化消息可能违反当地反垃圾邮件法律 (EU DMA, GDPR)",
+    "tosAckLabel": "我理解风险并承担全部责任",
+    "auth": {
+      "title": "使用 Facebook Cookies 登录",
+      "howtoTitle": "如何获取 cookies:",
+      "howtoStep1": "在隐身/无痕窗口打开 messenger.com",
+      "howtoStep2": "使用 Facebook 账户登录",
+      "howtoStep3": "打开开发者工具 → Application/Storage → Cookies → https://www.messenger.com",
+      "howtoStep4": "复制以下 cookie 的值:c_user, xs, datr, sb, fr",
+      "howtoStep5": "将每个值粘贴到下方对应字段",
+      "cookiesLabel": "Cookies",
+      "submit": "登录",
+      "submitting": "登录中...",
+      "genericError": "登录失败 — 请检查 cookies 后重试",
+      "success": "✅ 已登录 {{name}}"
+    },
+    "reauth": {
+      "title": "重新认证 {{name}}",
+      "description": "Facebook 会话已过期或被撤销。请粘贴新的 cookies 重新连接。"
+    },
+    "status": {
+      "connected": "已连接",
+      "disconnected": "已断开",
+      "checkpoint": "Facebook 要求验证 — 请重新认证",
+      "sidecarDown": "无法连接 sidecar — 请检查 mautrix-meta 容器"
+    },
+    "errors": {
+      "sidecarUnreachable": "无法连接位于 {{url}} 的 sidecar",
+      "signatureInvalid": "Webhook 签名验证失败",
+      "cookieExpired": "Facebook cookies 已过期 — 请重新认证",
+      "tosAckRequired": "保存前必须确认实验性功能风险"
+    }
   }
 }
