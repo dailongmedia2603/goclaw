@@ -1,46 +1,45 @@
-# Browser sidecar overlay — multi-profile browser support.
+# Browser sidecar overlay — adds headless Chrome for the browser automation tool.
 #
 # Usage:
 #   docker compose -f docker-compose.yml -f docker-compose.postgres.yml -f docker-compose.browser.yml up -d --build
 #
-# Profiles:
-#   "default" (chrome) — headless CloakBrowser for general web automation (CDP :9222)
-#   "shopee"  (cloak-shopee) — CloakBrowser Manager with GUI + noVNC for manual login (:8686)
-#
-# Configure profiles in config.json → tools.browser.profiles
+# The Chrome sidecar exposes CDP (Chrome DevTools Protocol) on port 9222.
+# GoClaw connects to it automatically via GOCLAW_BROWSER_REMOTE_URL.
 
 services:
-  # Profile "default" — headless CloakBrowser (CDP server mode)
   chrome:
-    image: cloakhq/cloakbrowser:latest
-    command: ["cloakserve", "--host", "0.0.0.0", "--port", "9222"]
-    environment:
-      - DISPLAY=:99
-    shm_size: 2gb
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:9222/json/version >/dev/null 2>&1 || wget -qO- http://127.0.0.1:9222/json/version >/dev/null 2>&1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    restart: unless-stopped
-
-  # Profile "shopee" — CloakBrowser Manager with noVNC GUI for manual login
-  # Access web UI at http://<host>:8686 to create profiles, log in manually, and get CDP URL.
-  # Cookies persist in volume cloak-shopee-data across restarts.
-  cloak-shopee:
-    image: cloakhq/cloakbrowser-manager:latest
+    # chromedp/headless-shell auto-tracks Google Chrome for Testing and serves
+    # raw CDP on :9222 — same wire format Rod expects, no client code change.
+    # Replaces zenika/alpine-chrome:124, which stopped publishing new tags and
+    # doesn't support `--load-extension` in its default headless mode (#722).
+    image: chromedp/headless-shell:latest
+    # The image's entrypoint already sets --remote-debugging-address=0.0.0.0
+    # and --remote-debugging-port=9223, and fronts it with socat on :9222.
+    # Re-specifying those flags here duplicates them and causes Chrome to
+    # fail with "bind() failed: Address already in use". Pass only the
+    # goclaw-specific tweaks (headless mode, origin allowlist, GPU off).
+    command:
+      - --no-sandbox
+      # New headless (Chrome 112+) is required for --load-extension to work.
+      - --headless=new
+      - --remote-allow-origins=*
+      - --disable-gpu
+      - --disable-dev-shm-usage
     ports:
-      - "${CLOAK_SHOPEE_PORT:-8686}:8080"
-    volumes:
-      - cloak-shopee-data:/data
+      - "${CHROME_CDP_PORT:-9222}:9222"
     shm_size: 2gb
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8080/ >/dev/null 2>&1"]
-      interval: 15s
-      timeout: 5s
+      # chromedp/headless-shell is minimal — no wget/curl/nc. Use bash's
+      # /dev/tcp builtin to probe the CDP port directly (bash is in the image).
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9222"]
+      interval: 5s
+      timeout: 3s
       retries: 5
-      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
     restart: unless-stopped
 
   goclaw:
@@ -49,6 +48,3 @@ services:
     depends_on:
       chrome:
         condition: service_healthy
-
-volumes:
-  cloak-shopee-data:
