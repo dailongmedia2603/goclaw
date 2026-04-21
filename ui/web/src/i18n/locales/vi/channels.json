@@ -109,6 +109,8 @@
     "behaviorDesc": "Cấu hình hành vi phản hồi",
     "accessControl": "Kiểm soát truy cập",
     "accessControlDesc": "Giới hạn truy cập người dùng",
+    "pairing": "Tin nhắn ghép nối",
+    "pairingDesc": "Tuỳ chỉnh nội dung tin nhắn hiển thị khi người dùng ghép nối với bot. Placeholder: {code}, {bot_name}. Để trống để dùng nội dung mặc định.",
     "reviewDiagnostics": "Xem chẩn đoán mới nhất của channel này trước khi thay đổi cài đặt.",
     "whatHappened": "Điều gì đã xảy ra",
     "recommendedAction": "Hành động được khuyến nghị",

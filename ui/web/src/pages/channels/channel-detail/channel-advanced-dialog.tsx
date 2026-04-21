@@ -27,6 +27,8 @@ const LIMITS_KEYS = new Set(["history_limit", "media_max_mb", "text_chunk_limit"
 const STREAMING_KEYS = new Set(["dm_stream", "group_stream", "draft_transport", "reasoning_stream", "native_stream", "debounce_delay", "thread_ttl"]);
 const BEHAVIOR_KEYS = new Set(["reaction_level", "link_preview", "block_reply", "render_mode", "topic_session_mode"]);
 const ACCESS_KEYS = new Set(["allow_from", "group_allow_from"]);
+// [fork] Pairing text customization group
+const PAIRING_KEYS = new Set(["pairing_dm_text", "pairing_group_text", "pairing_approved_text", "pairing_locale"]);
 
 function getAdvancedFields(channelType: string) {
   const allFields = configSchema[channelType] ?? [];
@@ -37,6 +39,7 @@ function getAdvancedFields(channelType: string) {
     streaming: advanced.filter((f) => STREAMING_KEYS.has(f.key)),
     behavior: advanced.filter((f) => BEHAVIOR_KEYS.has(f.key)),
     access: advanced.filter((f) => ACCESS_KEYS.has(f.key)),
+    pairing: advanced.filter((f) => PAIRING_KEYS.has(f.key)),
   };
 }
 
@@ -178,6 +181,22 @@ export function ChannelAdvancedDialog({
                 values={values}
                 onChange={handleChange}
                 idPrefix="adv-acc"
+              />
+            </>
+          )}
+
+          {/* [fork] Pairing text customization section */}
+          {groups.pairing.length > 0 && (
+            <>
+              <ConfigGroupHeader
+                title={t("detail.pairing")}
+                description={t("detail.pairingDesc")}
+              />
+              <ChannelFields
+                fields={groups.pairing}
+                values={values}
+                onChange={handleChange}
+                idPrefix="adv-pair"
               />
             </>
           )}

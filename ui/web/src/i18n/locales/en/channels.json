@@ -110,6 +110,8 @@
     "behaviorDesc": "Response behavior configuration",
     "accessControl": "Access Control",
     "accessControlDesc": "User access restrictions",
+    "pairing": "Pairing Messages",
+    "pairingDesc": "Customize the messages users see when pairing the bot. Placeholders: {code}, {bot_name}. Leave fields empty to use the default.",
     "reviewDiagnostics": "Review the latest diagnosis in this channel before changing settings.",
     "whatHappened": "What happened",
     "recommendedAction": "Recommended action",

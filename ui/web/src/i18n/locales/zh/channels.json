@@ -109,6 +109,8 @@
     "behaviorDesc": "响应行为配置",
     "accessControl": "访问控制",
     "accessControlDesc": "用户访问限制",
+    "pairing": "配对消息",
+    "pairingDesc": "自定义用户与机器人配对时看到的消息。占位符:{code}、{bot_name}。留空使用默认内容。",
     "reviewDiagnostics": "在更改设置前，请先查看此 Channel 的最新诊断。",
     "whatHappened": "发生了什么",
     "recommendedAction": "建议操作",
