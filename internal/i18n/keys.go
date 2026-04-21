@@ -229,4 +229,10 @@ const (
 	MsgHookBudgetExceeded          = "hook.budget_exceeded"           // "tenant hook token budget exceeded"
 	MsgHookPerTurnCapReached       = "hook.per_turn_cap_reached"      // "hook invocation per-turn cap reached"
 	MsgHookBuiltinReadOnly         = "hook.builtin_readonly"          // "builtin hooks are read-only except for the enabled toggle"
+
+	// --- Telegram pairing (custom text fallback) ---
+	// Format args: DM/Group take (code, bot_name); Approved takes (bot_name).
+	MsgTelegramPairingDM       = "channel.telegram.pairing.dm"
+	MsgTelegramPairingGroup    = "channel.telegram.pairing.group"
+	MsgTelegramPairingApproved = "channel.telegram.pairing.approved"
 )

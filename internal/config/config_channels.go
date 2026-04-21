@@ -61,6 +61,13 @@ type TelegramConfig struct {
 	AudioGuardFallbackNoTranscript string   `json:"audio_guard_fallback_no_transcript,omitempty"` // fallback when no transcript available
 	AudioGuardErrorMarkers         []string `json:"audio_guard_error_markers,omitempty"`          // custom error detection markers (replaces defaults)
 
+	// [fork] Custom pairing text overrides. Placeholders: {code}, {bot_name}.
+	// Empty string → fallback to i18n default (see internal/i18n keys Msg TelegramPairing*).
+	PairingDMText       string `json:"pairing_dm_text,omitempty"`       // DM pairing reply; placeholders {code}, {bot_name}
+	PairingGroupText    string `json:"pairing_group_text,omitempty"`    // group pairing reply; placeholders {code}, {bot_name}
+	PairingApprovedText string `json:"pairing_approved_text,omitempty"` // post-approval notification; placeholder {bot_name}
+	PairingLocale       string `json:"pairing_locale,omitempty"`        // fallback i18n locale when custom text is empty: "en"|"vi"|"zh" (default "en")
+
 	// Per-group (and per-topic) overrides. Key is chat ID string (e.g. "-100123456") or "*" for wildcard.
 	// TS ref: channels.telegram.groups in src/config/types.telegram.ts.
 	Groups map[string]*TelegramGroupConfig `json:"groups,omitempty"`

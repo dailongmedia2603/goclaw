@@ -13,6 +13,11 @@ import (
 // --- Pairing UX ---
 
 // buildPairingReply builds the pairing reply message for unpaired users.
+//
+// Deprecated: prefer (*Channel).resolvePairingDMText(code) which supports
+// user-configurable custom templates and i18n fallback. This stateless helper
+// is preserved for upstream compatibility — any upstream code still calling
+// it will keep the original English literal behavior.
 func buildPairingReply(code string) string {
 	return fmt.Sprintf(
 		"🔗 This account hasn't been paired yet.\n\nPairing code: %s\n\nShare this code with the bot owner to get access.",
@@ -40,7 +45,7 @@ func (c *Channel) sendPairingReply(ctx context.Context, chatID int64, userID, us
 		return
 	}
 
-	replyText := buildPairingReply(code)
+	replyText := c.resolvePairingDMText(code) // [fork] custom pairing text — see pairing_text.go
 	msg := tu.Message(tu.ID(chatID), replyText)
 	if _, err := c.bot.SendMessage(ctx, msg); err != nil {
 		slog.Warn("failed to send pairing reply", "chat_id", chatID, "error", err)
@@ -77,10 +82,7 @@ func (c *Channel) sendGroupPairingReply(ctx context.Context, chatID int64, chatI
 		return
 	}
 
-	replyText := fmt.Sprintf(
-		"🔗 This group hasn't been paired yet.\n\nPairing code: %s\n\nShare this code with the bot owner to get access.",
-		code,
-	)
+	replyText := c.resolvePairingGroupText(code) // [fork] custom pairing text — see pairing_text.go
 	msg := tu.Message(tu.ID(chatID), replyText)
 	if messageThreadID > 0 {
 		msg.MessageThreadID = messageThreadID
@@ -106,11 +108,9 @@ func (c *Channel) SendPairingApproved(ctx context.Context, chatID, botName strin
 	if err != nil {
 		return fmt.Errorf("invalid chat ID: %w", err)
 	}
-	if botName == "" {
-		botName = "GoClaw"
-	}
-
-	msg := tu.Message(tu.ID(id), fmt.Sprintf("✅ %s access approved. Send a message to start chatting.", botName))
+	// [fork] custom pairing text — see pairing_text.go; helper also handles the
+	// bot-name fallback (empty botName → c.bot.Username() → "GoClaw").
+	msg := tu.Message(tu.ID(id), c.resolvePairingApprovedText(botName))
 
 	// Extract thread ID from topic/thread suffix for forum groups.
 	if idx := strings.Index(chatID, ":topic:"); idx > 0 {

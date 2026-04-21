@@ -229,6 +229,22 @@
     "link_preview": { "label": "Xem trước liên kết" },
     "allow_from": { "label": "Người dùng được phép" },
     "block_reply": { "label": "Phản hồi khối", "help": "Gửi văn bản trung gian trong quá trình lặp công cụ" },
+    "pairing_dm_text": {
+      "label": "Tin nhắn ghép nối DM (tuỳ chỉnh)",
+      "help": "Hiển thị khi người lạ nhắn DM cho bot. Placeholder: {code}, {bot_name}. Để trống để dùng nội dung mặc định."
+    },
+    "pairing_group_text": {
+      "label": "Tin nhắn ghép nối nhóm (tuỳ chỉnh)",
+      "help": "Hiển thị khi bot được add vào nhóm mới yêu cầu phê duyệt. Placeholder: {code}, {bot_name}."
+    },
+    "pairing_approved_text": {
+      "label": "Tin nhắn đã phê duyệt (tuỳ chỉnh)",
+      "help": "Hiển thị sau khi admin phê duyệt yêu cầu ghép nối. Placeholder: {bot_name}."
+    },
+    "pairing_locale": {
+      "label": "Ngôn ngữ mặc định khi bỏ trống",
+      "help": "Ngôn ngữ dùng cho các tin nhắn ghép nối mặc định khi các ô tuỳ chỉnh ở trên bỏ trống."
+    },
     "domain": { "label": "Tên miền" },
     "connection_mode": { "label": "Chế độ kết nối", "help": "WebSocket không cần IP công khai — chỉ kết nối ra ngoài" },
     "webhook_port": { "label": "Cổng webhook", "help": "0 = chia sẻ cổng gateway chính (khuyến nghị)" },

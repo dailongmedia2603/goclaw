@@ -269,6 +269,22 @@
       "label": "Block Reply",
       "help": "Deliver intermediate text during tool iterations"
     },
+    "pairing_dm_text": {
+      "label": "Custom DM Pairing Text",
+      "help": "Shown when an unknown user DMs the bot. Placeholders: {code}, {bot_name}. Leave empty to use the default message."
+    },
+    "pairing_group_text": {
+      "label": "Custom Group Pairing Text",
+      "help": "Shown when the bot is added to a new group requiring approval. Placeholders: {code}, {bot_name}."
+    },
+    "pairing_approved_text": {
+      "label": "Custom Approved Text",
+      "help": "Shown after an admin approves the pairing request. Placeholder: {bot_name}."
+    },
+    "pairing_locale": {
+      "label": "Pairing Fallback Locale",
+      "help": "Language used for default pairing messages when the custom text fields above are empty."
+    },
     "domain": { "label": "Domain" },
     "connection_mode": {
       "label": "Connection Mode",

@@ -227,5 +227,10 @@ func init() {
 
 		// Message tool cross-target forward notice
 		MessageCrossTargetForwarded: "📤 Đã forward sang %s theo yêu cầu: %q",
+
+		// Telegram pairing (custom text fallback). Args: (code, bot_name) cho DM/Group; (bot_name) cho Approved.
+		MsgTelegramPairingDM:       "🔗 Tài khoản này chưa được ghép nối.\n\nMã ghép nối: %s\n\nChia sẻ mã này với chủ bot (%s) để được cấp quyền truy cập.",
+		MsgTelegramPairingGroup:    "🔗 Nhóm này chưa được ghép nối.\n\nMã ghép nối: %s\n\nChia sẻ mã này với chủ bot (%s) để được cấp quyền truy cập.",
+		MsgTelegramPairingApproved: "✅ Đã được phê duyệt truy cập %s. Hãy gửi tin nhắn để bắt đầu trò chuyện.",
 	})
 }

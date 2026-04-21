@@ -227,5 +227,10 @@ func init() {
 
 		// Message tool cross-target forward notice
 		MessageCrossTargetForwarded: "📤 Forwarded to %s as requested: %q",
+
+		// Telegram pairing (custom text fallback). Args: (code, bot_name) for DM/Group; (bot_name) for Approved.
+		MsgTelegramPairingDM:       "🔗 This account hasn't been paired yet.\n\nPairing code: %s\n\nShare this code with the bot owner (%s) to get access.",
+		MsgTelegramPairingGroup:    "🔗 This group hasn't been paired yet.\n\nPairing code: %s\n\nShare this code with the bot owner (%s) to get access.",
+		MsgTelegramPairingApproved: "✅ %s access approved. Send a message to start chatting.",
 	})
 }
