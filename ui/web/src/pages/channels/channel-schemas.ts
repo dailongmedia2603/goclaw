@@ -212,6 +212,9 @@ export const configSchema: Record<string, FieldDef[]> = {
     { key: "first_inbox_message", label: "First Inbox DM Text", type: "textarea", help: "Custom DM sent to first-time commenters. Defaults to Vietnamese if empty." },
     { key: "allow_from", label: "Allowed Users", type: "tags", help: "Facebook user IDs" },
     { key: "block_reply", label: "Block Reply", type: "select", options: blockReplyOptions, defaultValue: "inherit" },
+    // [fork] FB history backfill — triggers scan after create. See internal/fbbackfill.
+    { key: "backfill_on_create", label: "Scan conversation history after creating", type: "boolean", defaultValue: false,
+      help: "When enabled, the system automatically scans all past Messenger conversations from this Page after connecting. May take minutes to hours depending on conversation count." },
   ],
   facebook_personal: [
     { key: "account_label", label: "Account Label", type: "text", placeholder: "e.g. Alice's FB", help: "Display-only label to distinguish multiple instances" },

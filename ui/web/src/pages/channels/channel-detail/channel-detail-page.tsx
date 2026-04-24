@@ -22,6 +22,8 @@ import {
 } from "../channels-status-view";
 import { useChannelTimeline } from "./channel-detail-timeline-hook";
 import { ChannelDetailDialogs } from "./channel-detail-dialogs";
+// [fork] Facebook history backfill panel — see docs/fork/fb-backfill-fork-contract.md
+import { FbBackfillPanel } from "@/features/fb-backfill";
 
 interface ChannelDetailPageProps {
   instanceId: string;
@@ -80,6 +82,8 @@ export function ChannelDetailPage({
   })();
 
   const isTelegram = instance?.channel_type === "telegram";
+  // [fork] FB history backfill
+  const isFacebook = instance?.channel_type === "facebook";
   const supportsReauth = instance
     ? channelsWithAuth.has(instance.channel_type)
     : false;
@@ -237,6 +241,18 @@ export function ChannelDetailPage({
               />
             </TabsContent>
           </Tabs>
+
+          {/* [fork] FB history backfill panel */}
+          {isFacebook && instance && (
+            <div className="mt-4">
+              <FbBackfillPanel
+                channelInstanceId={instance.id}
+                autoStart={
+                  (instance.config as Record<string, unknown> | null)?.backfill_on_create === true
+                }
+              />
+            </div>
+          )}
         </div>
       </div>
 

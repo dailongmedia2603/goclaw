@@ -556,5 +556,35 @@
       "cookieExpired": "Facebook cookies have expired — please re-authenticate",
       "tosAckRequired": "You must acknowledge the experimental feature risks before saving"
     }
+  },
+  "fbBackfill": {
+    "title": "Conversation History Backfill",
+    "description": "Scan and import all past Messenger conversations from this Page. Gives the agent context for returning customers.",
+    "startButton": "Start Backfill",
+    "pause": "Pause",
+    "resume": "Resume",
+    "cancel": "Cancel",
+    "retry": "Retry",
+    "resync": "Re-sync",
+    "backfillOnCreate": "Scan conversation history after creating",
+    "backfillOnCreateHelp": "When enabled, the system automatically scans all past Messenger conversations from this Page after connecting. May take minutes to hours depending on conversation count.",
+    "status": {
+      "pending": "Pending",
+      "running": "Running",
+      "paused": "Paused",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "none": "Not started"
+    },
+    "stats": "{{convosDone}}/{{convosTotal}} conversations · {{msgs}} messages · {{episodics}} summaries",
+    "skippedStats": "{{skipped}} skipped (already summarized)",
+    "errors": {
+      "authExpired": "Page Access Token expired. Please re-connect the channel.",
+      "rateLimit": "Graph API rate limit reached. Will auto-resume shortly.",
+      "unknown": "Backfill failed: {{error}}"
+    },
+    "confirmCancel": "Cancel the running backfill? Progress is kept and you can Retry later.",
+    "confirmResync": "Re-sync all conversations? This will overwrite existing summaries."
   }
 }

@@ -471,5 +471,35 @@
       "cookieExpired": "Cookies Facebook đã hết hạn — vui lòng đăng nhập lại",
       "tosAckRequired": "Bạn phải xác nhận rủi ro tính năng thử nghiệm trước khi lưu"
     }
+  },
+  "fbBackfill": {
+    "title": "Quét lịch sử hội thoại",
+    "description": "Quét và nhập toàn bộ lịch sử tin nhắn Messenger của Page này. Giúp agent có ngữ cảnh khi khách cũ nhắn lại.",
+    "startButton": "Bắt đầu quét",
+    "pause": "Tạm dừng",
+    "resume": "Tiếp tục",
+    "cancel": "Huỷ",
+    "retry": "Thử lại",
+    "resync": "Quét lại",
+    "backfillOnCreate": "Quét lịch sử hội thoại sau khi tạo",
+    "backfillOnCreateHelp": "Khi bật, hệ thống sẽ tự động quét toàn bộ lịch sử tin nhắn Messenger của Page sau khi kết nối. Có thể mất vài phút đến vài giờ tuỳ số lượng hội thoại.",
+    "status": {
+      "pending": "Đang chờ",
+      "running": "Đang chạy",
+      "paused": "Tạm dừng",
+      "completed": "Hoàn thành",
+      "failed": "Thất bại",
+      "cancelled": "Đã huỷ",
+      "none": "Chưa chạy"
+    },
+    "stats": "{{convosDone}}/{{convosTotal}} hội thoại · {{msgs}} tin nhắn · {{episodics}} tóm tắt",
+    "skippedStats": "{{skipped}} đã bỏ qua (đã tóm tắt)",
+    "errors": {
+      "authExpired": "Page Access Token đã hết hạn. Vui lòng kết nối lại channel.",
+      "rateLimit": "Đạt giới hạn Graph API. Sẽ tự tiếp tục sớm.",
+      "unknown": "Quét thất bại: {{error}}"
+    },
+    "confirmCancel": "Huỷ tiến trình quét đang chạy? Tiến độ được giữ nguyên và bạn có thể Thử lại sau.",
+    "confirmResync": "Quét lại toàn bộ hội thoại? Thao tác này sẽ ghi đè tóm tắt hiện có."
   }
 }

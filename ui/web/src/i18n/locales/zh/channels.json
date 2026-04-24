@@ -471,5 +471,35 @@
       "cookieExpired": "Facebook cookies 已过期 — 请重新认证",
       "tosAckRequired": "保存前必须确认实验性功能风险"
     }
+  },
+  "fbBackfill": {
+    "title": "对话历史回填",
+    "description": "扫描并导入该主页所有过往 Messenger 对话。让 AI 代理在回访客户时拥有上下文。",
+    "startButton": "开始回填",
+    "pause": "暂停",
+    "resume": "继续",
+    "cancel": "取消",
+    "retry": "重试",
+    "resync": "重新同步",
+    "backfillOnCreate": "创建后扫描对话历史",
+    "backfillOnCreateHelp": "启用后，系统将在连接后自动扫描该主页的全部 Messenger 对话历史。根据对话数量,可能需要数分钟到数小时。",
+    "status": {
+      "pending": "等待中",
+      "running": "运行中",
+      "paused": "已暂停",
+      "completed": "已完成",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "none": "未启动"
+    },
+    "stats": "{{convosDone}}/{{convosTotal}} 对话 · {{msgs}} 条消息 · {{episodics}} 份摘要",
+    "skippedStats": "{{skipped}} 已跳过(已有摘要)",
+    "errors": {
+      "authExpired": "主页访问令牌已过期,请重新连接渠道。",
+      "rateLimit": "Graph API 限流,稍后将自动恢复。",
+      "unknown": "回填失败:{{error}}"
+    },
+    "confirmCancel": "取消正在运行的回填?进度将保留,您可以稍后重试。",
+    "confirmResync": "重新同步所有对话?这将覆盖现有摘要。"
   }
 }
