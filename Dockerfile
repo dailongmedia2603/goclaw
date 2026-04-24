@@ -28,9 +28,13 @@ FROM golang:1.26-bookworm AS builder
 
 WORKDIR /src
 
-# Cache dependencies
+# Cache dependencies — BuildKit cache mount speeds up repeat builds by ~10x.
+# The mount persists across builds on the same Docker daemon; docker image
+# layer cache still handles the initial go.mod/go.sum copy.
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go mod download
 
 # Copy source
 COPY . .
@@ -45,7 +49,9 @@ ARG VERSION=
 # Copy web UI dist — from web-builder when ENABLE_EMBEDUI=true, empty dir otherwise.
 COPY --from=web-dist /app/dist /src/internal/webui/dist
 
-RUN set -eux; \
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    set -eux; \
     if [ -z "$VERSION" ] && [ -f VERSION ]; then VERSION=$(cat VERSION); fi; \
     if [ -z "$VERSION" ]; then VERSION="dev"; fi; \
     TAGS=""; \
