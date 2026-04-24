@@ -4,10 +4,8 @@ package fbbackfill
 
 import "context"
 
-// Deps is a stub for the sqliteonly (Lite desktop) build. Lite does not
-// support channels, so Facebook backfill is unreachable and the
-// dependency shape is not exercised.
-type Deps struct{}
-
-// Register is a no-op on sqliteonly builds. Lite edition has no channels.
+// Register is a no-op on sqliteonly builds. Lite edition has no channels,
+// so Facebook backfill is unreachable. The Deps struct is defined in
+// deps.go (no build tag) so the caller's code shape is identical across
+// builds.
 func Register(_ context.Context, _ *Deps) error { return nil }

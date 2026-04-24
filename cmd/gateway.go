@@ -32,6 +32,7 @@ import (
 	zalopersonal "github.com/nextlevelbuilder/goclaw/internal/channels/zalo/personal"
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/edition"
+	"github.com/nextlevelbuilder/goclaw/internal/fbbackfill"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway/methods"
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
@@ -553,6 +554,28 @@ func runGateway() {
 	// API key management RPC
 	if pgStores.APIKeys != nil {
 		methods.NewAPIKeysMethods(pgStores.APIKeys).Register(server.Router())
+	}
+
+	// [fork] Facebook Messenger history backfill — fork-only feature.
+	// Upstream-safety: see docs/fork/fb-backfill-fork-contract.md.
+	if pgStores.ChannelInstances != nil && pgStores.Episodic != nil {
+		_ = fbbackfill.Register(context.Background(), &fbbackfill.Deps{
+			Instances:     pgStores.ChannelInstances,
+			EpisodicStore: pgStores.Episodic,
+			LLMResolver:   fbbackfill.NewProviderRegistryResolver(providerRegistry, pgStores.SystemConfigs),
+			RegisterRPC: func(method string, h fbbackfill.HandlerFunc) {
+				server.Router().Register(method, func(ctx context.Context, c *gateway.Client, req *protocol.RequestFrame) {
+					h(ctx, c, req)
+				})
+			},
+			Broadcast: func(tenantID string, ev *protocol.EventFrame) {
+				for _, c := range server.ClientList() {
+					if c.TenantID().String() == tenantID {
+						c.SendEvent(*ev)
+					}
+				}
+			},
+		})
 	}
 
 	// Tenant management RPC + HTTP
