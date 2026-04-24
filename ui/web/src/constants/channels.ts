@@ -1,6 +1,7 @@
 export const CHANNEL_TYPES = [
   { value: "discord", label: "Discord" },
   { value: "facebook", label: "Facebook" },
+  { value: "facebook_personal", label: "Facebook Messenger (Personal)" },
   { value: "feishu", label: "Feishu / Lark" },
   { value: "pancake", label: "Pancake (pages.fm)" },
   { value: "slack", label: "Slack" },

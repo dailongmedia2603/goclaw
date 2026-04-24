@@ -73,6 +73,8 @@ func init() {
 		MsgAlreadySummoning:      "agent is already being summoned",
 		MsgSummoningUnavailable:  "summoning not available",
 		MsgNoDescription:         "agent has no description to resummon from",
+		MsgSummonCancelled:       "summon cancelled by user",
+		MsgCannotCancel:          "agent is not being summoned",
 		MsgInvalidPath:           "invalid path",
 
 		// Tenant backup / restore
@@ -92,12 +94,12 @@ func init() {
 		MsgNotImplemented: "%s not yet implemented",
 
 		// Agent links
-		MsgLinksNotConfigured:   "agent links not configured",
-		MsgInvalidDirection:     "direction must be outbound, inbound, or bidirectional",
-		MsgSourceTargetSame:     "source and target must be different agents",
-		MsgCannotDelegateOpen:   "cannot delegate to open agents — only predefined agents can be delegation targets",
-		MsgNoUpdatesProvided:    "no updates provided",
-		MsgInvalidLinkStatus:    "status must be active or disabled",
+		MsgLinksNotConfigured: "agent links not configured",
+		MsgInvalidDirection:   "direction must be outbound, inbound, or bidirectional",
+		MsgSourceTargetSame:   "source and target must be different agents",
+		MsgCannotDelegateOpen: "cannot delegate to open agents — only predefined agents can be delegation targets",
+		MsgNoUpdatesProvided:  "no updates provided",
+		MsgInvalidLinkStatus:  "status must be active or disabled",
 
 		// Teams
 		MsgTeamsNotConfigured:   "teams not configured",
@@ -206,6 +208,14 @@ func init() {
 		MsgSTTWhatsappPrivacyWarning: "Enabling STT for WhatsApp breaks end-to-end encryption for voice messages sent to this agent.",
 		MsgVoiceMessageFallback:      "[Voice message]",
 
+		// Facebook Messenger (personal)
+		MsgFBMSidecarUnreachable: "cannot reach mautrix-meta sidecar at %s",
+		MsgFBMSignatureInvalid:   "webhook signature verification failed",
+		MsgFBMSignatureExpired:   "webhook signature timestamp outside 60s window",
+		MsgFBMSendFailed:         "send to Facebook Messenger failed: %s",
+		MsgFBMCookieExpired:      "Facebook cookies expired — please re-authenticate",
+		MsgFBMToSAckRequired:     "you must acknowledge the experimental feature risks before enabling this channel",
+
 		// Hooks
 		MsgHookInvalidMatcher:          "invalid matcher regex: %s",
 		MsgHookCommandDisabledStandard: "command-type hooks are only available on Lite edition",
@@ -214,5 +224,13 @@ func init() {
 		MsgHookBudgetExceeded:          "tenant hook token budget exceeded",
 		MsgHookPerTurnCapReached:       "hook invocation per-turn cap reached",
 		MsgHookBuiltinReadOnly:         "builtin hooks are read-only except for the enabled toggle",
+
+		// Message tool cross-target forward notice
+		MessageCrossTargetForwarded: "📤 Forwarded to %s as requested: %q",
+
+		// Telegram pairing (custom text fallback). Args: (code, bot_name) for DM/Group; (bot_name) for Approved.
+		MsgTelegramPairingDM:       "🔗 This account hasn't been paired yet.\n\nPairing code: %s\n\nShare this code with the bot owner (%s) to get access.",
+		MsgTelegramPairingGroup:    "🔗 This group hasn't been paired yet.\n\nPairing code: %s\n\nShare this code with the bot owner (%s) to get access.",
+		MsgTelegramPairingApproved: "✅ %s access approved. Send a message to start chatting.",
 	})
 }

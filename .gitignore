@@ -1,6 +1,9 @@
 # Test artifacts
 tests/integration/testdata/
 
+# Spike / PoC folders (not committed to main — transient experiments)
+spike/
+
 # Binary
 openclaw-go
 pkg-helper
@@ -91,3 +94,8 @@ compose.d/*
 /.mise
 *.test
 goclaw-patched-linux-amd64
+ui/web/nginx.staging.conf
+
+# FBM sidecar build artifacts
+sidecar/mautrix-meta-shim/goclaw-fbm-sidecar
+tests/integration/fbm-mock/fbm-mock

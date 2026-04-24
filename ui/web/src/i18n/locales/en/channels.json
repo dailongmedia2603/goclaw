@@ -110,6 +110,8 @@
     "behaviorDesc": "Response behavior configuration",
     "accessControl": "Access Control",
     "accessControlDesc": "User access restrictions",
+    "pairing": "Pairing Messages",
+    "pairingDesc": "Customize the messages users see when pairing the bot. Placeholders: {code}, {bot_name}. Leave fields empty to use the default.",
     "reviewDiagnostics": "Review the latest diagnosis in this channel before changing settings.",
     "whatHappened": "What happened",
     "recommendedAction": "Recommended action",
@@ -268,6 +270,22 @@
     "block_reply": {
       "label": "Block Reply",
       "help": "Deliver intermediate text during tool iterations"
+    },
+    "pairing_dm_text": {
+      "label": "Custom DM Pairing Text",
+      "help": "Shown when an unknown user DMs the bot. Placeholders: {code}, {bot_name}. Leave empty to use the default message."
+    },
+    "pairing_group_text": {
+      "label": "Custom Group Pairing Text",
+      "help": "Shown when the bot is added to a new group requiring approval. Placeholders: {code}, {bot_name}."
+    },
+    "pairing_approved_text": {
+      "label": "Custom Approved Text",
+      "help": "Shown after an admin approves the pairing request. Placeholder: {bot_name}."
+    },
+    "pairing_locale": {
+      "label": "Pairing Fallback Locale",
+      "help": "Language used for default pairing messages when the custom text fields above are empty."
     },
     "domain": { "label": "Domain" },
     "connection_mode": {
@@ -497,5 +515,76 @@
     "relinkDevice": "Re-link Device",
     "connectedSuccess": "✅ WhatsApp connected successfully!",
     "tabQrCode": "QR Code"
+  },
+  "facebook_personal": {
+    "label": "Facebook Messenger (Personal)",
+    "warningTitle": "⚠️ Experimental & Unofficial",
+    "warningBody": "This channel uses unofficial Messenger automation via the mautrix-meta sidecar. Your Facebook account may be permanently banned. No SLA is provided. Bring-your-own-risk.",
+    "tosTitle": "Read before enabling",
+    "tosRiskBan": "Meta may permanently ban your Facebook account",
+    "tosRiskProtocolBreak": "Facebook changes break the service on 1-7 day cycles",
+    "tosRiskNoSla": "This is experimental — no uptime guarantee",
+    "tosRiskLegal": "Automated messaging may violate local anti-spam laws (EU DMA, GDPR)",
+    "tosAckLabel": "I understand the risks and accept full responsibility",
+    "auth": {
+      "title": "Login with Facebook cookies",
+      "howtoTitle": "How to get cookies:",
+      "howtoStep1": "Open messenger.com in a private/incognito window",
+      "howtoStep2": "Log in with your Facebook account",
+      "howtoStep3": "Open DevTools → Application/Storage → Cookies → https://www.messenger.com",
+      "howtoStep4": "Copy values for: c_user, xs, datr, sb, fr",
+      "howtoStep5": "Paste each value into the fields below",
+      "cookiesLabel": "Cookies",
+      "submit": "Login",
+      "submitting": "Logging in...",
+      "genericError": "Login failed — verify cookies and try again",
+      "success": "✅ Logged in as {{name}}"
+    },
+    "reauth": {
+      "title": "Re-authenticate {{name}}",
+      "description": "Your Facebook session expired or was invalidated. Paste fresh cookies to reconnect."
+    },
+    "status": {
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "checkpoint": "Facebook checkpoint — please re-authenticate",
+      "sidecarDown": "Sidecar unreachable — check mautrix-meta container"
+    },
+    "errors": {
+      "sidecarUnreachable": "Cannot reach sidecar at {{url}}",
+      "signatureInvalid": "Webhook signature verification failed",
+      "cookieExpired": "Facebook cookies have expired — please re-authenticate",
+      "tosAckRequired": "You must acknowledge the experimental feature risks before saving"
+    }
+  },
+  "fbBackfill": {
+    "title": "Conversation History Backfill",
+    "description": "Scan and import all past Messenger conversations from this Page. Gives the agent context for returning customers.",
+    "startButton": "Start Backfill",
+    "pause": "Pause",
+    "resume": "Resume",
+    "cancel": "Cancel",
+    "retry": "Retry",
+    "resync": "Re-sync",
+    "backfillOnCreate": "Scan conversation history after creating",
+    "backfillOnCreateHelp": "When enabled, the system automatically scans all past Messenger conversations from this Page after connecting. May take minutes to hours depending on conversation count.",
+    "status": {
+      "pending": "Pending",
+      "running": "Running",
+      "paused": "Paused",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "none": "Not started"
+    },
+    "stats": "{{convosDone}}/{{convosTotal}} conversations · {{msgs}} messages · {{episodics}} summaries",
+    "skippedStats": "{{skipped}} skipped (already summarized)",
+    "errors": {
+      "authExpired": "Page Access Token expired. Please re-connect the channel.",
+      "rateLimit": "Graph API rate limit reached. Will auto-resume shortly.",
+      "unknown": "Backfill failed: {{error}}"
+    },
+    "confirmCancel": "Cancel the running backfill? Progress is kept and you can Retry later.",
+    "confirmResync": "Re-sync all conversations? This will overwrite existing summaries."
   }
 }

@@ -61,6 +61,13 @@ type TelegramConfig struct {
 	AudioGuardFallbackNoTranscript string   `json:"audio_guard_fallback_no_transcript,omitempty"` // fallback when no transcript available
 	AudioGuardErrorMarkers         []string `json:"audio_guard_error_markers,omitempty"`          // custom error detection markers (replaces defaults)
 
+	// [fork] Custom pairing text overrides. Placeholders: {code}, {bot_name}.
+	// Empty string → fallback to i18n default (see internal/i18n keys Msg TelegramPairing*).
+	PairingDMText       string `json:"pairing_dm_text,omitempty"`       // DM pairing reply; placeholders {code}, {bot_name}
+	PairingGroupText    string `json:"pairing_group_text,omitempty"`    // group pairing reply; placeholders {code}, {bot_name}
+	PairingApprovedText string `json:"pairing_approved_text,omitempty"` // post-approval notification; placeholder {bot_name}
+	PairingLocale       string `json:"pairing_locale,omitempty"`        // fallback i18n locale when custom text is empty: "en"|"vi"|"zh" (default "en")
+
 	// Per-group (and per-topic) overrides. Key is chat ID string (e.g. "-100123456") or "*" for wildcard.
 	// TS ref: channels.telegram.groups in src/config/types.telegram.ts.
 	Groups map[string]*TelegramGroupConfig `json:"groups,omitempty"`
@@ -372,7 +379,6 @@ type ToolsConfig struct {
 	ByProvider       map[string]*ToolPolicySpec  `json:"byProvider,omitempty"` // per-provider overrides
 	ExecApproval     ExecApprovalCfg             `json:"execApproval"`         // exec command approval settings
 	WebFetch         WebFetchPolicyConfig        `json:"web_fetch"`            // domain policy for URL fetching
-	Web              WebToolsConfig              `json:"web"`
 	Browser          BrowserToolConfig           `json:"browser"`
 	RateLimitPerHour int                         `json:"rate_limit_per_hour,omitempty"` // max tool executions per hour per session (0 = disabled)
 	ScrubCredentials *bool                       `json:"scrub_credentials,omitempty"`   // auto-redact API keys/tokens in tool output (default true)
@@ -490,36 +496,6 @@ type ToolPolicySpec struct {
 	ToolCallPrefix string `json:"toolCallPrefix,omitempty"` // prefix to strip from model's tool call names before registry lookup
 }
 
-type WebToolsConfig struct {
-	ProviderOrder []string         `json:"provider_order,omitempty"`
-	Exa           ExaConfig        `json:"exa"`
-	Tavily        TavilyConfig     `json:"tavily"`
-	Brave         BraveConfig      `json:"brave"`
-	DuckDuckGo    DuckDuckGoConfig `json:"duckduckgo"`
-}
-
-type ExaConfig struct {
-	Enabled    bool   `json:"enabled"`
-	APIKey     string `json:"api_key"`
-	MaxResults int    `json:"max_results"`
-}
-
-type TavilyConfig struct {
-	Enabled    bool   `json:"enabled"`
-	APIKey     string `json:"api_key"`
-	MaxResults int    `json:"max_results"`
-}
-
-type BraveConfig struct {
-	Enabled    bool   `json:"enabled"`
-	APIKey     string `json:"api_key"`
-	MaxResults int    `json:"max_results"`
-}
-
-type DuckDuckGoConfig struct {
-	Enabled    bool `json:"enabled"`
-	MaxResults int  `json:"max_results"`
-}
 
 // SessionsConfig controls session behavior.
 // Matching TS src/config/sessions/types.ts + src/config/types.base.ts.

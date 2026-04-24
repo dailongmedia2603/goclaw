@@ -73,6 +73,8 @@ func init() {
 		MsgAlreadySummoning:      "Agent正在被召唤中",
 		MsgSummoningUnavailable:  "召唤功能不可用",
 		MsgNoDescription:         "Agent没有可供重新召唤的描述",
+		MsgSummonCancelled:       "已取消召唤",
+		MsgCannotCancel:          "Agent 未处于召唤状态",
 		MsgInvalidPath:           "路径无效",
 
 		// Tenant backup / restore
@@ -92,12 +94,12 @@ func init() {
 		MsgNotImplemented: "%s 尚未实现",
 
 		// Agent links
-		MsgLinksNotConfigured:   "Agent链接未配置",
-		MsgInvalidDirection:     "方向必须是 outbound、inbound 或 bidirectional",
-		MsgSourceTargetSame:     "源和目标必须是不同的Agent",
-		MsgCannotDelegateOpen:   "无法委派给开放型Agent — 只有预定义Agent才能作为委派目标",
-		MsgNoUpdatesProvided:    "未提供更新内容",
-		MsgInvalidLinkStatus:    "状态必须是 active 或 disabled",
+		MsgLinksNotConfigured: "Agent链接未配置",
+		MsgInvalidDirection:   "方向必须是 outbound、inbound 或 bidirectional",
+		MsgSourceTargetSame:   "源和目标必须是不同的Agent",
+		MsgCannotDelegateOpen: "无法委派给开放型Agent — 只有预定义Agent才能作为委派目标",
+		MsgNoUpdatesProvided:  "未提供更新内容",
+		MsgInvalidLinkStatus:  "状态必须是 active 或 disabled",
 
 		// Teams
 		MsgTeamsNotConfigured:   "团队未配置",
@@ -206,6 +208,14 @@ func init() {
 		MsgSTTWhatsappPrivacyWarning: "为 WhatsApp 启用 STT 将破坏发送至此 Agent 的语音消息的端对端加密。",
 		MsgVoiceMessageFallback:      "[语音消息]",
 
+		// Facebook Messenger (personal)
+		MsgFBMSidecarUnreachable: "无法连接 mautrix-meta sidecar: %s",
+		MsgFBMSignatureInvalid:   "webhook 签名验证失败",
+		MsgFBMSignatureExpired:   "webhook 签名时间戳超过 60 秒窗口",
+		MsgFBMSendFailed:         "发送到 Facebook Messenger 失败: %s",
+		MsgFBMCookieExpired:      "Facebook Cookie 已过期 — 请重新认证",
+		MsgFBMToSAckRequired:     "启用此通道前必须确认实验性功能风险",
+
 		// Hooks
 		MsgHookInvalidMatcher:          "无效的匹配器正则表达式: %s",
 		MsgHookCommandDisabledStandard: "命令类型钩子仅在 Lite 版本可用",
@@ -214,5 +224,13 @@ func init() {
 		MsgHookBudgetExceeded:          "租户钩子令牌预算已耗尽",
 		MsgHookPerTurnCapReached:       "单轮钩子调用次数已达上限",
 		MsgHookBuiltinReadOnly:         "内置钩子只读,仅允许切换启用状态",
+
+		// Message tool cross-target forward notice
+		MessageCrossTargetForwarded: "📤 已按请求转发至 %s:%q",
+
+		// Telegram pairing (custom text fallback). Args: (code, bot_name) for DM/Group; (bot_name) for Approved.
+		MsgTelegramPairingDM:       "🔗 此账号尚未配对。\n\n配对码:%s\n\n请将此配对码分享给机器人所有者(%s)以获取访问权限。",
+		MsgTelegramPairingGroup:    "🔗 此群组尚未配对。\n\n配对码:%s\n\n请将此配对码分享给机器人所有者(%s)以获取访问权限。",
+		MsgTelegramPairingApproved: "✅ 已批准访问 %s。发送消息即可开始聊天。",
 	})
 }

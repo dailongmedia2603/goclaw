@@ -19,7 +19,9 @@ package agent
 import (
 	"log/slog"
 	"regexp"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
@@ -58,7 +60,10 @@ func SanitizeAssistantContent(content string) string {
 	// 7. Strip MEDIA: paths from LLM output (media delivered separately)
 	content = stripMediaPaths(content)
 
-	// 8. Strip leading blank lines (preserve indentation)
+	// 8. Normalize LaTeX math notation to Unicode (e.g. $\rightarrow$ → →, $\alpha$ → α).
+	content = normalizeLatex(content)
+
+	// 9. Strip leading blank lines (preserve indentation)
 	content = stripLeadingBlankLines(content)
 
 	content = strings.TrimSpace(content)
@@ -377,37 +382,174 @@ func StripConfigLeak(content, agentType string) string {
 
 // --- NO_REPLY detection ---
 
-// IsSilentReply checks if the text is a NO_REPLY token.
-// Matching TS isSilentReplyText() from auto-reply/tokens.ts.
+// IsSilentReply checks if the text begins with a NO_REPLY token.
+//
+// Divergent from TS isSilentReplyText() (exact-match only) — we match broadly:
+// decorative wrappers (`NO_REPLY_`, `"NO_REPLY"`, `**NO_REPLY**`) AND trailing
+// explanations (`NO_REPLY because offline`, `NO_REPLY: note`) suppress delivery.
+// Only requirement: the token is not glued to another word (`NO_REPLYING` is NOT silent).
+// Case-insensitive.
+//
+// Trade-off vs upstream #19537: upstream guards against suppressing substantive
+// replies that end in NO_REPLY. We accept that risk because observed model output
+// leans toward "NO_REPLY + reason" rather than "real reply ending in NO_REPLY".
 func IsSilentReply(text string) bool {
 	trimmed := strings.TrimSpace(text)
 	if trimmed == "" {
 		return false
 	}
+	// Strip decorative wrappers from both ends (quotes, markdown emphasis, punctuation).
+	stripped := strings.Trim(trimmed, "_ \t\n\r.,:;!?\"'`*~#>-()[]{}")
 	const token = "NO_REPLY"
-	// Exact match
-	if trimmed == token {
+	if len(stripped) < len(token) {
+		return false
+	}
+	if !strings.EqualFold(stripped[:len(token)], token) {
+		return false
+	}
+	if len(stripped) == len(token) {
 		return true
 	}
-	// Starts with token followed by non-word char or end
-	if strings.HasPrefix(trimmed, token) {
-		rest := trimmed[len(token):]
-		if rest == "" || !isWordChar(rune(rest[0])) {
-			return true
-		}
-	}
-	// Ends with token preceded by non-word char
-	if strings.HasSuffix(trimmed, token) {
-		before := trimmed[:len(trimmed)-len(token)]
-		if before == "" || !isWordChar(rune(before[len(before)-1])) {
-			return true
-		}
-	}
-	return false
+	// Token must not be glued to another word — next rune must be non-alphanumeric.
+	next, _ := utf8.DecodeRuneInString(stripped[len(token):])
+	return !isAlphaNum(next)
+}
+
+func isAlphaNum(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
 }
 
 func isWordChar(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_'
+}
+
+// --- Normalize LaTeX math notation to Unicode ---
+
+// latexMacroMap translates common LaTeX macros (Greek letters, arrows, relations,
+// operators, sets, logic, calculus) into their Unicode equivalents. Extend as needed.
+var latexMacroMap = map[string]string{
+	// Arrows
+	`\rightarrow`:     "→",
+	`\Rightarrow`:     "⇒",
+	`\leftarrow`:      "←",
+	`\Leftarrow`:      "⇐",
+	`\leftrightarrow`: "↔",
+	`\Leftrightarrow`: "⇔",
+	`\to`:             "→",
+	`\gets`:           "←",
+	`\mapsto`:         "↦",
+	`\uparrow`:        "↑",
+	`\downarrow`:      "↓",
+	`\longrightarrow`: "⟶",
+	`\longleftarrow`:  "⟵",
+
+	// Greek lowercase
+	`\alpha`: "α", `\beta`: "β", `\gamma`: "γ", `\delta`: "δ",
+	`\epsilon`: "ε", `\varepsilon`: "ε", `\zeta`: "ζ", `\eta`: "η",
+	`\theta`: "θ", `\vartheta`: "ϑ", `\iota`: "ι", `\kappa`: "κ",
+	`\lambda`: "λ", `\mu`: "μ", `\nu`: "ν", `\xi`: "ξ",
+	`\pi`: "π", `\varpi`: "ϖ", `\rho`: "ρ", `\varrho`: "ϱ",
+	`\sigma`: "σ", `\varsigma`: "ς", `\tau`: "τ", `\upsilon`: "υ",
+	`\phi`: "φ", `\varphi`: "ϕ", `\chi`: "χ", `\psi`: "ψ", `\omega`: "ω",
+
+	// Greek uppercase
+	`\Gamma`: "Γ", `\Delta`: "Δ", `\Theta`: "Θ", `\Lambda`: "Λ",
+	`\Xi`: "Ξ", `\Pi`: "Π", `\Sigma`: "Σ", `\Upsilon`: "Υ",
+	`\Phi`: "Φ", `\Psi`: "Ψ", `\Omega`: "Ω",
+
+	// Operators & relations
+	`\times`: "×", `\div`: "÷", `\pm`: "±", `\mp`: "∓",
+	`\cdot`: "·", `\cdots`: "⋯", `\ldots`: "…", `\dots`: "…",
+	`\leq`: "≤", `\le`: "≤", `\geq`: "≥", `\ge`: "≥",
+	`\neq`: "≠", `\ne`: "≠", `\approx`: "≈", `\equiv`: "≡",
+	`\sim`: "∼", `\simeq`: "≃", `\cong`: "≅", `\propto`: "∝",
+	`\ll`: "≪", `\gg`: "≫",
+
+	// Sets & logic
+	`\in`: "∈", `\notin`: "∉", `\ni`: "∋",
+	`\subset`: "⊂", `\supset`: "⊃", `\subseteq`: "⊆", `\supseteq`: "⊇",
+	`\cup`: "∪", `\cap`: "∩", `\setminus`: "∖",
+	`\emptyset`: "∅", `\varnothing`: "∅",
+	`\forall`: "∀", `\exists`: "∃", `\nexists`: "∄",
+	`\land`: "∧", `\wedge`: "∧", `\lor`: "∨", `\vee`: "∨",
+	`\neg`: "¬", `\lnot`: "¬",
+
+	// Calculus & misc
+	`\infty`: "∞", `\partial`: "∂", `\nabla`: "∇",
+	`\sum`: "∑", `\prod`: "∏", `\int`: "∫", `\oint`: "∮",
+	`\sqrt`: "√",
+}
+
+var (
+	latexMacroPattern        = regexp.MustCompile(`\\[a-zA-Z]+`)
+	latexDisplayMathPattern  = regexp.MustCompile(`(?s)\$\$(.+?)\$\$`)
+	latexInlineMathPattern   = regexp.MustCompile(`\$([^$\n]+?)\$`)
+	latexParenMathPattern    = regexp.MustCompile(`(?s)\\\((.+?)\\\)`)
+	latexBracketMathPattern  = regexp.MustCompile(`(?s)\\\[(.+?)\\\]`)
+	latexProtectCodeBlockRe  = regexp.MustCompile("(?s)```.*?```")
+	latexProtectInlineCodeRe = regexp.MustCompile("`[^`\n]+`")
+	latexProtectPlaceholder  = regexp.MustCompile("\x00LTX(\\d+)\x00")
+)
+
+func replaceLatexMacros(s string) string {
+	return latexMacroPattern.ReplaceAllStringFunc(s, func(m string) string {
+		if repl, ok := latexMacroMap[m]; ok {
+			return repl
+		}
+		return m
+	})
+}
+
+// normalizeLatex strips common LaTeX math delimiters ($...$, $$...$$, \(...\), \[...\])
+// and replaces LaTeX macros inside with Unicode equivalents. For $...$ and $$...$$,
+// the delimiters are only stripped when the content contains at least one backslash —
+// this preserves currency mentions like "$50 and $100" as plain prose.
+func normalizeLatex(content string) string {
+	if !strings.Contains(content, `\`) {
+		return content
+	}
+
+	// Protect fenced + inline code so LaTeX discussions inside code stay literal.
+	var protected []string
+	stash := func(m string) string {
+		idx := len(protected)
+		protected = append(protected, m)
+		return "\x00LTX" + strconv.Itoa(idx) + "\x00"
+	}
+	content = latexProtectCodeBlockRe.ReplaceAllStringFunc(content, stash)
+	content = latexProtectInlineCodeRe.ReplaceAllStringFunc(content, stash)
+
+	content = latexDisplayMathPattern.ReplaceAllStringFunc(content, func(m string) string {
+		inner := m[2 : len(m)-2]
+		if !strings.Contains(inner, `\`) {
+			return m
+		}
+		return replaceLatexMacros(inner)
+	})
+	content = latexInlineMathPattern.ReplaceAllStringFunc(content, func(m string) string {
+		inner := m[1 : len(m)-1]
+		if !strings.Contains(inner, `\`) {
+			return m
+		}
+		return replaceLatexMacros(inner)
+	})
+	content = latexParenMathPattern.ReplaceAllStringFunc(content, func(m string) string {
+		return replaceLatexMacros(m[2 : len(m)-2])
+	})
+	content = latexBracketMathPattern.ReplaceAllStringFunc(content, func(m string) string {
+		return replaceLatexMacros(m[2 : len(m)-2])
+	})
+
+	// Restore protected code blocks.
+	content = latexProtectPlaceholder.ReplaceAllStringFunc(content, func(m string) string {
+		idx, err := strconv.Atoi(m[len("\x00LTX") : len(m)-1])
+		if err != nil || idx < 0 || idx >= len(protected) {
+			return m
+		}
+		return protected[idx]
+	})
+
+	return content
 }
 
 // --- Message Directives ([[name:value]]) ---

@@ -71,9 +71,10 @@ const (
 
 // Channel type constants used across channel packages and gateway wiring.
 const (
-	TypeDiscord      = "discord"
-	TypeFacebook     = "facebook"
-	TypeFeishu       = "feishu"
+	TypeDiscord          = "discord"
+	TypeFacebook         = "facebook"
+	TypeFacebookPersonal = "facebook_personal"
+	TypeFeishu           = "feishu"
 	TypePancake      = "pancake"
 	TypeSlack        = "slack"
 	TypeTelegram     = "telegram"
