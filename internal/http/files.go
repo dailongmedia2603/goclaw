@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/edition"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
@@ -76,10 +78,13 @@ func (h *FilesHandler) handleSign(w http.ResponseWriter, r *http.Request) {
 	// Multi-tenant (RBAC): additionally restrict to the requesting tenant's dirs.
 	// Prevents tenant A from signing a URL for tenant B's files.
 	if edition.Current().RBACEnabled {
-		tenantData := config.TenantDataDir(h.dataDir, store.TenantIDFromContext(authedReq.Context()), store.TenantSlugFromContext(authedReq.Context()))
-		tenantWs := config.TenantWorkspace(h.workspace, store.TenantIDFromContext(authedReq.Context()), store.TenantSlugFromContext(authedReq.Context()))
+		tid := store.TenantIDFromContext(authedReq.Context())
+		tenantData := config.TenantDataDir(h.dataDir, tid, store.TenantSlugFromContext(authedReq.Context()))
+		tenantWs := config.TenantWorkspace(h.workspace, tid, store.TenantSlugFromContext(authedReq.Context()))
+		fbcloakDir := tenantFBCloakScreenshotDir(h.dataDir, tid)
 		if (!strings.HasPrefix(absPath, tenantData+sep) && absPath != tenantData) &&
-			(!strings.HasPrefix(absPath, tenantWs+sep) && absPath != tenantWs) {
+			(!strings.HasPrefix(absPath, tenantWs+sep) && absPath != tenantWs) &&
+			(fbcloakDir == "" || (!strings.HasPrefix(absPath, fbcloakDir+sep) && absPath != fbcloakDir)) {
 			slog.Warn("security.files_sign_tenant_denied", "path", absPath, "tenant_data", tenantData, "tenant_ws", tenantWs)
 			http.Error(w, `{"error":"path outside allowed directories"}`, http.StatusForbidden)
 			return
@@ -188,11 +193,15 @@ func (h *FilesHandler) handleServe(w http.ResponseWriter, r *http.Request) {
 
 		// Multi-tenant (standard edition): additionally restrict to tenant-scoped subdirectories.
 		if allowed && edition.Current().RBACEnabled {
-			tenantData := config.TenantDataDir(h.dataDir, store.TenantIDFromContext(r.Context()), store.TenantSlugFromContext(r.Context()))
+			tid := store.TenantIDFromContext(r.Context())
+			tenantData := config.TenantDataDir(h.dataDir, tid, store.TenantSlugFromContext(r.Context()))
 			tenantWs := h.tenantWorkspace(r)
+			fbcloakDir := tenantFBCloakScreenshotDir(h.dataDir, tid)
+			inFBCloak := fbcloakDir != "" && (strings.HasPrefix(absPath, fbcloakDir+sep) || absPath == fbcloakDir)
 			if !strings.HasPrefix(absPath, tenantData+sep) &&
 				!strings.HasPrefix(absPath, tenantWs+sep) &&
-				absPath != tenantData && absPath != tenantWs {
+				absPath != tenantData && absPath != tenantWs &&
+				!inFBCloak {
 				allowed = false
 			}
 		}
@@ -258,6 +267,19 @@ func (h *FilesHandler) tenantWorkspace(r *http.Request) string {
 	tid := store.TenantIDFromContext(r.Context())
 	slug := store.TenantSlugFromContext(r.Context())
 	return config.TenantWorkspace(h.workspace, tid, slug)
+}
+
+// tenantFBCloakScreenshotDir returns the per-tenant screenshot directory
+// fbcloak writes to (`<dataDir>/fbcloak/screenshots/<tenantID>/`). It is
+// outside the standard tenant data dir layout because the writer chose a
+// flat by-feature root; this helper exists so the file handler still
+// enforces tenant isolation when serving those PNGs. Returns "" when
+// dataDir is empty (path validation upstream rejects "" prefixes).
+func tenantFBCloakScreenshotDir(dataDir string, tenantID uuid.UUID) string {
+	if dataDir == "" || tenantID == uuid.Nil {
+		return ""
+	}
+	return filepath.Join(dataDir, "fbcloak", "screenshots", tenantID.String())
 }
 
 // findInWorkspace searches the workspace directory tree for a file by basename.
