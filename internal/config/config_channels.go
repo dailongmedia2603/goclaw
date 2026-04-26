@@ -20,7 +20,32 @@ type ChannelsConfig struct {
 	Zalo              ZaloConfig               `json:"zalo"`
 	ZaloPersonal      ZaloPersonalConfig       `json:"zalo_personal"`
 	Feishu            FeishuConfig             `json:"feishu"`
+	FBCloak           FBCloakConfig            `json:"fbcloak"`
 	PendingCompaction *PendingCompactionConfig `json:"pending_compaction,omitempty"` // global pending message compaction settings
+}
+
+// FBCloakConfig configures the fbcloak browser-automation re-engagement
+// channel (Standard edition only; gated by edition.FBCloakEnabled). The
+// channel's runtime safety relies on the killswitch — env GOCLAW_FBCLOAK_KILLSWITCH=1
+// short-circuits every entry point at the service guard.
+type FBCloakConfig struct {
+	// ScreenshotDir is the on-disk root where pre/post send screenshots are
+	// written. Empty → resolved at runtime to {dataDir}/fbcloak/screenshots
+	// per-tenant subdirectory. Path is signed via /v1/files/sign before
+	// returning to the UI; never serve raw paths.
+	ScreenshotDir string `json:"screenshot_dir,omitempty"`
+
+	// ScreenshotRetentionDays controls automatic purge. 0 → 30 days default.
+	ScreenshotRetentionDays int `json:"screenshot_retention_days,omitempty"`
+
+	// KillswitchPollSeconds is the interval at which the env-watcher reloads
+	// GOCLAW_FBCLOAK_KILLSWITCH. 0 → 30s default. Set to a negative value to
+	// disable polling (fall back to startup-only read).
+	KillswitchPollSeconds int `json:"killswitch_poll_seconds,omitempty"`
+
+	// MaxConcurrent caps how many job runs may be in-flight across the
+	// process. 0 → 5. Per-credential serialisation is independent of this.
+	MaxConcurrent int `json:"max_concurrent,omitempty"`
 }
 
 type TelegramConfig struct {

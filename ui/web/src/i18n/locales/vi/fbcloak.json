@@ -1,0 +1,165 @@
+{
+  "title": "FBCloak Re-engagement",
+  "description": "Tự động hóa trình duyệt để re-engage hộp thư fanpage trên 7 ngày.",
+  "tabs": {
+    "credentials": "Credentials",
+    "jobs": "Jobs",
+    "sendLog": "Send Log"
+  },
+  "killswitchActive": "Killswitch đang bật — mọi thao tác fbcloak đã bị vô hiệu hóa.",
+  "checkpointBanner": "Phát hiện checkpoint trên ít nhất một credential. Hãy kiểm tra trạng thái trước lần chạy tiếp theo.",
+  "credentials": {
+    "title": "Credentials",
+    "addButton": "Thêm credential",
+    "empty": "Chưa có credential nào. Thêm bộ cookie fanpage để bắt đầu.",
+    "columns": {
+      "fanpage": "Fanpage",
+      "status": "Trạng thái",
+      "lastCheck": "Kiểm tra gần nhất",
+      "actions": "Hành động"
+    },
+    "test": "Kiểm tra",
+    "testing": "Đang kiểm tra…",
+    "delete": "Xóa",
+    "confirmDelete": "Xóa credential này? Các job đang dùng sẽ thất bại cho đến khi gán credential khác.",
+    "addDialog": {
+      "title": "Thêm credential",
+      "fanpageId": "Fanpage ID",
+      "fanpageName": "Tên fanpage",
+      "cookies": "Cookies (JSON)",
+      "cookiesPlaceholder": "[{\"name\":\"c_user\",\"value\":\"...\"},...]",
+      "proxyUrl": "Proxy URL",
+      "proxyUrlPlaceholder": "socks5://user:pass@host:port (tuỳ chọn)",
+      "userAgent": "User agent",
+      "viewport": "Viewport",
+      "submit": "Lưu",
+      "cancel": "Huỷ"
+    },
+    "status": {
+      "active": "Hoạt động",
+      "expired": "Hết hạn",
+      "checkpoint": "Checkpoint",
+      "disabled": "Đã tắt"
+    }
+  },
+  "jobs": {
+    "title": "Jobs",
+    "newButton": "Tạo job",
+    "empty": "Chưa có job nào. Tạo job để lên lịch re-engagement.",
+    "columns": {
+      "name": "Tên",
+      "credential": "Credential",
+      "schedule": "Lịch chạy",
+      "dryRun": "Dry-run",
+      "enabled": "Bật",
+      "lastRun": "Lần chạy cuối",
+      "actions": "Hành động"
+    },
+    "runNow": "Chạy ngay",
+    "runNowConfirm": "Chạy job này ngay bây giờ? Sẽ chạy ngoài lịch cron nhưng vẫn tuân thủ daily cap và working hours.",
+    "running": "Đang chạy…",
+    "delete": "Xóa",
+    "confirmDelete": "Xóa job này và toàn bộ send log? Hành động không thể hoàn tác.",
+    "edit": "Sửa",
+    "dryRunOn": "DRY",
+    "dryRunOff": "LIVE",
+    "dryRunOffWarning": "Đang TẮT dry-run. Tin nhắn thật sẽ được gửi đi. Hãy đảm bảo bạn có sự đồng ý của người nhận.",
+    "lastStatus": {
+      "ok": "OK",
+      "partial": "Một phần",
+      "fail": "Thất bại",
+      "killed": "Đã hủy"
+    },
+    "edit_dialog": {
+      "createTitle": "Tạo job",
+      "editTitle": "Sửa job",
+      "name": "Tên",
+      "credential": "Credential",
+      "credentialPlaceholder": "Chọn credential",
+      "cronExpr": "Biểu thức cron",
+      "cronHint": "Vd. \"0 9 * * *\" — mỗi ngày 09:00",
+      "minIdle": "Idle tối thiểu (ngày)",
+      "maxIdle": "Idle tối đa (ngày)",
+      "dailyCap": "Giới hạn / ngày",
+      "dailyCapHint": "Số tin tối đa mỗi ngày; server hard-cap 50.",
+      "workingHours": "Khung giờ chạy",
+      "from": "Từ",
+      "to": "Đến",
+      "timezone": "Múi giờ",
+      "template": "Template tin nhắn",
+      "templatePlaceholder": "Chọn template SKILL.md",
+      "useScannerFallback": "Dùng DOM inbox scanner làm fallback",
+      "scannerFallbackHint": "Scanner fallback chạy khi dữ liệu fbbackfill không khớp. Chậm và dễ vỡ hơn.",
+      "dryRun": "Chế độ dry-run",
+      "dryRunHint": "Mặc định BẬT. Tin nhắn KHÔNG được gửi — chỉ ghi log.",
+      "enabled": "Bật",
+      "enabledHint": "Job đã tắt sẽ không chạy. Bật sau khi ack disclaimer.",
+      "submit": "Lưu",
+      "cancel": "Huỷ"
+    }
+  },
+  "sendLog": {
+    "title": "Send Log",
+    "empty": "Chưa có hoạt động gửi tin nào.",
+    "columns": {
+      "sentAt": "Gửi lúc",
+      "job": "Job",
+      "recipient": "Người nhận",
+      "status": "Trạng thái",
+      "preview": "Nội dung"
+    },
+    "filters": {
+      "job": "Job",
+      "status": "Trạng thái",
+      "fromDate": "Từ ngày",
+      "toDate": "Đến ngày",
+      "all": "Tất cả",
+      "apply": "Áp dụng",
+      "clear": "Xóa lọc"
+    },
+    "status": {
+      "sent": "Đã gửi",
+      "dry_run": "Dry-run",
+      "skipped": "Bỏ qua",
+      "failed": "Thất bại"
+    },
+    "row": {
+      "openDetail": "Xem",
+      "noScreenshot": "Không có ảnh"
+    },
+    "detail": {
+      "title": "Chi tiết",
+      "messageText": "Nội dung tin",
+      "skipReason": "Lý do bỏ qua",
+      "errorReason": "Lỗi",
+      "screenshotPre": "Ảnh trước khi gửi",
+      "screenshotPost": "Ảnh sau khi gửi",
+      "close": "Đóng"
+    }
+  },
+  "errors": {
+    "loadFailed": "Tải thất bại: {{detail}}",
+    "saveFailed": "Lưu thất bại: {{detail}}",
+    "deleteFailed": "Xóa thất bại: {{detail}}",
+    "runNowFailed": "Chạy thất bại: {{detail}}"
+  },
+  "disclaimer": {
+    "title": "Cam kết sử dụng tính năng re-engagement",
+    "intro": "FBCloak browser automation chạy ngoài API chính thức của Meta. Khi sử dụng, bạn chấp nhận các rủi ro sau:",
+    "checkbox1": "Tôi hiểu tính năng này có thể vi phạm Điều khoản dịch vụ của Meta.",
+    "checkbox2": "Tôi hiểu page có thể bị hạn chế và tài khoản admin có thể bị khóa.",
+    "checkbox3": "Tôi sử dụng dưới trách nhiệm cá nhân và đã có sự đồng ý của người nhận.",
+    "ackedAt": "Đã xác nhận lúc {{time}}",
+    "ackedBy": "bởi {{user}}",
+    "submit": "Tôi đồng ý, kích hoạt",
+    "cancel": "Huỷ",
+    "needAck": "Hãy xác nhận disclaimer để có thể bật job.",
+    "version": "Phiên bản {{version}}"
+  },
+  "dualMode": {
+    "cloakOnly": "Cloak browser",
+    "cloakReason": "idle tối thiểu > 7 ngày — đường Cloak browser",
+    "graphReason": "≤ 7 ngày — Graph API HUMAN_AGENT (khi đã cấu hình)",
+    "outOfWindow": "> 6 tháng — ngoài cửa sổ hỗ trợ"
+  }
+}

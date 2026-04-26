@@ -21,6 +21,7 @@
     "config": "配置",
     "cron": "定时任务",
     "hooks": "Hooks",
+    "fbcloak": "FBCloak",
     "customTools": "自定义工具",
     "logs": "日志",
     "mcpServers": "MCP 服务器",

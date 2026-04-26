@@ -232,5 +232,18 @@ func init() {
 		MsgTelegramPairingDM:       "🔗 This account hasn't been paired yet.\n\nPairing code: %s\n\nShare this code with the bot owner (%s) to get access.",
 		MsgTelegramPairingGroup:    "🔗 This group hasn't been paired yet.\n\nPairing code: %s\n\nShare this code with the bot owner (%s) to get access.",
 		MsgTelegramPairingApproved: "✅ %s access approved. Send a message to start chatting.",
+
+		// FBCloak (browser-automation re-engagement)
+		MsgFBCloakUnavailable:           "this feature is not available in the current edition",
+		MsgFBCloakKillswitch:            "fbcloak is temporarily disabled — administrator has activated the killswitch",
+		MsgFBCloakInvalidProxy:          "proxy URL must start with socks5://, socks4://, http://, or https://",
+		MsgFBCloakCookieMissing:         "required Facebook cookies are missing: %v",
+		MsgFBCloakCheckpoint:            "Facebook account is on a security checkpoint — re-authentication required",
+		MsgFBCloakDisclaimerRequired:    "you must acknowledge the Terms-of-Service disclaimer before enabling fbcloak jobs",
+		MsgFBCloakOutOfWindow:           "recipient is outside the supported re-engagement window",
+		MsgFBCloakCustomerRepliedRecent: "skipped: customer replied more recently than the database snapshot indicates",
+		MsgFBCloakNoConversation:        "no conversation history with this recipient",
+		MsgFBCloakGraphUnavailable:      "API path (≤7d) is not configured on this server",
+		MsgFBCloakDisclaimerAcked:       "disclaimer acknowledged",
 	})
 }

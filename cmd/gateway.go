@@ -393,6 +393,10 @@ func runGateway() {
 	server.SetLogTee(logTee)
 	pairingMethods, heartbeatMethods, chatMethods, cfgPermsMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, contextFileInterceptor, logTee, pgStores.Heartbeats, pgStores.ConfigPermissions, pgStores.SystemConfigs, pgStores.Tenants, pgStores.SkillTenantCfgs, audioMgr)
 
+	// FBCloak (browser-automation re-engagement) — Standard edition only.
+	// No-op stub on sqliteonly Lite builds (see gateway_fbcloak_lite.go).
+	wireFBCloak(server, pgStores, cfg, domainBus)
+
 	// Phase 3: Agent hooks RPC methods (hooks.list/create/update/delete/toggle/test/history).
 	if hs, ok := pgStores.Hooks.(hooks.HookStore); ok && hs != nil {
 		hm := methods.NewHookMethods(hs, edition.Current())

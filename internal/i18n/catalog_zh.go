@@ -232,5 +232,18 @@ func init() {
 		MsgTelegramPairingDM:       "🔗 此账号尚未配对。\n\n配对码:%s\n\n请将此配对码分享给机器人所有者(%s)以获取访问权限。",
 		MsgTelegramPairingGroup:    "🔗 此群组尚未配对。\n\n配对码:%s\n\n请将此配对码分享给机器人所有者(%s)以获取访问权限。",
 		MsgTelegramPairingApproved: "✅ 已批准访问 %s。发送消息即可开始聊天。",
+
+		// FBCloak (基于浏览器自动化的客户重激活)
+		MsgFBCloakUnavailable:           "当前版本不支持此功能",
+		MsgFBCloakKillswitch:            "fbcloak 已临时禁用 — 管理员已触发紧急停止",
+		MsgFBCloakInvalidProxy:          "代理 URL 必须以 socks5://、socks4://、http:// 或 https:// 开头",
+		MsgFBCloakCookieMissing:         "缺少必需的 Facebook cookie:%v",
+		MsgFBCloakCheckpoint:            "Facebook 账号处于安全验证阶段 — 需要重新认证",
+		MsgFBCloakDisclaimerRequired:    "启用 fbcloak 任务前必须确认免责声明",
+		MsgFBCloakOutOfWindow:           "收件人超出支持的重激活窗口",
+		MsgFBCloakCustomerRepliedRecent: "已跳过:客户最近的回复时间晚于数据库快照",
+		MsgFBCloakNoConversation:        "与该收件人无会话历史",
+		MsgFBCloakGraphUnavailable:      "服务器未配置 API (≤7 天) 通道",
+		MsgFBCloakDisclaimerAcked:       "已确认免责声明",
 	})
 }

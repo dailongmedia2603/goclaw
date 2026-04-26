@@ -27,6 +27,12 @@ const (
 	EventDelegateCompleted EventType = "delegate.completed"
 	EventDelegateFailed    EventType = "delegate.failed"
 
+	// FBCloak browser-automation re-engagement (Standard edition).
+	EventFBCloakJobStarted   EventType = "fbcloak.job_started"
+	EventFBCloakJobCompleted EventType = "fbcloak.job_completed"
+	EventFBCloakSent         EventType = "fbcloak.sent"
+	EventFBCloakBlocked      EventType = "fbcloak.blocked"
+	EventFBCloakCheckpoint   EventType = "fbcloak.checkpoint"
 )
 
 // DomainEvent is a typed event with metadata for the consolidation pipeline.
@@ -125,6 +131,54 @@ type ContextPrunedPayload struct {
 	ResultsCleared int    // hard-cleared count
 	Compacted      bool
 	Trigger        string // "soft" | "hard" | "compact"
+}
+
+// FBCloakJobStartedPayload — emitted when a job starts a run cycle.
+type FBCloakJobStartedPayload struct {
+	JobID         string
+	CredentialID  string
+	FanpageID     string
+	Conversations int // resolver-supplied target count for this run
+	DryRun        bool
+}
+
+// FBCloakJobCompletedPayload — emitted at the end of every run regardless
+// of success. Subscribers gate alerting on Status (e.g. "fail" pages admin).
+type FBCloakJobCompletedPayload struct {
+	JobID    string
+	Sent     int
+	Skipped  int
+	Failed   int
+	Status   string // mirrors fbcloak.JobStatus
+	Duration time.Duration
+}
+
+// FBCloakSentPayload — emitted per successful send (sent only — dry_run
+// does NOT emit). Useful for external broadcast/audit pipelines.
+type FBCloakSentPayload struct {
+	JobID           string
+	SendLogID       string
+	ConversationID  string
+	RecipientPSID   string
+	LastInboundAt   time.Time
+}
+
+// FBCloakBlockedPayload — emitted when a send is skipped due to policy
+// (cooldown, daily cap, opt-out keyword) rather than a hard error.
+type FBCloakBlockedPayload struct {
+	JobID         string
+	RecipientPSID string
+	Reason        string
+}
+
+// FBCloakCheckpointPayload — emitted when the checkpoint detector trips
+// during a run. Subscribers should alert ops; the credential is
+// automatically marked status=checkpoint and the job aborted upstream.
+type FBCloakCheckpointPayload struct {
+	CredentialID   string
+	JobID          string
+	Kind           string // "security" | "captcha" | "login" | "suspended"
+	ScreenshotPath string // empty if capture failed
 }
 
 // VaultDocUpsertedPayload is emitted after a vault document is registered/updated.

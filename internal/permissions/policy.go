@@ -319,6 +319,17 @@ func isWriteMethod(method string) bool {
 		// Channel pairing starts (QR scan flows).
 		protocol.MethodZaloPersonalQRStart,
 		protocol.MethodWhatsAppQRStart,
+
+		// Facebook Messenger history backfill — mutations (jobs consume LLM
+		// tokens + Graph API quota). Method names are raw strings because
+		// fb_backfill is fork-only and lives outside pkg/protocol; importing
+		// internal/fbbackfill here would invert the dependency graph.
+		// Source of truth: internal/fbbackfill/rpc.go MethodStart/Pause/...
+		"fb_backfill.start",
+		"fb_backfill.pause",
+		"fb_backfill.resume",
+		"fb_backfill.cancel",
+		"fb_backfill.retry",
 	}
 	return slices.Contains(writeExact, method)
 }
@@ -414,6 +425,11 @@ func isReadMethod(method string) bool {
 
 		// Zalo personal contacts listing
 		protocol.MethodZaloPersonalContacts,
+
+		// Facebook Messenger history backfill — read-only inspectors.
+		// Raw strings (fork-only, see isWriteMethod note above).
+		"fb_backfill.status",
+		"fb_backfill.list",
 	}
 	return slices.Contains(readMethods, method)
 }

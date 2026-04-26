@@ -31,6 +31,7 @@ import {
   FileArchive,
   DatabaseBackup,
   Webhook,
+  MessagesSquare,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { SidebarGroup } from "./sidebar-group";
@@ -112,6 +113,9 @@ export function Sidebar({ collapsed, onNavItemClick }: SidebarProps) {
           )}
           <SidebarItem to={ROUTES.CRON} icon={Clock} label={t("nav.cron")} collapsed={collapsed} />
           <SidebarItem to={ROUTES.HOOKS} icon={Webhook} label={t("nav.hooks")} collapsed={collapsed} />
+          {isAdmin && (
+            <SidebarItem to={ROUTES.FBCLOAK} icon={MessagesSquare} label={t("nav.fbcloak")} collapsed={collapsed} />
+          )}
         </SidebarGroup>
 
         <SidebarGroup label={t("groups.data")} collapsed={collapsed}>
