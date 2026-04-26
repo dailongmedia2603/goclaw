@@ -18,17 +18,19 @@ type Edition struct {
 	RBACEnabled           bool           `json:"rbac_enabled"`
 	TeamFullMode          bool           `json:"team_full_mode"`          // false = lite task actions only
 	VectorSearch          bool           `json:"vector_search"`           // false = FTS5 only
+	FBCloakEnabled        bool           `json:"fbcloak_enabled"`         // true = browser-automation re-engagement available
 }
 
 // --- Presets ---
 
 // Standard is the default edition: all features enabled, no limits.
 var Standard = Edition{
-	Name:         "standard",
-	KGEnabled:    true,
-	RBACEnabled:  true,
-	TeamFullMode: true,
-	VectorSearch: true,
+	Name:           "standard",
+	KGEnabled:      true,
+	RBACEnabled:    true,
+	TeamFullMode:   true,
+	VectorSearch:   true,
+	FBCloakEnabled: true,
 }
 
 // Lite is the desktop/self-hosted edition with sensible limits.

@@ -123,6 +123,9 @@ const HooksPage = lazyWithRetry(() =>
 const TenantSelectorPage = lazyWithRetry(() =>
   import("@/pages/login/tenant-selector").then((m) => ({ default: m.TenantSelectorPage })),
 );
+const FBCloakPage = lazyWithRetry(() =>
+  import("@/pages/fbcloak/fbcloak-page").then((m) => ({ default: m.FBCloakPage })),
+);
 
 function PageLoader() {
   return (
@@ -180,6 +183,8 @@ export function AppRoutes() {
           <Route path={ROUTES.CRON_DETAIL} element={<CronPage key="detail" />} />
           <Route path={ROUTES.HOOKS} element={<HooksPage key="list" />} />
           <Route path={ROUTES.HOOK_DETAIL} element={<HooksPage key="detail" />} />
+          <Route path={ROUTES.FBCLOAK} element={<RequireAdmin><FBCloakPage /></RequireAdmin>} />
+          <Route path={ROUTES.FBCLOAK_TAB} element={<RequireAdmin><FBCloakPage /></RequireAdmin>} />
           {/* Admin-only pages */}
           <Route path={ROUTES.CONFIG} element={<RequireCrossTenant><ConfigPage /></RequireCrossTenant>} />
           <Route path={ROUTES.PROVIDERS} element={<RequireAdmin><ProvidersPage key="list" /></RequireAdmin>} />

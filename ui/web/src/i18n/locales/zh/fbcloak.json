@@ -1,0 +1,165 @@
+{
+  "title": "FBCloak 重新互动",
+  "description": "通过浏览器自动化对超过 7 天未互动的主页收件箱发起重新触达。",
+  "tabs": {
+    "credentials": "凭证",
+    "jobs": "任务",
+    "sendLog": "发送日志"
+  },
+  "killswitchActive": "Killswitch 已启用 — fbcloak 操作已禁用。",
+  "checkpointBanner": "至少一项凭证检测到风控关卡。请在下次运行前检查状态。",
+  "credentials": {
+    "title": "凭证",
+    "addButton": "新增凭证",
+    "empty": "暂无凭证。请添加主页 cookie 集合以开始。",
+    "columns": {
+      "fanpage": "主页",
+      "status": "状态",
+      "lastCheck": "上次检查",
+      "actions": "操作"
+    },
+    "test": "测试",
+    "testing": "测试中…",
+    "delete": "删除",
+    "confirmDelete": "确定删除该凭证?现有任务将失败,直到重新分配。",
+    "addDialog": {
+      "title": "新增凭证",
+      "fanpageId": "主页 ID",
+      "fanpageName": "主页名称",
+      "cookies": "Cookies (JSON)",
+      "cookiesPlaceholder": "[{\"name\":\"c_user\",\"value\":\"...\"},...]",
+      "proxyUrl": "代理 URL",
+      "proxyUrlPlaceholder": "socks5://user:pass@host:port (可选)",
+      "userAgent": "User agent",
+      "viewport": "视口",
+      "submit": "保存",
+      "cancel": "取消"
+    },
+    "status": {
+      "active": "活动",
+      "expired": "已过期",
+      "checkpoint": "风控",
+      "disabled": "已禁用"
+    }
+  },
+  "jobs": {
+    "title": "任务",
+    "newButton": "新建任务",
+    "empty": "暂无任务。创建任务以安排重新互动运行。",
+    "columns": {
+      "name": "名称",
+      "credential": "凭证",
+      "schedule": "调度",
+      "dryRun": "试运行",
+      "enabled": "启用",
+      "lastRun": "上次运行",
+      "actions": "操作"
+    },
+    "runNow": "立即运行",
+    "runNowConfirm": "立即运行此任务?将在 cron 调度之外执行,但仍遵守每日上限和工作时间。",
+    "running": "运行中…",
+    "delete": "删除",
+    "confirmDelete": "删除此任务及其发送日志?此操作不可撤销。",
+    "edit": "编辑",
+    "dryRunOn": "DRY",
+    "dryRunOff": "LIVE",
+    "dryRunOffWarning": "已关闭试运行。将发送真实消息。请确认已获用户同意。",
+    "lastStatus": {
+      "ok": "正常",
+      "partial": "部分",
+      "fail": "失败",
+      "killed": "已终止"
+    },
+    "edit_dialog": {
+      "createTitle": "创建任务",
+      "editTitle": "编辑任务",
+      "name": "名称",
+      "credential": "凭证",
+      "credentialPlaceholder": "选择凭证",
+      "cronExpr": "Cron 表达式",
+      "cronHint": "例如 \"0 9 * * *\" — 每天 09:00",
+      "minIdle": "最小空闲(天)",
+      "maxIdle": "最大空闲(天)",
+      "dailyCap": "每日上限",
+      "dailyCapHint": "每天最多发送数;服务端硬限 50。",
+      "workingHours": "工作时间",
+      "from": "从",
+      "to": "到",
+      "timezone": "时区",
+      "template": "消息模板",
+      "templatePlaceholder": "选择 SKILL.md 模板",
+      "useScannerFallback": "使用 DOM 收件箱扫描作为后备",
+      "scannerFallbackHint": "当 fbbackfill 数据无匹配时启用。较慢且易受页面变更影响。",
+      "dryRun": "试运行模式",
+      "dryRunHint": "默认开启。消息不会发送,仅记录。",
+      "enabled": "启用",
+      "enabledHint": "禁用任务不会运行。在确认免责声明后启用。",
+      "submit": "保存",
+      "cancel": "取消"
+    }
+  },
+  "sendLog": {
+    "title": "发送日志",
+    "empty": "暂无发送活动。",
+    "columns": {
+      "sentAt": "发送时间",
+      "job": "任务",
+      "recipient": "收件人",
+      "status": "状态",
+      "preview": "预览"
+    },
+    "filters": {
+      "job": "任务",
+      "status": "状态",
+      "fromDate": "起始",
+      "toDate": "结束",
+      "all": "全部",
+      "apply": "应用",
+      "clear": "清除"
+    },
+    "status": {
+      "sent": "已发送",
+      "dry_run": "试运行",
+      "skipped": "已跳过",
+      "failed": "失败"
+    },
+    "row": {
+      "openDetail": "查看",
+      "noScreenshot": "无截图"
+    },
+    "detail": {
+      "title": "发送详情",
+      "messageText": "消息内容",
+      "skipReason": "跳过原因",
+      "errorReason": "错误",
+      "screenshotPre": "发送前截图",
+      "screenshotPost": "发送后截图",
+      "close": "关闭"
+    }
+  },
+  "errors": {
+    "loadFailed": "加载失败:{{detail}}",
+    "saveFailed": "保存失败:{{detail}}",
+    "deleteFailed": "删除失败:{{detail}}",
+    "runNowFailed": "运行失败:{{detail}}"
+  },
+  "disclaimer": {
+    "title": "重新互动免责声明",
+    "intro": "FBCloak 浏览器自动化在 Meta 官方 API 之外运行。使用即表示您接受以下风险:",
+    "checkbox1": "我理解此功能可能违反 Meta 的服务条款。",
+    "checkbox2": "我理解我的主页可能被限制,管理员账号可能被锁定。",
+    "checkbox3": "我自愿承担使用责任,并已获得收件人同意。",
+    "ackedAt": "于 {{time}} 确认",
+    "ackedBy": "由 {{user}}",
+    "submit": "同意并启用",
+    "cancel": "取消",
+    "needAck": "确认免责声明后才能启用任务。",
+    "version": "版本 {{version}}"
+  },
+  "dualMode": {
+    "cloakOnly": "Cloak 浏览器",
+    "cloakReason": "最小空闲 > 7 天 — 走 Cloak 浏览器",
+    "graphReason": "≤ 7 天 — Graph API HUMAN_AGENT(已配置时)",
+    "outOfWindow": "> 6 个月 — 超出支持窗口"
+  }
+}

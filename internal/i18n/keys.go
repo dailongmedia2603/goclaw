@@ -235,4 +235,17 @@ const (
 	MsgTelegramPairingDM       = "channel.telegram.pairing.dm"
 	MsgTelegramPairingGroup    = "channel.telegram.pairing.group"
 	MsgTelegramPairingApproved = "channel.telegram.pairing.approved"
+
+	// --- FBCloak (browser-automation re-engagement, Standard edition only) ---
+	MsgFBCloakUnavailable          = "fbcloak.unavailable"           // "fbcloak is not available in this edition"
+	MsgFBCloakKillswitch           = "fbcloak.killswitch_active"     // "fbcloak is temporarily disabled (killswitch)"
+	MsgFBCloakInvalidProxy         = "fbcloak.invalid_proxy"         // "proxy URL must use socks5://, socks4://, http://, or https://"
+	MsgFBCloakCookieMissing        = "fbcloak.cookie_missing"        // "required Facebook cookies are missing: %v"
+	MsgFBCloakCheckpoint           = "fbcloak.checkpoint"            // "Facebook account is on a security checkpoint — manual intervention required"
+	MsgFBCloakDisclaimerRequired   = "fbcloak.disclaimer_required"   // "you must acknowledge the disclaimer before enabling jobs"
+	MsgFBCloakOutOfWindow          = "fbcloak.out_of_window"         // "recipient is outside the supported re-engagement window (>6 months)"
+	MsgFBCloakCustomerRepliedRecent = "fbcloak.customer_replied_recent" // "skipped: customer replied more recently than the database snapshot suggests"
+	MsgFBCloakNoConversation        = "fbcloak.no_conversation"         // "no conversation history with this recipient"
+	MsgFBCloakGraphUnavailable      = "fbcloak.graph_unavailable"       // "API path (≤7d) is not configured on this server"
+	MsgFBCloakDisclaimerAcked       = "fbcloak.disclaimer_acked"        // "disclaimer acknowledged"
 )

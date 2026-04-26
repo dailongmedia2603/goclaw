@@ -284,6 +284,23 @@ func (m *Manager) tenantBrowserLocked(tenantID string) (*rod.Browser, error) {
 	return incognito, nil
 }
 
+// NewIncognitoContext starts the manager (idempotent) and returns a fresh
+// incognito browser context owned by the caller. Used by fbcloak which
+// needs per-credential cookie isolation outside the regular tenant
+// pool. The caller is responsible for calling .Close() on the returned
+// browser when done.
+func (m *Manager) NewIncognitoContext(ctx context.Context) (*rod.Browser, error) {
+	if err := m.Start(ctx); err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.browser == nil {
+		return nil, fmt.Errorf("browser not running")
+	}
+	return m.browser.Incognito()
+}
+
 // Status returns current browser status.
 func (m *Manager) Status() *StatusInfo {
 	m.mu.Lock()

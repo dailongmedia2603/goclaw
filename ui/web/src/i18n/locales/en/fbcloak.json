@@ -1,0 +1,165 @@
+{
+  "title": "FBCloak Re-engagement",
+  "description": "Browser-automated re-engagement for fanpage inboxes older than 7 days.",
+  "tabs": {
+    "credentials": "Credentials",
+    "jobs": "Jobs",
+    "sendLog": "Send Log"
+  },
+  "killswitchActive": "Killswitch is active — fbcloak operations are disabled.",
+  "checkpointBanner": "A checkpoint was detected on at least one credential. Review status before next run.",
+  "credentials": {
+    "title": "Credentials",
+    "addButton": "Add credential",
+    "empty": "No credentials yet. Add a fanpage cookie set to get started.",
+    "columns": {
+      "fanpage": "Fanpage",
+      "status": "Status",
+      "lastCheck": "Last check",
+      "actions": "Actions"
+    },
+    "test": "Test",
+    "testing": "Testing…",
+    "delete": "Delete",
+    "confirmDelete": "Delete this credential? Existing jobs will fail until reassigned.",
+    "addDialog": {
+      "title": "Add credential",
+      "fanpageId": "Fanpage ID",
+      "fanpageName": "Fanpage name",
+      "cookies": "Cookies (JSON)",
+      "cookiesPlaceholder": "[{\"name\":\"c_user\",\"value\":\"...\"},...]",
+      "proxyUrl": "Proxy URL",
+      "proxyUrlPlaceholder": "socks5://user:pass@host:port (optional)",
+      "userAgent": "User agent",
+      "viewport": "Viewport",
+      "submit": "Save",
+      "cancel": "Cancel"
+    },
+    "status": {
+      "active": "Active",
+      "expired": "Expired",
+      "checkpoint": "Checkpoint",
+      "disabled": "Disabled"
+    }
+  },
+  "jobs": {
+    "title": "Jobs",
+    "newButton": "New job",
+    "empty": "No jobs configured. Create one to schedule re-engagement runs.",
+    "columns": {
+      "name": "Name",
+      "credential": "Credential",
+      "schedule": "Schedule",
+      "dryRun": "Dry-run",
+      "enabled": "Enabled",
+      "lastRun": "Last run",
+      "actions": "Actions"
+    },
+    "runNow": "Run now",
+    "runNowConfirm": "Run this job now? It will execute outside its cron schedule but still respects daily cap and working hours.",
+    "running": "Running…",
+    "delete": "Delete",
+    "confirmDelete": "Delete this job and its send log? This action cannot be undone.",
+    "edit": "Edit",
+    "dryRunOn": "DRY",
+    "dryRunOff": "LIVE",
+    "dryRunOffWarning": "Live mode is OFF dry-run. Real messages will be sent. Confirm you have the user's consent.",
+    "lastStatus": {
+      "ok": "OK",
+      "partial": "Partial",
+      "fail": "Failed",
+      "killed": "Killed"
+    },
+    "edit_dialog": {
+      "createTitle": "Create job",
+      "editTitle": "Edit job",
+      "name": "Name",
+      "credential": "Credential",
+      "credentialPlaceholder": "Select a credential",
+      "cronExpr": "Cron expression",
+      "cronHint": "e.g. \"0 9 * * *\" — every day at 09:00",
+      "minIdle": "Minimum idle (days)",
+      "maxIdle": "Maximum idle (days)",
+      "dailyCap": "Daily cap",
+      "dailyCapHint": "Max sends per day; hard-capped at 50 server-side.",
+      "workingHours": "Working hours",
+      "from": "From",
+      "to": "To",
+      "timezone": "Time zone",
+      "template": "Message template",
+      "templatePlaceholder": "Select a SKILL.md template",
+      "useScannerFallback": "Use DOM inbox scanner as fallback",
+      "scannerFallbackHint": "Fallback scanner runs when fbbackfill data has no matching targets. Slower, more brittle.",
+      "dryRun": "Dry-run mode",
+      "dryRunHint": "Default ON. Messages are NOT sent — only logged.",
+      "enabled": "Enabled",
+      "enabledHint": "Disabled jobs do not run. Enable after acknowledging the disclaimer.",
+      "submit": "Save",
+      "cancel": "Cancel"
+    }
+  },
+  "sendLog": {
+    "title": "Send Log",
+    "empty": "No send activity yet.",
+    "columns": {
+      "sentAt": "Sent at",
+      "job": "Job",
+      "recipient": "Recipient",
+      "status": "Status",
+      "preview": "Preview"
+    },
+    "filters": {
+      "job": "Job",
+      "status": "Status",
+      "fromDate": "From",
+      "toDate": "To",
+      "all": "All",
+      "apply": "Apply",
+      "clear": "Clear"
+    },
+    "status": {
+      "sent": "Sent",
+      "dry_run": "Dry-run",
+      "skipped": "Skipped",
+      "failed": "Failed"
+    },
+    "row": {
+      "openDetail": "View",
+      "noScreenshot": "No screenshot"
+    },
+    "detail": {
+      "title": "Send detail",
+      "messageText": "Message",
+      "skipReason": "Skip reason",
+      "errorReason": "Error",
+      "screenshotPre": "Pre-send screenshot",
+      "screenshotPost": "Post-send screenshot",
+      "close": "Close"
+    }
+  },
+  "errors": {
+    "loadFailed": "Failed to load: {{detail}}",
+    "saveFailed": "Save failed: {{detail}}",
+    "deleteFailed": "Delete failed: {{detail}}",
+    "runNowFailed": "Run failed: {{detail}}"
+  },
+  "disclaimer": {
+    "title": "Re-engagement disclaimer",
+    "intro": "FBCloak browser automation runs outside of Meta's official APIs. By using it, you accept the following risks:",
+    "checkbox1": "I understand this feature may violate Meta's Terms of Service.",
+    "checkbox2": "I understand my page may be restricted or my admin account may be locked.",
+    "checkbox3": "I will use this feature under my own responsibility and have the recipient's consent.",
+    "ackedAt": "Acknowledged at {{time}}",
+    "ackedBy": "by {{user}}",
+    "submit": "I agree, enable",
+    "cancel": "Cancel",
+    "needAck": "Acknowledge the disclaimer to enable jobs.",
+    "version": "Version {{version}}"
+  },
+  "dualMode": {
+    "cloakOnly": "Cloak browser",
+    "cloakReason": "min idle > 7 days — Cloak browser path",
+    "graphReason": "≤ 7 days — Graph API HUMAN_AGENT (when configured)",
+    "outOfWindow": "> 6 months — out of supported window"
+  }
+}

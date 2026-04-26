@@ -232,5 +232,18 @@ func init() {
 		MsgTelegramPairingDM:       "🔗 Tài khoản này chưa được ghép nối.\n\nMã ghép nối: %s\n\nChia sẻ mã này với chủ bot (%s) để được cấp quyền truy cập.",
 		MsgTelegramPairingGroup:    "🔗 Nhóm này chưa được ghép nối.\n\nMã ghép nối: %s\n\nChia sẻ mã này với chủ bot (%s) để được cấp quyền truy cập.",
 		MsgTelegramPairingApproved: "✅ Đã được phê duyệt truy cập %s. Hãy gửi tin nhắn để bắt đầu trò chuyện.",
+
+		// FBCloak (gửi tin chăm sóc qua browser automation)
+		MsgFBCloakUnavailable:           "tính năng này không khả dụng trong phiên bản hiện tại",
+		MsgFBCloakKillswitch:            "fbcloak tạm thời bị tắt — quản trị viên đã kích hoạt killswitch",
+		MsgFBCloakInvalidProxy:          "URL proxy phải bắt đầu bằng socks5://, socks4://, http://, hoặc https://",
+		MsgFBCloakCookieMissing:         "thiếu cookie Facebook bắt buộc: %v",
+		MsgFBCloakCheckpoint:            "tài khoản Facebook đang ở chế độ kiểm tra an ninh — cần xác thực lại",
+		MsgFBCloakDisclaimerRequired:    "bạn phải xác nhận điều khoản trước khi bật job fbcloak",
+		MsgFBCloakOutOfWindow:           "người nhận nằm ngoài cửa sổ chăm sóc được hỗ trợ",
+		MsgFBCloakCustomerRepliedRecent: "bỏ qua: khách hàng đã trả lời gần đây hơn so với dữ liệu trong DB",
+		MsgFBCloakNoConversation:        "không có lịch sử hội thoại với người nhận này",
+		MsgFBCloakGraphUnavailable:      "đường gửi API (≤7 ngày) chưa được cấu hình trên server",
+		MsgFBCloakDisclaimerAcked:       "đã xác nhận disclaimer",
 	})
 }
