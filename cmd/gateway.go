@@ -395,7 +395,7 @@ func runGateway() {
 
 	// FBCloak (browser-automation re-engagement) — Standard edition only.
 	// No-op stub on sqliteonly Lite builds (see gateway_fbcloak_lite.go).
-	wireFBCloak(server, pgStores, cfg, domainBus)
+	wireFBCloak(server, pgStores, cfg, domainBus, providerRegistry)
 
 	// Phase 3: Agent hooks RPC methods (hooks.list/create/update/delete/toggle/test/history).
 	if hs, ok := pgStores.Hooks.(hooks.HookStore); ok && hs != nil {

@@ -46,6 +46,50 @@ type FBCloakConfig struct {
 	// MaxConcurrent caps how many job runs may be in-flight across the
 	// process. 0 → 5. Per-credential serialisation is independent of this.
 	MaxConcurrent int `json:"max_concurrent,omitempty"`
+
+	// Orchestrator: Phase 5 Plan-Based Brain Mode. Default disabled — the
+	// 4 cron tickers (Generator, Executor, Replan, Cleanup) only start when
+	// Enabled=true. Provider is resolved via the existing background-provider
+	// chain (background.provider system_config / agent default / first
+	// registered) — fbcloak does not own provider selection.
+	Orchestrator FBCloakOrchestratorConfig `json:"orchestrator,omitempty"`
+}
+
+// FBCloakOrchestratorConfig configures the Phase 5 Plan-Based engagement
+// orchestrator. All zero-values are safe defaults; the only field operators
+// must consciously flip is Enabled.
+type FBCloakOrchestratorConfig struct {
+	// Enabled gates all 4 Phase-5 cron tickers (Generator, Executor, Replan,
+	// Cleanup). Default false — admin flips to true in System Settings only
+	// after verifying provider/cookies via the UI's "Generate now" button.
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Model overrides the LLM model. Empty → provider's DefaultModel().
+	// Honoured only when the resolved background provider supports the model.
+	Model string `json:"model,omitempty"`
+
+	// TickIntervalSec controls how often Generator polls credentials.
+	// 0 → 7 days (DefaultPlanGeneratorTick). Set to 60 in dev to iterate fast.
+	TickIntervalSec int `json:"tick_interval_sec,omitempty"`
+
+	// ExecutorTickMin is the Plan Executor poll interval in minutes.
+	// 0 → 60. Lowering speeds up due-plan delivery at the cost of more PG
+	// reads; raise for very low-volume tenants.
+	ExecutorTickMin int `json:"executor_tick_min,omitempty"`
+
+	// MaxConcurrent caps Generator parallelism. 0 → 5. Independent from
+	// FBCloakConfig.MaxConcurrent (which caps Executor + JobRunner via the
+	// shared semaphore).
+	MaxConcurrent int `json:"max_concurrent,omitempty"`
+
+	// BatchSize is the per-tick chunk Generator processes for each credential.
+	// 0 → 50. Larger batches amortise the system-prompt cache better.
+	BatchSize int `json:"batch_size,omitempty"`
+
+	// MinIdleHours / MaxIdleHours bound the recipient idle window in hours.
+	// 0 → defaults (168h / 4320h, i.e. 7 days / 180 days).
+	MinIdleHours int `json:"min_idle_hours,omitempty"`
+	MaxIdleHours int `json:"max_idle_hours,omitempty"`
 }
 
 type TelegramConfig struct {
