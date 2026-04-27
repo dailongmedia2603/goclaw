@@ -141,7 +141,8 @@
     "loadFailed": "Tải thất bại: {{detail}}",
     "saveFailed": "Lưu thất bại: {{detail}}",
     "deleteFailed": "Xóa thất bại: {{detail}}",
-    "runNowFailed": "Chạy thất bại: {{detail}}"
+    "runNowFailed": "Chạy thất bại: {{detail}}",
+    "testFailed": "Kiểm tra thất bại: {{detail}}"
   },
   "disclaimer": {
     "title": "Cam kết sử dụng tính năng re-engagement",

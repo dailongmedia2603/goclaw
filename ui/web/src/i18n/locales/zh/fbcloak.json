@@ -141,7 +141,8 @@
     "loadFailed": "加载失败:{{detail}}",
     "saveFailed": "保存失败:{{detail}}",
     "deleteFailed": "删除失败:{{detail}}",
-    "runNowFailed": "运行失败:{{detail}}"
+    "runNowFailed": "运行失败:{{detail}}",
+    "testFailed": "测试失败:{{detail}}"
   },
   "disclaimer": {
     "title": "重新互动免责声明",

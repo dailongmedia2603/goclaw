@@ -141,7 +141,8 @@
     "loadFailed": "Failed to load: {{detail}}",
     "saveFailed": "Save failed: {{detail}}",
     "deleteFailed": "Delete failed: {{detail}}",
-    "runNowFailed": "Run failed: {{detail}}"
+    "runNowFailed": "Run failed: {{detail}}",
+    "testFailed": "Test failed: {{detail}}"
   },
   "disclaimer": {
     "title": "Re-engagement disclaimer",

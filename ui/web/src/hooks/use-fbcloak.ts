@@ -135,10 +135,16 @@ export function useTestCredential() {
         );
       }
     },
-    onError: (err) =>
+    onError: (err) => {
+      const detail = err instanceof Error ? err.message : String(err);
+      console.error("[fbcloak.credentials.test] failed:", err);
       toast.error(
-        i18next.t("fbcloak:errors.testFailed", { detail: err instanceof Error ? err.message : "" }),
-      ),
+        i18next.t("fbcloak:errors.testFailed", {
+          detail,
+          defaultValue: `Kiểm tra thất bại: ${detail}`,
+        }),
+      );
+    },
   });
 }
 
