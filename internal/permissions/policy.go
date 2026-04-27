@@ -280,6 +280,25 @@ func isAdminMethod(method string) bool {
 		protocol.MethodTTSEnable,
 		protocol.MethodTTSDisable,
 		protocol.MethodTTSSetProvider,
+
+		// FBCloak — every RPC is admin-gated per plan
+		// (plans/fbcloak-reengagement/README.md: "Mọi RPC requireTenantAdmin").
+		// Handler-level canSeeAll() check is defense-in-depth on top of this.
+		protocol.MethodFBCloakCredentialsList,
+		protocol.MethodFBCloakCredentialsAdd,
+		protocol.MethodFBCloakCredentialsTest,
+		protocol.MethodFBCloakCredentialsDelete,
+		protocol.MethodFBCloakJobsList,
+		protocol.MethodFBCloakJobsCreate,
+		protocol.MethodFBCloakJobsUpdate,
+		protocol.MethodFBCloakJobsToggle,
+		protocol.MethodFBCloakJobsDelete,
+		protocol.MethodFBCloakJobsRunNow,
+		protocol.MethodFBCloakLogList,
+		protocol.MethodFBCloakLogScreenshot,
+		protocol.MethodFBCloakSendProactive,
+		protocol.MethodFBCloakDisclaimerStatus,
+		protocol.MethodFBCloakDisclaimerAck,
 	}
 	return slices.Contains(adminMethods, method)
 }

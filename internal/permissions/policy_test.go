@@ -354,6 +354,33 @@ func TestMethodRole_FBBackfill(t *testing.T) {
 	}
 }
 
+func TestMethodRole_FBCloak(t *testing.T) {
+	// Plan principle: every FBCloak RPC is admin-gated. Handler-level
+	// canSeeAll() check is defense-in-depth on top of policy classification.
+	adminMethods := []string{
+		protocol.MethodFBCloakCredentialsList,
+		protocol.MethodFBCloakCredentialsAdd,
+		protocol.MethodFBCloakCredentialsTest,
+		protocol.MethodFBCloakCredentialsDelete,
+		protocol.MethodFBCloakJobsList,
+		protocol.MethodFBCloakJobsCreate,
+		protocol.MethodFBCloakJobsUpdate,
+		protocol.MethodFBCloakJobsToggle,
+		protocol.MethodFBCloakJobsDelete,
+		protocol.MethodFBCloakJobsRunNow,
+		protocol.MethodFBCloakLogList,
+		protocol.MethodFBCloakLogScreenshot,
+		protocol.MethodFBCloakSendProactive,
+		protocol.MethodFBCloakDisclaimerStatus,
+		protocol.MethodFBCloakDisclaimerAck,
+	}
+	for _, m := range adminMethods {
+		if got := MethodRole(m); got != RoleAdmin {
+			t.Fatalf("%s must be RoleAdmin; got %q", m, got)
+		}
+	}
+}
+
 // --- Drift coverage: parses pkg/protocol/methods.go at test time, enumerates
 // every const Method* = "...", and asserts none resolve to RoleNone. New RPCs
 // added without a matching allowlist entry will be caught here before shipping
