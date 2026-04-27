@@ -193,6 +193,18 @@ func respondServiceError(client *gateway.Client, reqID string, ctx context.Conte
 	case errors.Is(err, fbcloak.ErrCheckpoint):
 		client.SendResponse(protocol.NewErrorResponse(reqID, protocol.ErrFailedPrecondition,
 			i18n.T(locale, i18n.MsgFBCloakCheckpoint)))
+	case errors.Is(err, fbcloak.ErrPlanNotFound):
+		client.SendResponse(protocol.NewErrorResponse(reqID, protocol.ErrNotFound,
+			i18n.T(locale, i18n.MsgNotFound, "plan", op)))
+	case errors.Is(err, fbcloak.ErrActiveConflict):
+		client.SendResponse(protocol.NewErrorResponse(reqID, protocol.ErrFailedPrecondition,
+			i18n.T(locale, i18n.MsgFBCloakPlanActiveConflict)))
+	case errors.Is(err, fbcloak.ErrScheduleTooFar):
+		client.SendResponse(protocol.NewErrorResponse(reqID, protocol.ErrInvalidRequest,
+			i18n.T(locale, i18n.MsgFBCloakPlanScheduleTooFar)))
+	case errors.Is(err, fbcloak.ErrPlanTerminal):
+		client.SendResponse(protocol.NewErrorResponse(reqID, protocol.ErrFailedPrecondition,
+			i18n.T(locale, i18n.MsgFBCloakPlanTerminal)))
 	default:
 		client.SendResponse(protocol.NewErrorResponse(reqID, protocol.ErrInternal,
 			i18n.T(locale, i18n.MsgInternalError, err.Error())))

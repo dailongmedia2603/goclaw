@@ -4,9 +4,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/shared/page-header";
 import { CredentialsTab } from "./credentials-tab";
 import { JobsTab } from "./jobs-tab";
+import { PlansTab } from "./plans-tab";
 import { SendLogTab } from "./send-log-tab";
 
-const VALID_TABS = ["credentials", "jobs", "log"] as const;
+const VALID_TABS = ["credentials", "jobs", "plans", "log"] as const;
 type FbcloakTab = (typeof VALID_TABS)[number];
 
 function isValidTab(v: string | undefined): v is FbcloakTab {
@@ -31,6 +32,7 @@ export function FBCloakPage() {
         <TabsList className="overflow-x-auto">
           <TabsTrigger value="credentials">{t("tabs.credentials")}</TabsTrigger>
           <TabsTrigger value="jobs">{t("tabs.jobs")}</TabsTrigger>
+          <TabsTrigger value="plans">{t("tabs.plans")}</TabsTrigger>
           <TabsTrigger value="log">{t("tabs.sendLog")}</TabsTrigger>
         </TabsList>
 
@@ -39,6 +41,9 @@ export function FBCloakPage() {
         </TabsContent>
         <TabsContent value="jobs">
           <JobsTab />
+        </TabsContent>
+        <TabsContent value="plans">
+          <PlansTab />
         </TabsContent>
         <TabsContent value="log">
           <SendLogTab />

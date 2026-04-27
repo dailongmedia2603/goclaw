@@ -81,7 +81,164 @@ const QK = {
   credentials: ["fbcloak", "credentials"] as const,
   jobs: ["fbcloak", "jobs"] as const,
   log: (filters: Record<string, unknown>) => ["fbcloak", "log", filters] as const,
+  plans: (filters: Record<string, unknown>) => ["fbcloak", "plans", filters] as const,
+  planStats: ["fbcloak", "plans", "stats"] as const,
 };
+
+// --- Plans (Phase 5) ---
+
+export interface FBCloakPlan {
+  id: string;
+  tenantId: string;
+  credentialId: string;
+  psid: string;
+  conversationId?: string;
+  recipientName?: string;
+  status: "pending" | "sent" | "superseded" | "cancelled" | "replan_needed" | "skipped";
+  scheduledAt: string;
+  messageDraft: string;
+  reason: string;
+  skipReason?: string;
+  generatedByModel?: string;
+  generatedAt: string;
+  summaryVersion: number;
+  sentAt?: string;
+  sendLogId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FBCloakPlanStats {
+  pending: number;
+  sent: number;
+  replanNeeded: number;
+  skipped: number;
+  cancelled: number;
+  superseded: number;
+  total: number;
+}
+
+export interface ListPlansFilter {
+  status?: string[];
+  credentialId?: string;
+  psid?: string;
+  scheduledAfter?: string;
+  scheduledBefore?: string;
+  limit?: number;
+  offset?: number;
+  [k: string]: unknown;
+}
+
+export function useListPlans(filters: ListPlansFilter = {}) {
+  const ws = useWs();
+  const connected = useAuthStore((s) => s.connected);
+  return useQuery({
+    queryKey: QK.plans(filters as Record<string, unknown>),
+    queryFn: () => ws.call<{ plans: FBCloakPlan[]; total: number }>("fbcloak.plans.list", filters),
+    enabled: connected,
+    staleTime: 15_000,
+  });
+}
+
+export function useGetPlan(id: string | null) {
+  const ws = useWs();
+  const connected = useAuthStore((s) => s.connected);
+  return useQuery({
+    queryKey: ["fbcloak", "plans", "get", id ?? ""],
+    queryFn: () => ws.call<{ plan: FBCloakPlan }>("fbcloak.plans.get", { id }),
+    enabled: connected && !!id,
+  });
+}
+
+export function usePlanStats() {
+  const ws = useWs();
+  const connected = useAuthStore((s) => s.connected);
+  return useQuery({
+    queryKey: QK.planStats,
+    queryFn: () => ws.call<{ stats: FBCloakPlanStats }>("fbcloak.plans.stats", {}),
+    enabled: connected,
+    staleTime: 30_000,
+  });
+}
+
+export function useGenerateNow() {
+  const ws = useWs();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (credentialId: string) =>
+      ws.call<{ created: number; skipped: number; errors: number }>(
+        "fbcloak.plans.generate-now",
+        { credentialId },
+      ),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["fbcloak", "plans"] });
+      toast.success(
+        i18next.t("fbcloak:plans.generated", {
+          created: res.created,
+          skipped: res.skipped,
+          errors: res.errors,
+          defaultValue: `Đã tạo ${res.created} kế hoạch (bỏ qua ${res.skipped}, lỗi ${res.errors})`,
+        }),
+      );
+    },
+    onError: (err) => {
+      const detail = err instanceof Error ? err.message : String(err);
+      console.error("[fbcloak.plans.generate-now] failed:", err);
+      toast.error(
+        i18next.t("fbcloak:errors2.generateFailed", {
+          detail,
+          defaultValue: `Tạo plan thất bại: ${detail}`,
+        }),
+      );
+    },
+  });
+}
+
+export function useCancelPlan() {
+  const ws = useWs();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => ws.call<{ ok: boolean }>("fbcloak.plans.cancel", { id }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["fbcloak", "plans"] });
+    },
+    onError: (err) => {
+      const detail = err instanceof Error ? err.message : String(err);
+      toast.error(
+        i18next.t("fbcloak:errors2.cancelFailed", {
+          detail,
+          defaultValue: `Hủy thất bại: ${detail}`,
+        }),
+      );
+    },
+  });
+}
+
+export function useRunDuePlans() {
+  const ws = useWs();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => ws.call<{ executed: number }>("fbcloak.plans.run-due", {}),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["fbcloak", "plans"] });
+      toast.success(
+        i18next.t("fbcloak:plans.ranDue", {
+          executed: res.executed,
+          defaultValue: `Đã thực thi ${res.executed} plan`,
+        }),
+      );
+    },
+    onError: (err) => {
+      const detail = err instanceof Error ? err.message : String(err);
+      toast.error(
+        i18next.t("fbcloak:errors2.runDueFailed", {
+          detail,
+          defaultValue: `Chạy plan thất bại: ${detail}`,
+        }),
+      );
+    },
+  });
+}
 
 // --- Credentials ---
 

@@ -4,6 +4,7 @@
   "tabs": {
     "credentials": "Credentials",
     "jobs": "Jobs",
+    "plans": "Kế hoạch (AI)",
     "sendLog": "Send Log"
   },
   "killswitchActive": "Killswitch đang bật — mọi thao tác fbcloak đã bị vô hiệu hóa.",
@@ -162,5 +163,68 @@
     "cloakReason": "idle tối thiểu > 7 ngày — đường Cloak browser",
     "graphReason": "≤ 7 ngày — Graph API HUMAN_AGENT (khi đã cấu hình)",
     "outOfWindow": "> 6 tháng — ngoài cửa sổ hỗ trợ"
+  },
+  "plans": {
+    "title": "Kế hoạch chăm sóc (AI)",
+    "description": "AI đọc lịch sử hội thoại từng khách → quyết định gửi tin chăm sóc khi nào, nội dung gì.",
+    "loading": "Đang tải kế hoạch...",
+    "empty": "Chưa có kế hoạch nào. Bấm 'Tạo plan ngay' để bắt đầu.",
+    "filters": {
+      "credential": "Fanpage",
+      "allCredentials": "Tất cả fanpage",
+      "status": "Trạng thái",
+      "allStatus": "Tất cả trạng thái"
+    },
+    "status": {
+      "pending": "Chờ gửi",
+      "sent": "Đã gửi",
+      "replanNeeded": "Cần lập lại",
+      "skipped": "Bỏ qua",
+      "cancelled": "Đã hủy",
+      "superseded": "Đã thay thế"
+    },
+    "cols": {
+      "recipient": "Khách hàng",
+      "scheduledAt": "Lịch gửi",
+      "status": "Trạng thái",
+      "message": "Nội dung",
+      "actions": "Thao tác"
+    },
+    "actions": {
+      "generateNow": "Tạo plan ngay",
+      "generating": "Đang tạo...",
+      "runDue": "Chạy plan đến hạn",
+      "cancel": "Hủy",
+      "viewDetail": "Xem chi tiết"
+    },
+    "detail": {
+      "title": "Chi tiết kế hoạch",
+      "recipientLabel": "Khách hàng",
+      "scheduledLabel": "Lịch gửi",
+      "messageLabel": "Nội dung tin",
+      "reasonLabel": "Lý do (AI)",
+      "modelLabel": "Model",
+      "generatedAtLabel": "Tạo lúc",
+      "sentAtLabel": "Đã gửi lúc",
+      "skipReasonLabel": "Lý do bỏ qua"
+    },
+    "stats": {
+      "pending": "Chờ gửi",
+      "sent": "Đã gửi",
+      "replanNeeded": "Cần lập lại",
+      "skipped": "Bỏ qua",
+      "cancelled": "Đã hủy"
+    },
+    "confirmGenerate": "Tạo kế hoạch chăm sóc ngay cho fanpage này? Hành động này tốn token LLM.",
+    "confirmCancel": "Hủy kế hoạch này? Không thể khôi phục.",
+    "confirmRunDue": "Chạy ngay tất cả plan đến hạn? Sẽ gửi tin nhắn THẬT đến khách (KHÔNG dry-run).",
+    "generated": "Đã tạo {{created}} kế hoạch (bỏ qua {{skipped}}, lỗi {{errors}})",
+    "ranDue": "Đã thực thi {{executed}} plan",
+    "credentialRequired": "Chọn fanpage trước khi tạo plan"
+  },
+  "errors2": {
+    "generateFailed": "Tạo plan thất bại: {{detail}}",
+    "runDueFailed": "Chạy plan thất bại: {{detail}}",
+    "cancelFailed": "Hủy thất bại: {{detail}}"
   }
 }
