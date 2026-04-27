@@ -245,5 +245,17 @@ func init() {
 		MsgFBCloakNoConversation:        "与该收件人无会话历史",
 		MsgFBCloakGraphUnavailable:      "服务器未配置 API (≤7 天) 通道",
 		MsgFBCloakDisclaimerAcked:       "已确认免责声明",
+		MsgFBCloakPlanGenerated:         "已生成 %v 个互动计划",
+		MsgFBCloakPlanCancelled:         "计划已取消",
+		MsgFBCloakPlanGenerating:        "正在生成计划...",
+		MsgFBCloakPlanModelMissing:      "未配置后台 LLM 提供商。请在系统设置中设置。",
+		MsgFBCloakPlanLLMError:          "LLM 错误: %v",
+		MsgFBCloakPlanNoSummary:         "此联系人没有 fbbackfill 数据",
+		MsgFBCloakPlanSkippedByLLM:      "LLM 决定不发送: %v",
+		MsgFBCloakPlanCustomerOptOut:    "客户已退订",
+		MsgFBCloakPlanInvalidJSON:       "LLM 返回的 JSON 无效",
+		MsgFBCloakPlanScheduleTooFar:    "计划时间太远 (>90 天)",
+		MsgFBCloakPlanActiveConflict:    "此收件人已有活跃计划",
+		MsgFBCloakPlanTerminal:          "计划处于终止状态，无法转换",
 	})
 }

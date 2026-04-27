@@ -299,6 +299,14 @@ func isAdminMethod(method string) bool {
 		protocol.MethodFBCloakSendProactive,
 		protocol.MethodFBCloakDisclaimerStatus,
 		protocol.MethodFBCloakDisclaimerAck,
+
+		// FBCloak Phase 5 plan-based orchestrator — admin only.
+		protocol.MethodFBCloakPlansList,
+		protocol.MethodFBCloakPlansGet,
+		protocol.MethodFBCloakPlansGenerateNow,
+		protocol.MethodFBCloakPlansCancel,
+		protocol.MethodFBCloakPlansRunDue,
+		protocol.MethodFBCloakPlansStats,
 	}
 	return slices.Contains(adminMethods, method)
 }

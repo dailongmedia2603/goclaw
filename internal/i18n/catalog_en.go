@@ -245,5 +245,17 @@ func init() {
 		MsgFBCloakNoConversation:        "no conversation history with this recipient",
 		MsgFBCloakGraphUnavailable:      "API path (≤7d) is not configured on this server",
 		MsgFBCloakDisclaimerAcked:       "disclaimer acknowledged",
+		MsgFBCloakPlanGenerated:         "Generated %v engagement plans",
+		MsgFBCloakPlanCancelled:         "Plan cancelled",
+		MsgFBCloakPlanGenerating:        "Generating plans...",
+		MsgFBCloakPlanModelMissing:      "No background LLM provider configured. Set one in System Settings.",
+		MsgFBCloakPlanLLMError:          "LLM error: %v",
+		MsgFBCloakPlanNoSummary:         "No fbbackfill data for this recipient",
+		MsgFBCloakPlanSkippedByLLM:      "LLM decided not to send: %v",
+		MsgFBCloakPlanCustomerOptOut:    "Customer has opted out",
+		MsgFBCloakPlanInvalidJSON:       "LLM returned invalid JSON",
+		MsgFBCloakPlanScheduleTooFar:    "Schedule too far in the future (>90 days)",
+		MsgFBCloakPlanActiveConflict:    "An active plan already exists for this recipient",
+		MsgFBCloakPlanTerminal:          "Plan is in terminal state, cannot transition",
 	})
 }
