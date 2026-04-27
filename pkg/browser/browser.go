@@ -298,7 +298,14 @@ func (m *Manager) NewIncognitoContext(ctx context.Context) (*rod.Browser, error)
 	if m.browser == nil {
 		return nil, fmt.Errorf("browser not running")
 	}
-	return m.browser.Incognito()
+	// Rebind to the caller's ctx before calling Incognito.
+	// Start() uses an internal connectCtx (context.WithTimeout 15s) and
+	// `defer connectCancel()` runs when Start returns — so m.browser holds
+	// an already-canceled ctx by the time we reach this line. Calling
+	// m.browser.Incognito() directly therefore fails with "context canceled".
+	// Browser.Context returns a clone over the same CDP connection but
+	// uses ctx for all subsequent operations.
+	return m.browser.Context(ctx).Incognito()
 }
 
 // Status returns current browser status.
