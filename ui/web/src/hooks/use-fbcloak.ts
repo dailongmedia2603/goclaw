@@ -126,7 +126,19 @@ export function useTestCredential() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => ws.call<{ result: { ok: boolean; status: string } }>("fbcloak.credentials.test", { id }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: QK.credentials }),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: QK.credentials });
+      const status = res?.result?.status;
+      if (status && status !== "active") {
+        toast.error(
+          i18next.t("fbcloak:errors.testFailed", { detail: status, defaultValue: `Kiểm tra: ${status}` }),
+        );
+      }
+    },
+    onError: (err) =>
+      toast.error(
+        i18next.t("fbcloak:errors.testFailed", { detail: err instanceof Error ? err.message : "" }),
+      ),
   });
 }
 
