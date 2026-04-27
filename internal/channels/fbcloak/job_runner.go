@@ -359,6 +359,22 @@ func (r *JobRunnerImpl) credentialMutex(id uuid.UUID) *sync.Mutex {
 	return v.(*sync.Mutex)
 }
 
+// CredentialLockMap exposes the per-credential mutex map so other workers
+// (e.g. fbcloak.PlanExecutor in Phase 5) can serialise their sends with
+// JobRunner's. WITHOUT this share, two browser sessions for the same
+// credential can run simultaneously, which makes Meta's anti-bot signal
+// trip much faster.
+func (r *JobRunnerImpl) CredentialLockMap() *sync.Map {
+	return &r.credLock
+}
+
+// Semaphore exposes the shared concurrency-cap channel. Callers MUST NOT
+// close it. Returns nil before Start() runs — wiring code should call
+// Start() first.
+func (r *JobRunnerImpl) Semaphore() chan struct{} {
+	return r.sem
+}
+
 // computeNextRun parses the cron expression and returns the next firing time.
 // On parse failure, defers ~1 hour so the runner doesn't hot-loop a bad job.
 func (r *JobRunnerImpl) computeNextRun(j Job) time.Time {

@@ -4,6 +4,7 @@
   "tabs": {
     "credentials": "Credentials",
     "jobs": "Jobs",
+    "plans": "Plans (AI)",
     "sendLog": "Send Log"
   },
   "killswitchActive": "Killswitch is active — fbcloak operations are disabled.",
@@ -162,5 +163,68 @@
     "cloakReason": "min idle > 7 days — Cloak browser path",
     "graphReason": "≤ 7 days — Graph API HUMAN_AGENT (when configured)",
     "outOfWindow": "> 6 months — out of supported window"
+  },
+  "plans": {
+    "title": "Engagement plans (AI)",
+    "description": "AI reads each customer's chat history → decides if and when to send a care message and what to say.",
+    "loading": "Loading plans...",
+    "empty": "No plans yet. Click 'Generate now' to start.",
+    "filters": {
+      "credential": "Fanpage",
+      "allCredentials": "All fanpages",
+      "status": "Status",
+      "allStatus": "All statuses"
+    },
+    "status": {
+      "pending": "Pending",
+      "sent": "Sent",
+      "replanNeeded": "Replan needed",
+      "skipped": "Skipped",
+      "cancelled": "Cancelled",
+      "superseded": "Superseded"
+    },
+    "cols": {
+      "recipient": "Recipient",
+      "scheduledAt": "Scheduled at",
+      "status": "Status",
+      "message": "Message",
+      "actions": "Actions"
+    },
+    "actions": {
+      "generateNow": "Generate now",
+      "generating": "Generating...",
+      "runDue": "Run due plans",
+      "cancel": "Cancel",
+      "viewDetail": "View detail"
+    },
+    "detail": {
+      "title": "Plan detail",
+      "recipientLabel": "Recipient",
+      "scheduledLabel": "Scheduled at",
+      "messageLabel": "Message",
+      "reasonLabel": "AI reason",
+      "modelLabel": "Model",
+      "generatedAtLabel": "Generated at",
+      "sentAtLabel": "Sent at",
+      "skipReasonLabel": "Skip reason"
+    },
+    "stats": {
+      "pending": "Pending",
+      "sent": "Sent",
+      "replanNeeded": "Replan needed",
+      "skipped": "Skipped",
+      "cancelled": "Cancelled"
+    },
+    "confirmGenerate": "Generate plans for this fanpage now? This consumes LLM tokens.",
+    "confirmCancel": "Cancel this plan? Cannot be undone.",
+    "confirmRunDue": "Run all due plans now? Real messages will be sent (NOT dry-run).",
+    "generated": "Generated {{created}} plans (skipped {{skipped}}, errors {{errors}})",
+    "ranDue": "Executed {{executed}} plans",
+    "credentialRequired": "Pick a fanpage before generating"
+  },
+  "errors2": {
+    "generateFailed": "Generate failed: {{detail}}",
+    "runDueFailed": "Run due failed: {{detail}}",
+    "cancelFailed": "Cancel failed: {{detail}}"
   }
 }

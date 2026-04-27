@@ -18,6 +18,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway/methods"
+	"github.com/nextlevelbuilder/goclaw/internal/providers"
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 	"github.com/nextlevelbuilder/goclaw/internal/store/pg"
 	"github.com/nextlevelbuilder/goclaw/pkg/browser"
@@ -33,7 +34,7 @@ import (
 //
 // Short-circuits when the edition has FBCloakEnabled=false (typically Lite,
 // where this file is replaced by the no-op stub via build tags).
-func wireFBCloak(server *gateway.Server, pgStores *store.Stores, cfg *config.Config, domainBus eventbus.DomainEventBus) {
+func wireFBCloak(server *gateway.Server, pgStores *store.Stores, cfg *config.Config, domainBus eventbus.DomainEventBus, providerRegistry *providers.Registry) {
 	if !edition.Current().FBCloakEnabled {
 		slog.Info("fbcloak: feature disabled by edition; skipping wire")
 		return
@@ -177,11 +178,136 @@ func wireFBCloak(server *gateway.Server, pgStores *store.Stores, cfg *config.Con
 	phase4 := methods.NewFBCloakPhase4Methods(svc, router, cfg)
 	phase4.Register(server.Router())
 
-	slog.Info("fbcloak: registered RPC handlers (Phase 1-4)",
+	// Phase 5: Plan-Based Brain Mode wiring. Default disabled — admin
+	// flips the config flag after verifying provider/cookies in the UI.
+	var planGen *fbcloak.PlanGenerator
+	var planExec *fbcloak.PlanExecutor
+	planStore := pg.NewPGFBCloakPlanStore(pgStores.DB)
+	svc.SetPlanStore(planStore)
+
+	if cfg.Channels.FBCloak.Orchestrator.Enabled {
+		bgProvider, bgModel := resolveBackgroundProvider(cfg, providerRegistry)
+		if bgProvider == nil {
+			slog.Warn("fbcloak.orchestrator: no background LLM provider configured; Plan-Based Mode disabled. Set background.provider via System Settings.")
+		} else {
+			activeCreds := pg.NewFBCloakActiveCredsLister(pgStores.DB, encKey)
+			episodicSrc := pg.NewPGFBCloakEpisodicSource(pgStores.DB)
+			planLLM := fbcloak.NewPlanLLM(bgProvider)
+
+			tickInterval := time.Duration(cfg.Channels.FBCloak.Orchestrator.TickIntervalSec) * time.Second
+			if tickInterval == 0 {
+				tickInterval = fbcloak.DefaultPlanGeneratorTick
+			}
+			planGen = &fbcloak.PlanGenerator{
+				Plans:           planStore,
+				Credentials:     credStore,
+				ActiveCredsList: activeCreds,
+				Episodic:        episodicSrc,
+				LLM:             planLLM,
+				Logger:          slog.Default(),
+				Model:           cfg.Channels.FBCloak.Orchestrator.Model,
+				TickInterval:    tickInterval,
+				MaxConcurrent:   cfg.Channels.FBCloak.Orchestrator.MaxConcurrent,
+				BatchSize:       cfg.Channels.FBCloak.Orchestrator.BatchSize,
+				MinIdle:         time.Duration(cfg.Channels.FBCloak.Orchestrator.MinIdleHours) * time.Hour,
+				MaxIdle:         time.Duration(cfg.Channels.FBCloak.Orchestrator.MaxIdleHours) * time.Hour,
+				Killswitch:      svc.KillswitchFlag(),
+			}
+			if planGen.Model == "" {
+				planGen.Model = bgModel
+			}
+			if startErr := planGen.Start(context.Background()); startErr != nil {
+				slog.Warn("fbcloak.plan_gen.start_failed", "err", startErr)
+				planGen = nil
+			}
+
+			// SendExecutor: same wiring as JobRunner uses internally — Policy,
+			// Verify, Log all share the existing Phase-2 instances so Plan
+			// sends count toward the same daily cap and cooldown windows.
+			sendExec := &fbcloak.SendExecutor{
+				Policy:    policy,
+				Verify:    fbcloak.VerifyLastMessage,
+				Humanizer: humanizer,
+				Log:       jobStore,
+				Events:    events,
+			}
+
+			// Executor — share Sem + CredLock with JobRunner so two
+			// browser sessions never hit the same credential.
+			execTickMin := cfg.Channels.FBCloak.Orchestrator.ExecutorTickMin
+			if execTickMin <= 0 {
+				execTickMin = 60
+			}
+			planExec = &fbcloak.PlanExecutor{
+				Plans:          planStore,
+				Credentials:    credStore,
+				SessionFactory: sessionFactory,
+				Send:           sendExec,
+				Logger:         slog.Default(),
+				TickInterval:   time.Duration(execTickMin) * time.Minute,
+				MaxConcurrent:  cfg.Channels.FBCloak.MaxConcurrent,
+				Sem:            runner.Semaphore(),
+				CredLock:       runner.CredentialLockMap(),
+				Killswitch:     svc.KillswitchFlag(),
+			}
+			if startErr := planExec.Start(context.Background()); startErr != nil {
+				slog.Warn("fbcloak.plan_exec.start_failed", "err", startErr)
+				planExec = nil
+			}
+
+			// Replan worker — picks up plans flipped to 'replan_needed'.
+			replan := &fbcloak.ReplanScanner{
+				Plans:           planStore,
+				Credentials:     credStore,
+				Generator:       planGen,
+				SummaryVersions: noopSummaryVersionLookup{},
+				Logger:          slog.Default(),
+				TickInterval:    time.Hour,
+				Delay:           30 * time.Minute,
+				BatchSize:       30,
+				Killswitch:      svc.KillswitchFlag(),
+			}
+			if startErr := replan.Start(context.Background()); startErr != nil {
+				slog.Warn("fbcloak.replan.start_failed", "err", startErr)
+			}
+
+			cleanup := &fbcloak.PlanCleanup{
+				Plans:        planStore,
+				Logger:       slog.Default(),
+				TickInterval: 24 * time.Hour,
+				TTLDays:      90,
+			}
+			if startErr := cleanup.Start(context.Background()); startErr != nil {
+				slog.Warn("fbcloak.plan_cleanup.start_failed", "err", startErr)
+			}
+
+			slog.Info("fbcloak.orchestrator.started",
+				"provider", bgProvider.Name(),
+				"model", planGen.Model,
+				"tick_interval", planGen.TickInterval,
+			)
+		}
+	}
+
+	plansMethods := methods.NewFBCloakPlansMethods(svc, planGen, planExec, cfg)
+	plansMethods.Register(server.Router())
+
+	slog.Info("fbcloak: registered RPC handlers (Phase 1-5)",
 		"edition", edition.Current().Name,
 		"disclaimer_version", fbcloak.CurrentDisclaimerVersion,
 		"runner_started", runner != nil,
+		"orchestrator_started", planGen != nil,
 	)
+}
+
+// noopSummaryVersionLookup satisfies fbcloak.SummaryVersionLookup without
+// doing actual drift detection. The MVP ReplanScanner relies on plans being
+// MARKED replan_needed externally (admin RPC, or future event subscriber)
+// — drift-based detection is a Phase 5.5+ enhancement.
+type noopSummaryVersionLookup struct{}
+
+func (noopSummaryVersionLookup) CurrentVersion(_ context.Context, _ uuid.UUID, _, _ string) (int, error) {
+	return 0, nil
 }
 
 // buildFBCloakBrowserManager constructs the dedicated browser manager.

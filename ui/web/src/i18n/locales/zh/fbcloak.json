@@ -4,6 +4,7 @@
   "tabs": {
     "credentials": "凭证",
     "jobs": "任务",
+    "plans": "计划 (AI)",
     "sendLog": "发送日志"
   },
   "killswitchActive": "Killswitch 已启用 — fbcloak 操作已禁用。",
@@ -162,5 +163,68 @@
     "cloakReason": "最小空闲 > 7 天 — 走 Cloak 浏览器",
     "graphReason": "≤ 7 天 — Graph API HUMAN_AGENT(已配置时)",
     "outOfWindow": "> 6 个月 — 超出支持窗口"
+  },
+  "plans": {
+    "title": "互动计划 (AI)",
+    "description": "AI 读取每位客户的聊天历史 → 决定何时发送关怀消息以及内容。",
+    "loading": "加载计划中...",
+    "empty": "尚无计划。点击「立即生成」开始。",
+    "filters": {
+      "credential": "公共主页",
+      "allCredentials": "所有公共主页",
+      "status": "状态",
+      "allStatus": "所有状态"
+    },
+    "status": {
+      "pending": "待发送",
+      "sent": "已发送",
+      "replanNeeded": "需要重新计划",
+      "skipped": "已跳过",
+      "cancelled": "已取消",
+      "superseded": "已替代"
+    },
+    "cols": {
+      "recipient": "收件人",
+      "scheduledAt": "计划发送时间",
+      "status": "状态",
+      "message": "消息内容",
+      "actions": "操作"
+    },
+    "actions": {
+      "generateNow": "立即生成",
+      "generating": "生成中...",
+      "runDue": "运行到期计划",
+      "cancel": "取消",
+      "viewDetail": "查看详情"
+    },
+    "detail": {
+      "title": "计划详情",
+      "recipientLabel": "收件人",
+      "scheduledLabel": "计划发送时间",
+      "messageLabel": "消息内容",
+      "reasonLabel": "AI 理由",
+      "modelLabel": "模型",
+      "generatedAtLabel": "生成时间",
+      "sentAtLabel": "发送时间",
+      "skipReasonLabel": "跳过原因"
+    },
+    "stats": {
+      "pending": "待发送",
+      "sent": "已发送",
+      "replanNeeded": "需要重新计划",
+      "skipped": "已跳过",
+      "cancelled": "已取消"
+    },
+    "confirmGenerate": "立即为此公共主页生成计划？此操作会消耗 LLM token。",
+    "confirmCancel": "取消此计划？无法撤销。",
+    "confirmRunDue": "立即运行所有到期计划？将发送真实消息（非 dry-run）。",
+    "generated": "已生成 {{created}} 个计划（跳过 {{skipped}}，错误 {{errors}}）",
+    "ranDue": "已执行 {{executed}} 个计划",
+    "credentialRequired": "生成前请先选择公共主页"
+  },
+  "errors2": {
+    "generateFailed": "生成失败：{{detail}}",
+    "runDueFailed": "运行失败：{{detail}}",
+    "cancelFailed": "取消失败：{{detail}}"
   }
 }

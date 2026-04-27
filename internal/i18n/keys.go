@@ -248,4 +248,18 @@ const (
 	MsgFBCloakNoConversation        = "fbcloak.no_conversation"         // "no conversation history with this recipient"
 	MsgFBCloakGraphUnavailable      = "fbcloak.graph_unavailable"       // "API path (≤7d) is not configured on this server"
 	MsgFBCloakDisclaimerAcked       = "fbcloak.disclaimer_acked"        // "disclaimer acknowledged"
+
+	// FBCloak Phase 5: engagement plans (Plan-Based Brain Mode).
+	MsgFBCloakPlanGenerated        = "fbcloak.plan_generated"          // "Đã tạo %v kế hoạch chăm sóc"
+	MsgFBCloakPlanCancelled        = "fbcloak.plan_cancelled"          // "Đã hủy kế hoạch"
+	MsgFBCloakPlanGenerating       = "fbcloak.plan_generating"         // "Đang tạo kế hoạch..."
+	MsgFBCloakPlanModelMissing     = "fbcloak.plan_model_missing"      // "No background LLM provider configured"
+	MsgFBCloakPlanLLMError         = "fbcloak.plan_llm_error"          // "LLM error: %v"
+	MsgFBCloakPlanNoSummary        = "fbcloak.plan_no_summary"         // "No fbbackfill data for this recipient"
+	MsgFBCloakPlanSkippedByLLM     = "fbcloak.plan_skipped_by_llm"     // "LLM decided not to send: %v"
+	MsgFBCloakPlanCustomerOptOut   = "fbcloak.plan_customer_opt_out"   // "Customer has opted out"
+	MsgFBCloakPlanInvalidJSON      = "fbcloak.plan_invalid_json"       // "LLM returned invalid JSON"
+	MsgFBCloakPlanScheduleTooFar   = "fbcloak.plan_schedule_too_far"   // "Schedule too far in the future (>90 days)"
+	MsgFBCloakPlanActiveConflict   = "fbcloak.plan_active_conflict"    // "An active plan already exists for this recipient"
+	MsgFBCloakPlanTerminal         = "fbcloak.plan_terminal"           // "Plan is in terminal state, cannot transition"
 )

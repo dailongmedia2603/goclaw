@@ -28,6 +28,7 @@ type Deps struct {
 	Events          EventPublisher    // Phase 3+; nil → NoopPublisher
 	Screenshot      *ScreenshotWriter // Phase 3+; nil → screenshots disabled
 	Disclaimer      DisclaimerStore   // Phase 4+; nil → disclaimer ack always passes (dev mode)
+	PlanStore       PlanStore         // Phase 5+; nil disables Plan-Based Brain Mode
 	Logger          *slog.Logger
 	DefaultUA       string
 }
@@ -248,3 +249,14 @@ func validProxyURL(s string) bool {
 	}
 	return false
 }
+
+// SetPlanStore wires the plan store post-construction. Phase 5 init path
+// calls this so Service plan methods see deps.PlanStore != nil.
+func (s *Service) SetPlanStore(ps PlanStore) {
+	s.deps.PlanStore = ps
+}
+
+// PlanStoreRef is intentionally unexported on Service; subsystems that need
+// the store (Generator, Executor, Invalidator, Replan) receive it directly
+// via their own wiring, not through Service.
+

@@ -230,4 +230,12 @@ const (
 	MethodFBCloakSendProactive    = "fbcloak.send-proactive"
 	MethodFBCloakDisclaimerStatus = "fbcloak.disclaimer.status"
 	MethodFBCloakDisclaimerAck    = "fbcloak.disclaimer.ack"
+
+	// Phase 5 — Plan-based engagement orchestration (Brain Mode).
+	MethodFBCloakPlansList        = "fbcloak.plans.list"
+	MethodFBCloakPlansGet         = "fbcloak.plans.get"
+	MethodFBCloakPlansGenerateNow = "fbcloak.plans.generate-now"
+	MethodFBCloakPlansCancel      = "fbcloak.plans.cancel"
+	MethodFBCloakPlansRunDue      = "fbcloak.plans.run-due"
+	MethodFBCloakPlansStats       = "fbcloak.plans.stats"
 )

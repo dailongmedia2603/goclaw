@@ -245,5 +245,17 @@ func init() {
 		MsgFBCloakNoConversation:        "không có lịch sử hội thoại với người nhận này",
 		MsgFBCloakGraphUnavailable:      "đường gửi API (≤7 ngày) chưa được cấu hình trên server",
 		MsgFBCloakDisclaimerAcked:       "đã xác nhận disclaimer",
+		MsgFBCloakPlanGenerated:         "Đã tạo %v kế hoạch chăm sóc",
+		MsgFBCloakPlanCancelled:         "Đã hủy kế hoạch",
+		MsgFBCloakPlanGenerating:        "Đang tạo kế hoạch...",
+		MsgFBCloakPlanModelMissing:      "Chưa cấu hình LLM provider cho background. Vào System Settings để thiết lập.",
+		MsgFBCloakPlanLLMError:          "LLM lỗi: %v",
+		MsgFBCloakPlanNoSummary:         "Chưa có dữ liệu fbbackfill cho khách này",
+		MsgFBCloakPlanSkippedByLLM:      "LLM quyết định không gửi: %v",
+		MsgFBCloakPlanCustomerOptOut:    "Khách đã từ chối nhận tin",
+		MsgFBCloakPlanInvalidJSON:       "LLM trả về JSON không hợp lệ",
+		MsgFBCloakPlanScheduleTooFar:    "Lịch quá xa (>90 ngày)",
+		MsgFBCloakPlanActiveConflict:    "Đã có kế hoạch active cho khách này",
+		MsgFBCloakPlanTerminal:          "Kế hoạch đã ở trạng thái cuối, không thay đổi được",
 	})
 }

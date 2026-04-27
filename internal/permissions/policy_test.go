@@ -381,6 +381,22 @@ func TestMethodRole_FBCloak(t *testing.T) {
 	}
 }
 
+func TestMethodRole_FBCloakPlans(t *testing.T) {
+	adminMethods := []string{
+		protocol.MethodFBCloakPlansList,
+		protocol.MethodFBCloakPlansGet,
+		protocol.MethodFBCloakPlansGenerateNow,
+		protocol.MethodFBCloakPlansCancel,
+		protocol.MethodFBCloakPlansRunDue,
+		protocol.MethodFBCloakPlansStats,
+	}
+	for _, m := range adminMethods {
+		if got := MethodRole(m); got != RoleAdmin {
+			t.Fatalf("%s must be RoleAdmin; got %q", m, got)
+		}
+	}
+}
+
 // --- Drift coverage: parses pkg/protocol/methods.go at test time, enumerates
 // every const Method* = "...", and asserts none resolve to RoleNone. New RPCs
 // added without a matching allowlist entry will be caught here before shipping
