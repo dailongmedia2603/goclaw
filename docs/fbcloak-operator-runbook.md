@@ -196,3 +196,32 @@ Khi nội dung [docs/fbcloak-tos-disclaimer.md](./fbcloak-tos-disclaimer.md) tha
 - Sentry / OTel traces: span name `fbcloak.job.run`, `fbcloak.send` — filter theo TenantID
 - Log levels: `slog.Warn("security.fbcloak.*", ...)` cho mọi sự kiện security
 - DB cleanup: send_log không có TTL — chạy cron prune tuỳ chính sách (ví dụ `DELETE FROM fbcloak_send_log WHERE sent_at < NOW() - INTERVAL '90 days'`)
+
+## 11. Phase 5 (Plan-Based Brain Mode) — known limitations
+
+> Phase 5 (commits `f6ec1ee9` → `8e8cc42e` + hotfix `8693d3e6`) ships AI-curated
+> per-recipient engagement plans. Default disabled (`channels.fbcloak.orchestrator.enabled=false`).
+
+### Replan-on-customer-reply NOT yet automatic
+`ReplanScanner` polls `status='replan_needed'` rows but nothing flips a plan to that
+status today. `MarkPlanReplanNeeded` is exposed but unwired. Until the inbound-message
+hook lands, plans **fire on schedule even if the customer already replied**.
+
+**Operator workaround:** if monitoring shows a plan firing after a customer reply, the
+admin must Cancel it manually via the UI (`/fbcloak` → Plans tab → row Cancel button)
+before `scheduled_at` triggers Executor.
+
+**Tracking:** follow-up commit will wire either:
+- a `SummaryVersionLookup` against `episodic_summaries.created_at` so the scanner
+  detects drift between plan generation time and current summary mtime, OR
+- a direct subscriber on the inbound-message bus that calls
+  `PlanStore.MarkReplanNeeded(credentialID, psid)`.
+
+### Other Phase 5 caveats
+- `PlanCleanup` only auto-cancels plans scheduled > now+90d (Service.CreatePlan
+  rejects these at insert time anyway). Forgotten plans (credential disabled, plan
+  scheduled in past, never executed) are NOT auto-cleaned. Operator must SQL-prune
+  via vps-command if they accumulate: `UPDATE fbcloak_engagement_plans SET status='cancelled' WHERE status='pending' AND scheduled_at < NOW() - INTERVAL '30 days';`
+- Anthropic Batch API integration deferred — bulk plan generation runs synchronously
+  with prompt cache (still 90% off cache reads).
+- Embedding-cluster optimization deferred — only meaningful at >10k conversations/fanpage.
