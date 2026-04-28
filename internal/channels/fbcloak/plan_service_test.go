@@ -95,6 +95,21 @@ func (f *fakePlanStore) MarkCancelled(_ context.Context, tenantID, id uuid.UUID)
 	return nil
 }
 func (f *fakePlanStore) MarkSkipped(_ context.Context, _, _ uuid.UUID, _ string) error { return nil }
+func (f *fakePlanStore) CreateSkipped(_ context.Context, tenantID uuid.UUID, in PlanInput, skipReason string) (Plan, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	p := Plan{
+		ID: uuid.New(), TenantID: tenantID,
+		CredentialID: in.CredentialID, PSID: in.PSID,
+		Status:     PlanStatusSkipped,
+		SkipReason: skipReason,
+		Reason:     in.Reason,
+		CreatedAt:  time.Now(), UpdatedAt: time.Now(),
+	}
+	f.plans[p.ID] = p
+	f.counts[PlanStatusSkipped]++
+	return p, nil
+}
 func (f *fakePlanStore) MarkReplanNeeded(_ context.Context, _ uuid.UUID, _ string) (int, error) {
 	return 0, nil
 }

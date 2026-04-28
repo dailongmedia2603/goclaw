@@ -331,24 +331,24 @@ func (g *PlanGenerator) createSendPlan(ctx context.Context, tenantID, credential
 }
 
 func (g *PlanGenerator) createSkipPlan(ctx context.Context, tenantID, credentialID uuid.UUID, t EpisodicTarget, d PlanDecision) error {
-	// Insert as pending then mark skipped — preserves the audit trail
-	// (UI can show "Generator visited but said no, here's why"). Per-status
-	// transitions enforced by PlanStore.MarkSkipped which only flips pending → skipped.
-	plan, err := g.Plans.Create(ctx, tenantID, PlanInput{
+	// SECURITY: insert directly in status='skipped' (single SQL) rather than
+	// the previous Create-then-MarkSkipped flow. A transient failure between
+	// the two calls would otherwise leave a status='pending' row with the
+	// placeholder message ("(skipped by orchestrator)") that PlanExecutor
+	// could later pick up and SEND to the customer. CreateSkipped is
+	// transactional + bypasses the active-uniqueness index by writing
+	// terminal status from the start.
+	_, err := g.Plans.CreateSkipped(ctx, tenantID, PlanInput{
 		CredentialID:     credentialID,
 		PSID:             t.PSID,
 		ConversationID:   t.ConversationID,
 		RecipientName:    t.RecipientName,
-		ScheduledAt:      g.clock().Add(time.Hour), // placeholder; will be skipped before fire
-		MessageDraft:     "(skipped by orchestrator)",
+		ScheduledAt:      g.clock(),
 		Reason:           d.Reason,
 		GeneratedByModel: g.Model,
 		SummaryVersion:   t.SummaryVersion,
-	})
-	if err != nil {
-		return err
-	}
-	return g.Plans.MarkSkipped(ctx, tenantID, plan.ID, d.SkipReason)
+	}, d.SkipReason)
+	return err
 }
 
 func (g *PlanGenerator) callLLM(ctx context.Context, sys string, t EpisodicTarget) (PlanDecision, error) {

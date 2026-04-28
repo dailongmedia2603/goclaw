@@ -30,6 +30,13 @@ type PlanStore interface {
 	MarkCancelled(ctx context.Context, tenantID, id uuid.UUID) error
 	MarkSkipped(ctx context.Context, tenantID, id uuid.UUID, skipReason string) error
 
+	// CreateSkipped inserts a row already in status='skipped' so the audit
+	// trail records "Generator visited but said no" without ever passing
+	// through 'pending'. Necessary because a transient failure between the
+	// pending-insert and MarkSkipped could otherwise leave the placeholder
+	// message ("(skipped by orchestrator)") visible to the Executor.
+	CreateSkipped(ctx context.Context, tenantID uuid.UUID, in PlanInput, skipReason string) (Plan, error)
+
 	// MarkReplanNeeded flips status to 'replan_needed' for ALL active plans
 	// matching (credential_id, psid). Used by Invalidator. Cross-tenant: caller
 	// passes credential_id (which is tenant-bound via fbcloak_credentials FK).

@@ -76,6 +76,53 @@ func (s *PGFBCloakPlanStore) Create(ctx context.Context, tenantID uuid.UUID, in 
 	return plan, nil
 }
 
+// CreateSkipped inserts a row directly in status='skipped' so the audit
+// trail can record an LLM "no-send" decision without a transient pending
+// state that the Executor could pick up.
+func (s *PGFBCloakPlanStore) CreateSkipped(ctx context.Context, tenantID uuid.UUID, in fbcloak.PlanInput, skipReason string) (fbcloak.Plan, error) {
+	if tenantID == uuid.Nil {
+		return fbcloak.Plan{}, fbcloak.ErrInvalidTenant
+	}
+	if in.CredentialID == uuid.Nil {
+		return fbcloak.Plan{}, errors.New("credentialID required")
+	}
+	if in.PSID == "" {
+		return fbcloak.Plan{}, errors.New("psid required")
+	}
+	if skipReason == "" {
+		return fbcloak.Plan{}, errors.New("skipReason required")
+	}
+
+	id := uuid.New()
+	now := time.Now().UTC()
+	scheduledAt := in.ScheduledAt
+	if scheduledAt.IsZero() {
+		scheduledAt = now // dummy; status='skipped' is terminal so it never fires
+	}
+	const q = `
+		INSERT INTO fbcloak_engagement_plans
+		  (id, tenant_id, credential_id, psid, conversation_id, recipient_name,
+		   status, scheduled_at, message_draft, reason, skip_reason,
+		   generated_by_model, generated_at, summary_version,
+		   created_at, updated_at)
+		VALUES ($1,$2,$3,$4,NULLIF($5,''),NULLIF($6,''),
+		        'skipped',$7,$8,$9,$10,$11,$12,$13,$14,$14)
+		RETURNING ` + planSelectColumns
+
+	row := s.db.QueryRowContext(ctx, q,
+		id, tenantID, in.CredentialID, in.PSID, in.ConversationID, in.RecipientName,
+		scheduledAt.UTC(), "", in.Reason, skipReason,
+		in.GeneratedByModel, now, in.SummaryVersion, now,
+	)
+	plan, err := s.scanPlan(row)
+	if err != nil {
+		// Skipped status is NOT in the active partial unique index, so duplicate
+		// (credential, psid) inserts are allowed (audit trail can grow).
+		return fbcloak.Plan{}, fmt.Errorf("insert skipped plan: %w", err)
+	}
+	return plan, nil
+}
+
 func (s *PGFBCloakPlanStore) Get(ctx context.Context, tenantID, id uuid.UUID) (fbcloak.Plan, error) {
 	const q = `SELECT ` + planSelectColumns + ` FROM fbcloak_engagement_plans WHERE tenant_id = $1 AND id = $2`
 	return s.scanPlan(s.db.QueryRowContext(ctx, q, tenantID, id))
