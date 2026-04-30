@@ -244,6 +244,93 @@ func TestVaultRead_TeamScope_NoContext_Deny(t *testing.T) {
 	}
 }
 
+// --- 5a. isolated team, cross-chat doc → deny. ---
+func TestVaultRead_TeamScope_IsolatedCrossChat_Deny(t *testing.T) {
+	tenantID := uuid.New()
+	agentID := uuid.New()
+	docID := uuid.New()
+	teamID := uuid.New().String()
+	tid := teamID
+	chatA := "chatA"
+	doc := &store.VaultDocument{
+		ID: docID.String(), TenantID: tenantID.String(),
+		TeamID: &tid, ChatID: &chatA,
+		Scope: "team", Path: "team/doc.md",
+		Title: "Team Doc", DocType: "note",
+	}
+	tool, ws := newVaultReadTestTool(t, doc)
+	writeFile(t, ws, "team/doc.md", "team body")
+
+	// Caller bound to chatB in isolated team → deny.
+	ctx := store.WithRunContext(
+		makeCtx(tenantID, agentID),
+		&store.RunContext{
+			TenantID: tenantID, AgentID: agentID,
+			TeamID: teamID, TeamIsolated: true, WorkspaceChatID: "chatB",
+		})
+	res := tool.Execute(ctx, map[string]any{"doc_id": docID.String()})
+	if !res.IsError || !strings.Contains(res.ForLLM, "not accessible") {
+		t.Fatalf("expected cross-chat deny, got: %s", res.ForLLM)
+	}
+}
+
+// --- 5b. isolated team, same-chat doc → allow. ---
+func TestVaultRead_TeamScope_IsolatedSameChat_Allow(t *testing.T) {
+	tenantID := uuid.New()
+	agentID := uuid.New()
+	docID := uuid.New()
+	teamID := uuid.New().String()
+	tid := teamID
+	chatA := "chatA"
+	doc := &store.VaultDocument{
+		ID: docID.String(), TenantID: tenantID.String(),
+		TeamID: &tid, ChatID: &chatA,
+		Scope: "team", Path: "team/doc.md",
+		Title: "Team Doc", DocType: "note",
+	}
+	tool, ws := newVaultReadTestTool(t, doc)
+	writeFile(t, ws, "team/doc.md", "team body")
+
+	ctx := store.WithRunContext(
+		makeCtx(tenantID, agentID),
+		&store.RunContext{
+			TenantID: tenantID, AgentID: agentID,
+			TeamID: teamID, TeamIsolated: true, WorkspaceChatID: "chatA",
+		})
+	res := tool.Execute(ctx, map[string]any{"doc_id": docID.String()})
+	if res.IsError {
+		t.Fatalf("expected allow for same-chat, got error: %s", res.ForLLM)
+	}
+}
+
+// --- 5c. isolated team, team-wide doc (chat_id NULL) → allow regardless of chat. ---
+func TestVaultRead_TeamScope_IsolatedTeamWide_Allow(t *testing.T) {
+	tenantID := uuid.New()
+	agentID := uuid.New()
+	docID := uuid.New()
+	teamID := uuid.New().String()
+	tid := teamID
+	doc := &store.VaultDocument{
+		ID: docID.String(), TenantID: tenantID.String(),
+		TeamID: &tid, ChatID: nil, // team-wide
+		Scope: "team", Path: "team/doc.md",
+		Title: "Team Doc", DocType: "note",
+	}
+	tool, ws := newVaultReadTestTool(t, doc)
+	writeFile(t, ws, "team/doc.md", "team body")
+
+	ctx := store.WithRunContext(
+		makeCtx(tenantID, agentID),
+		&store.RunContext{
+			TenantID: tenantID, AgentID: agentID,
+			TeamID: teamID, TeamIsolated: true, WorkspaceChatID: "chatZ",
+		})
+	res := tool.Execute(ctx, map[string]any{"doc_id": docID.String()})
+	if res.IsError {
+		t.Fatalf("team-wide doc should be accessible in isolated team, got: %s", res.ForLLM)
+	}
+}
+
 // --- 6. cross-tenant (different tenant in ctx) → not-found. ---
 func TestVaultRead_CrossTenant_NotFound(t *testing.T) {
 	tenantA := uuid.New()
@@ -724,5 +811,109 @@ func TestVaultRead_MaxBytes_ClampCeiling(t *testing.T) {
 	}
 	if !strings.Contains(res.ForLLM, "truncated") {
 		t.Fatalf("expected truncation marker for ceiling clamp, got head: %s", res.ForLLM[:min(200, len(res.ForLLM))])
+	}
+}
+
+// --- Namespace-fallback fakes -------------------------------------------------
+
+type fakeKGStoreRead struct {
+	store.KnowledgeGraphStore
+	byID map[string]*store.Entity
+}
+
+func (f *fakeKGStoreRead) GetEntity(ctx context.Context, agentID, userID, entityID string) (*store.Entity, error) {
+	if f.byID == nil {
+		return nil, nil
+	}
+	if e, ok := f.byID[entityID]; ok {
+		return e, nil
+	}
+	return nil, nil
+}
+
+type fakeEpisodicStoreRead struct {
+	store.EpisodicStore
+	byID map[string]*store.EpisodicSummary
+}
+
+func (f *fakeEpisodicStoreRead) Get(ctx context.Context, id string) (*store.EpisodicSummary, error) {
+	if f.byID == nil {
+		return nil, nil
+	}
+	if e, ok := f.byID[id]; ok {
+		return e, nil
+	}
+	return nil, nil
+}
+
+// --- 15. vault_read with KG id → namespace redirect (not "document not found"). ---
+func TestVaultRead_KGIDReturnsRedirect(t *testing.T) {
+	tenantID := uuid.New()
+	agentID := uuid.New()
+	kgID := uuid.New()
+
+	tool, _ := newVaultReadTestTool(t) // no vault docs seeded
+	kg := &fakeKGStoreRead{byID: map[string]*store.Entity{
+		kgID.String(): {ID: kgID.String(), Name: "KG_03", EntityType: "document"},
+	}}
+	tool.SetKGStore(kg)
+
+	res := tool.Execute(makeCtx(tenantID, agentID),
+		map[string]any{"doc_id": kgID.String()})
+	if !res.IsError {
+		t.Fatalf("expected error, got: %s", res.ForLLM)
+	}
+	if strings.Contains(res.ForLLM, "document not found") {
+		t.Fatalf("should redirect, not say 'document not found': %s", res.ForLLM)
+	}
+	if !strings.Contains(res.ForLLM, "knowledge_graph_search") {
+		t.Fatalf("redirect must reference knowledge_graph_search: %s", res.ForLLM)
+	}
+	if !strings.Contains(res.ForLLM, "entity_id") {
+		t.Fatalf("redirect must name 'entity_id' param so LLM can self-correct: %s", res.ForLLM)
+	}
+}
+
+// --- 16. vault_read with episodic id → namespace redirect. ---
+func TestVaultRead_EpisodicIDReturnsRedirect(t *testing.T) {
+	tenantID := uuid.New()
+	agentID := uuid.New()
+	epID := uuid.New()
+
+	tool, _ := newVaultReadTestTool(t)
+	ep := &fakeEpisodicStoreRead{byID: map[string]*store.EpisodicSummary{
+		epID.String(): {ID: epID},
+	}}
+	tool.SetEpisodicStore(ep)
+
+	res := tool.Execute(makeCtx(tenantID, agentID),
+		map[string]any{"doc_id": epID.String()})
+	if !res.IsError {
+		t.Fatalf("expected error, got: %s", res.ForLLM)
+	}
+	if strings.Contains(res.ForLLM, "document not found") {
+		t.Fatalf("should redirect, not say 'document not found': %s", res.ForLLM)
+	}
+	if !strings.Contains(res.ForLLM, "memory_expand") {
+		t.Fatalf("redirect must reference memory_expand: %s", res.ForLLM)
+	}
+	if !strings.Contains(res.ForLLM, "episodic_id") {
+		t.Fatalf("redirect must name 'episodic_id' so LLM can self-correct: %s", res.ForLLM)
+	}
+}
+
+// --- 17. vault_read with ID not in any store → preserves "document not found". ---
+func TestVaultRead_TrulyMissingReturnsNotFound(t *testing.T) {
+	tenantID := uuid.New()
+	agentID := uuid.New()
+
+	tool, _ := newVaultReadTestTool(t)
+	tool.SetKGStore(&fakeKGStoreRead{})
+	tool.SetEpisodicStore(&fakeEpisodicStoreRead{})
+
+	res := tool.Execute(makeCtx(tenantID, agentID),
+		map[string]any{"doc_id": uuid.New().String()})
+	if !res.IsError || !strings.Contains(res.ForLLM, "not found") {
+		t.Fatalf("expected document not found, got: %s", res.ForLLM)
 	}
 }
