@@ -29,6 +29,12 @@ var (
 
 	// ErrNotFound indicates the requested resource does not exist (404).
 	ErrNotFound = errors.New("fbbackfill: graph api resource not found")
+
+	// ErrPSIDNotFound indicates the conversation has no identifiable
+	// non-Page participant — usually a thread where the user deleted
+	// their account, or a Page-only message thread. Single-conversation
+	// failure: the job runner skips this thread and continues.
+	ErrPSIDNotFound = errors.New("fbbackfill: could not identify PSID for conversation")
 )
 
 // ConversationParticipant is one side of a Messenger conversation.

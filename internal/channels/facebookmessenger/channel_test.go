@@ -421,6 +421,8 @@ func TestWebhook_EventMissingFields_400(t *testing.T) {
 
 func TestWebhook_ValidMessage_PublishesToBus(t *testing.T) {
 	ch := newOfflineChannel(t)
+	// Override default pairing policy so a bare-sender DM test publishes directly.
+	ch.cfg.DMPolicy = "open"
 	tenantID := uuid.New()
 	ch.BaseChannel.SetTenantID(tenantID)
 	_, h := ch.WebhookHandler()

@@ -364,6 +364,53 @@ func TestJobRunner_MaxConversationsCap(t *testing.T) {
 	}
 }
 
+// TestJobRunner_PSIDNotFound_SkipsAndContinues asserts that a single
+// conversation whose messages have no identifiable non-Page sender does
+// NOT fail the whole job. Regression: prior to the fix, the unwrapped
+// errors.New("could not identify PSID...") fell through handleAPIError's
+// default branch and marked StatusFailed, so a single edge-case thread
+// (deleted user, page-only thread) would abort backfill mid-run, losing
+// the remaining conversations.
+func TestJobRunner_PSIDNotFound_SkipsAndContinues(t *testing.T) {
+	h := newTestHarness(t)
+	h.graph.ConvosPages = [][]Conversation{
+		{
+			{ID: "t_good1", Participants: participants("PSID1", "PAGE1")},
+			{ID: "t_bad", Participants: participants("PSID_BAD", "PAGE1")},
+			{ID: "t_good2", Participants: participants("PSID2", "PAGE1")},
+		},
+	}
+	h.graph.Messages["t_good1"] = []Message{
+		{ID: "m1", Message: "Hi", From: ConversationParticipant{ID: "PSID1"}},
+	}
+	// t_bad: every message is from the Page itself — extractPSIDFromMessages
+	// will return "" and the runner must classify this as ErrPSIDNotFound.
+	h.graph.Messages["t_bad"] = []Message{
+		{ID: "m_bad1", Message: "ping", From: ConversationParticipant{ID: "PAGE1"}},
+		{ID: "m_bad2", Message: "ping2", From: ConversationParticipant{ID: "PAGE1"}},
+	}
+	h.graph.Messages["t_good2"] = []Message{
+		{ID: "m2", Message: "Hello", From: ConversationParticipant{ID: "PSID2"}},
+	}
+
+	if err := h.runner.Start(context.Background(), h.instanceID, StartOpts{}); err != nil {
+		t.Fatal(err)
+	}
+	st := h.waitForStatus(StatusCompleted, 2*time.Second)
+	if st.ConversationsDone != 3 {
+		t.Errorf("ConversationsDone=%d, want 3 (bad thread counts as done with last_error)", st.ConversationsDone)
+	}
+	if st.EpisodicsCreated != 2 {
+		t.Errorf("EpisodicsCreated=%d, want 2 (only the 2 good threads)", st.EpisodicsCreated)
+	}
+	if !contains(st.LastError, "PSID") {
+		t.Errorf("LastError=%q, want it to mention PSID", st.LastError)
+	}
+	if containsStr(h.emitter.Events(), "failed") {
+		t.Errorf("must not emit failed event for per-conversation PSID error, got %v", h.emitter.Events())
+	}
+}
+
 func TestJobRunner_AuthExpiredFails(t *testing.T) {
 	h := newTestHarness(t)
 	h.graph.ErrConversations = fmt.Errorf("%w: code=190", ErrAuthExpired)

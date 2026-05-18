@@ -515,7 +515,7 @@ func (r *JobRunner) processOneConversation(
 
 	psid := extractPSIDFromMessages(allMessages, pageID)
 	if psid == "" {
-		return errors.New("fbbackfill: could not identify PSID for conversation")
+		return fmt.Errorf("%w: convo_id=%s", ErrPSIDNotFound, convoID)
 	}
 	srcID := SourceIDFor(pageID, psid)
 	// Propagate user_id=psid for episodic write scoping.
@@ -566,6 +566,14 @@ func (r *JobRunner) handleAPIError(
 		// Single-conversation failures (e.g. 404 for a deleted convo)
 		// should not fail the whole job. Return false to continue.
 		slog.Warn("fb_backfill.client.bad_request",
+			"instance_id", ctl.instanceID, "err", err)
+		st.LastError = err.Error()
+		return false
+
+	case errors.Is(err, ErrPSIDNotFound):
+		// Thread with no identifiable user (deleted account, page-only
+		// thread). Skip this conversation and continue with the rest.
+		slog.Warn("fb_backfill.psid_not_found",
 			"instance_id", ctl.instanceID, "err", err)
 		st.LastError = err.Error()
 		return false
