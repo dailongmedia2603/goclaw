@@ -7,8 +7,9 @@
 # --- Stage 1: build the Go shim ---
 FROM golang:1.26-alpine AS shim-build
 WORKDIR /src
-COPY go.mod go.sum ./
-RUN go mod download
+# Shim has no external dependencies — go.sum may not exist. Copy go.mod alone.
+COPY go.mod ./
+RUN go mod download || true
 COPY *.go ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/shim .
 
@@ -21,7 +22,10 @@ USER root
 # Pin mautrix-meta commit for reproducibility. Matches "v26.04" tag (2026-04-16).
 ARG MAUTRIX_META_TAG=v26.04
 
-RUN apk add --no-cache supervisor curl ca-certificates wget
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+      supervisor curl ca-certificates wget && \
+    rm -rf /var/lib/apt/lists/*
 
 # Fetch mautrix-meta binary. The upstream image only ships `/usr/bin/mautrix-meta`.
 # We copy it out via a transient build stage.

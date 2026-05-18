@@ -16,18 +16,34 @@
 
 set -euo pipefail
 
-BASE="${1:-origin/main}"
-
-# Ensure BASE exists (in CI we may need to fetch).
-if ! git rev-parse --verify "$BASE" >/dev/null 2>&1; then
-  echo "⚠️  Base ref '$BASE' not found; attempting 'git fetch origin main'..."
-  git fetch origin main --depth=50 2>/dev/null || true
+# Modes:
+#   (default) BASE=origin/main  → CI mode: compare PR vs main
+#   --local                     → skip diff-based checks, verify artifact presence only
+LOCAL_ONLY=0
+if [[ "${1:-}" == "--local" ]]; then
+  LOCAL_ONLY=1
+  BASE=""
+else
+  BASE="${1:-origin/main}"
+  # Ensure BASE exists (in CI we may need to fetch).
+  if ! git rev-parse --verify "$BASE" >/dev/null 2>&1; then
+    echo "⚠️  Base ref '$BASE' not found; attempting 'git fetch origin main'..."
+    git fetch origin main --depth=50 2>/dev/null || true
+  fi
 fi
 
-echo "== Touched files since $BASE =="
-TOUCHED=$(git diff --name-only "$BASE"..HEAD || true)
-echo "$TOUCHED"
-echo ""
+VIOLATIONS=0
+TOUCHED=""
+
+if [[ "$LOCAL_ONLY" == "0" ]]; then
+  echo "== Touched files since $BASE =="
+  TOUCHED=$(git diff --name-only "$BASE"..HEAD || true)
+  echo "$TOUCHED"
+  echo ""
+else
+  echo "== Local mode: skipping diff-based checks (FBM artifact presence only) =="
+  echo ""
+fi
 
 # --- Hard blocklist: these core files must never be modified ---
 FORBIDDEN=(
@@ -41,8 +57,13 @@ FORBIDDEN=(
   "internal/crypto/aes.go"
 )
 
+if [[ "$LOCAL_ONLY" == "1" ]]; then
+  # Skip diff-based checks entirely; jump to artifact presence checks
+  SKIP_DIFF_CHECKS=1
+fi
+
+if [[ -z "${SKIP_DIFF_CHECKS:-}" ]]; then
 echo "== Forbidden-file check =="
-VIOLATIONS=0
 for f in "${FORBIDDEN[@]}"; do
   if echo "$TOUCHED" | grep -qxF "$f"; then
     # Exception: channel.go may be touched to add the TypeFacebookPersonal constant.
@@ -87,11 +108,57 @@ for f in "${EXPECTED_TOUCHES[@]}"; do
   fi
 done
 
+fi  # SKIP_DIFF_CHECKS
+
+echo ""
+echo "== FBM artifact presence check =="
+REQUIRED_PATHS=(
+  "internal/channels/facebookmessenger/channel.go"
+  "internal/channels/facebookmessenger/factory.go"
+  "internal/channels/facebookmessenger/policy.go"
+  "internal/channels/facebookmessenger/signature.go"
+  "internal/channels/facebookmessenger/edition_gate.go"
+  "sidecar/mautrix-meta-shim/main.go"
+  "sidecar/mautrix-meta-shim/Dockerfile"
+  "sidecar/mautrix-meta-shim/LICENSE"
+  "cmd/fbm-diagnose/main.go"
+  "docs/channels/facebook-personal.md"
+)
+MISSING=0
+for p in "${REQUIRED_PATHS[@]}"; do
+  if [[ -f "$p" ]]; then
+    echo "  ✓ $p"
+  else
+    echo "  ❌ MISSING: $p"
+    MISSING=$((MISSING + 1))
+  fi
+done
+if [[ $MISSING -gt 0 ]]; then
+  echo ""
+  echo "❌ $MISSING required FBM artifact(s) missing"
+  VIOLATIONS=$((VIOLATIONS + MISSING))
+fi
+
+echo ""
+echo "== Touch-point inline marker check =="
+grep -q "TypeFacebookPersonal" internal/channels/channel.go 2>/dev/null || {
+  echo "❌ TypeFacebookPersonal constant missing in internal/channels/channel.go"
+  VIOLATIONS=$((VIOLATIONS + 1))
+}
+grep -q "facebookmessenger\.Factory" cmd/gateway.go 2>/dev/null || {
+  echo "❌ facebookmessenger.Factory registration missing in cmd/gateway.go"
+  VIOLATIONS=$((VIOLATIONS + 1))
+}
+grep -q "facebook_personal" ui/web/src/constants/channels.ts 2>/dev/null || {
+  echo "❌ facebook_personal entry missing in ui/web/src/constants/channels.ts"
+  VIOLATIONS=$((VIOLATIONS + 1))
+}
+[[ $VIOLATIONS -eq 0 ]] && echo "  ✓ All touch points intact"
+
 echo ""
 if [[ $VIOLATIONS -eq 0 ]]; then
   echo "✅ Upstream-safety check PASSED"
   exit 0
 fi
-
 echo "❌ Upstream-safety check FAILED ($VIOLATIONS violations)"
 exit 1
