@@ -20,6 +20,17 @@ pkg-helper
 .env*
 !.env.example
 
+# fbcloak spike artifacts (Phase 0 — never commit cookies)
+cookies.json
+/bin/fbcloak-spike
+docs/research/assets/fbcloak-spike/*.png
+docs/research/assets/fbcloak-spike/*.har
+docs/research/assets/fbcloak-spike/summary.json
+
+# Personal / unrelated assets (not part of GoClaw)
+auto pts/
+lung-mat-knowledge-base.md
+
 app
 browser-poc
 openclaw-go
