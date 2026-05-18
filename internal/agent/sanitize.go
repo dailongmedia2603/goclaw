@@ -26,6 +26,13 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
 
+func truncPreview(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "…"
+}
+
 // SanitizeAssistantContent applies the full sanitization pipeline to assistant
 // response text before saving to session and sending to user.
 // Matching TS extractAssistantText() + sanitizeUserFacingText().
@@ -36,29 +43,56 @@ func SanitizeAssistantContent(content string) string {
 
 	original := content
 
+	logDrain := func(step string, before, after string) {
+		if len(after) < len(before) {
+			slog.Info("sanitize.drain",
+				"step", step,
+				"before_len", len(before),
+				"after_len", len(after),
+				"dropped", len(before)-len(after),
+				"preview_before", truncPreview(before, 200),
+			)
+		}
+	}
+
 	// 1. Strip garbled tool-call XML (DeepSeek, GLM, Minimax)
+	prev := content
 	content = stripGarbledToolXML(content)
+	logDrain("1_garbled_xml", prev, content)
 	if content == "" {
+		slog.Warn("sanitize.empty_after_step", "step", "1_garbled_xml", "original_len", len(original), "preview", truncPreview(original, 300))
 		return ""
 	}
 
 	// 2. Strip downgraded tool call text ([Tool Call: ...], [Tool Result ...])
+	prev = content
 	content = stripDowngradedToolCallText(content)
+	logDrain("2_downgraded_tool", prev, content)
 
 	// 3. Strip thinking/reasoning tags (<think>, <thinking>, <thought>, <antThinking>)
+	prev = content
 	content = stripThinkingTags(content)
+	logDrain("3_thinking_tags", prev, content)
 
 	// 4. Strip <final> tags (keep content inside)
+	prev = content
 	content = stripFinalTags(content)
+	logDrain("4_final_tags", prev, content)
 
 	// 5. Strip echoed [System Message] blocks
+	prev = content
 	content = stripEchoedSystemMessages(content)
+	logDrain("5_system_messages", prev, content)
 
 	// 6. Collapse consecutive duplicate blocks
+	prev = content
 	content = collapseConsecutiveDuplicateBlocks(content)
+	logDrain("6_collapse_dupes", prev, content)
 
 	// 7. Strip MEDIA: paths from LLM output (media delivered separately)
+	prev = content
 	content = stripMediaPaths(content)
+	logDrain("7_media_paths", prev, content)
 
 	// 8. Normalize LaTeX math notation to Unicode (e.g. $\rightarrow$ → →, $\alpha$ → α).
 	content = normalizeLatex(content)
@@ -68,7 +102,12 @@ func SanitizeAssistantContent(content string) string {
 
 	content = strings.TrimSpace(content)
 
-	if content != original {
+	if content == "" && original != "" {
+		slog.Warn("sanitize.fully_drained",
+			"original_len", len(original),
+			"preview", truncPreview(original, 500),
+		)
+	} else if content != original {
 		slog.Debug("sanitized assistant content",
 			"original_len", len(original),
 			"cleaned_len", len(content),
