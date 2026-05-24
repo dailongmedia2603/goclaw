@@ -43,6 +43,7 @@ import enV3Capabilities from "./locales/en/v3-capabilities.json";
 import enBackup from "./locales/en/backup.json";
 import enHooks from "./locales/en/hooks.json";
 import enFbcloak from "./locales/en/fbcloak.json";
+import enWorkstations from "./locales/en/workstations.json";
 
 // --- VI namespaces ---
 import viCommon from "./locales/vi/common.json";
@@ -86,6 +87,7 @@ import viV3Capabilities from "./locales/vi/v3-capabilities.json";
 import viBackup from "./locales/vi/backup.json";
 import viHooks from "./locales/vi/hooks.json";
 import viFbcloak from "./locales/vi/fbcloak.json";
+import viWorkstations from "./locales/vi/workstations.json";
 
 // --- ZH namespaces ---
 import zhCommon from "./locales/zh/common.json";
@@ -129,6 +131,7 @@ import zhV3Capabilities from "./locales/zh/v3-capabilities.json";
 import zhBackup from "./locales/zh/backup.json";
 import zhHooks from "./locales/zh/hooks.json";
 import zhFbcloak from "./locales/zh/fbcloak.json";
+import zhWorkstations from "./locales/zh/workstations.json";
 
 const STORAGE_KEY = "goclaw:language";
 
@@ -152,6 +155,7 @@ const ns = [
   "backup",
   "hooks",
   "fbcloak",
+  "workstations",
 ] as const;
 
 i18n.use(initReactI18next).init({
@@ -176,6 +180,7 @@ i18n.use(initReactI18next).init({
       backup: enBackup,
       hooks: enHooks,
       fbcloak: enFbcloak,
+      workstations: enWorkstations,
     },
     vi: {
       common: viCommon, sidebar: viSidebar, topbar: viTopbar, login: viLogin,
@@ -197,6 +202,7 @@ i18n.use(initReactI18next).init({
       backup: viBackup,
       hooks: viHooks,
       fbcloak: viFbcloak,
+      workstations: viWorkstations,
     },
     zh: {
       common: zhCommon, sidebar: zhSidebar, topbar: zhTopbar, login: zhLogin,
@@ -218,6 +224,7 @@ i18n.use(initReactI18next).init({
       backup: zhBackup,
       hooks: zhHooks,
       fbcloak: zhFbcloak,
+      workstations: zhWorkstations,
     },
   },
   ns: [...ns],

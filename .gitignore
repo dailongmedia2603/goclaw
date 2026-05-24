@@ -1,5 +1,6 @@
 # Test artifacts
 tests/integration/testdata/
+backup/
 
 # Spike / PoC folders (not committed to main — transient experiments)
 spike/

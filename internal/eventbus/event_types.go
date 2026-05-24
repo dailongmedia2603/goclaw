@@ -33,6 +33,13 @@ const (
 	EventFBCloakSent         EventType = "fbcloak.sent"
 	EventFBCloakBlocked      EventType = "fbcloak.blocked"
 	EventFBCloakCheckpoint   EventType = "fbcloak.checkpoint"
+
+	// Workstation lifecycle events (triggers BackendCache invalidation).
+	EventWorkstationUpdated EventType = "workstation.updated"
+	EventWorkstationDeleted EventType = "workstation.deleted"
+	// EventWorkstationPermChanged triggers AllowlistChecker cache invalidation (Phase 6).
+	// SourceID = workstation UUID.
+	EventWorkstationPermChanged EventType = "workstation.perm.changed"
 )
 
 // DomainEvent is a typed event with metadata for the consolidation pipeline.

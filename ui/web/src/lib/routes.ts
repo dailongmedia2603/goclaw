@@ -50,4 +50,6 @@ export const ROUTES = {
   HOOK_DETAIL: "/hooks/:id",
   FBCLOAK: "/fbcloak",
   FBCLOAK_TAB: "/fbcloak/:tab",
+  WORKSTATIONS: "/workstations",
+  WORKSTATION_DETAIL: "/workstations/:id",
 } as const;

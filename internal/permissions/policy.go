@@ -212,6 +212,7 @@ func isAdminMethod(method string) bool {
 		protocol.MethodConfigSchema,
 		protocol.MethodConfigDefaults,
 		protocol.MethodConfigPermissionsList,
+		protocol.MethodConfigPermissionsCheck,
 		protocol.MethodConfigPermissionsGrant,
 		protocol.MethodConfigPermissionsRevoke,
 
@@ -307,6 +308,17 @@ func isAdminMethod(method string) bool {
 		protocol.MethodFBCloakPlansCancel,
 		protocol.MethodFBCloakPlansRunDue,
 		protocol.MethodFBCloakPlansStats,
+
+		// Workstations — credentials + remote exec; create/update/delete and
+		// agent linking + permission mutations are admin-only.
+		protocol.MethodWorkstationsCreate,
+		protocol.MethodWorkstationsUpdate,
+		protocol.MethodWorkstationsDelete,
+		protocol.MethodWorkstationsLinkAgent,
+		protocol.MethodWorkstationsUnlinkAgent,
+		protocol.MethodWorkstationsPermAdd,
+		protocol.MethodWorkstationsPermRemove,
+		protocol.MethodWorkstationsPermToggle,
 	}
 	return slices.Contains(adminMethods, method)
 }
@@ -358,6 +370,9 @@ func isWriteMethod(method string) bool {
 		"fb_backfill.resume",
 		"fb_backfill.cancel",
 		"fb_backfill.retry",
+
+		// Workstations — connection test invokes SSH side-effects.
+		protocol.MethodWorkstationsTest,
 	}
 	return slices.Contains(writeExact, method)
 }
@@ -458,6 +473,12 @@ func isReadMethod(method string) bool {
 		// Raw strings (fork-only, see isWriteMethod note above).
 		"fb_backfill.status",
 		"fb_backfill.list",
+
+		// Workstations read
+		protocol.MethodWorkstationsList,
+		protocol.MethodWorkstationsGet,
+		protocol.MethodWorkstationsPermList,
+		protocol.MethodWorkstationsListActivity,
 	}
 	return slices.Contains(readMethods, method)
 }
