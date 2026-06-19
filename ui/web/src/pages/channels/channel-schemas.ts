@@ -237,6 +237,7 @@ export const configSchema: Record<string, FieldDef[]> = {
   ],
   zalo_oa: [
     { key: "dm_policy", label: "DM Policy", type: "select", options: dmPolicyOptions, defaultValue: "pairing" },
+    { key: "group_policy", label: "Group Policy", type: "select", options: groupPolicyOptions, defaultValue: "pairing", help: "Groups are Beta on Zalo Bot. The bot only receives group messages that @mention or reply to it." },
     { key: "webhook_url", label: "Webhook URL", type: "text", placeholder: "https://..." },
     { key: "media_max_mb", label: "Max Media Size (MB)", type: "number", defaultValue: 5 },
     { key: "allow_from", label: "Allowed Users", type: "tags", help: "Zalo user IDs" },

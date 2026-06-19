@@ -276,7 +276,8 @@ type ZaloConfig struct {
 	Enabled       bool                `json:"enabled"`
 	Token         string              `json:"token"`
 	AllowFrom     FlexibleStringSlice `json:"allow_from"`
-	DMPolicy      string              `json:"dm_policy,omitempty"` // "pairing" (default), "allowlist", "open", "disabled"
+	DMPolicy      string              `json:"dm_policy,omitempty"`    // "pairing" (default), "allowlist", "open", "disabled"
+	GroupPolicy   string              `json:"group_policy,omitempty"` // "pairing" (default), "allowlist", "open", "disabled" — group chats are Beta on Zalo Bot
 	WebhookURL    string              `json:"webhook_url,omitempty"`
 	WebhookSecret string              `json:"webhook_secret,omitempty"`
 	MediaMaxMB    int                 `json:"media_max_mb,omitempty"`  // default 5

@@ -2,7 +2,10 @@
 // Ported from OpenClaw TS extensions/zalo/.
 //
 // Zalo Bot API: https://bot-api.zaloplatforms.com
-// DM only (no groups), text limit 2000 chars, polling + webhook modes.
+// Supports DMs and group chats (groups are Beta on Zalo Bot — the bot only
+// receives group messages that @mention or reply to it, so every delivered
+// group message is already directed at the bot). Text limit 2000 chars,
+// polling + webhook modes.
 package zalo
 
 import (
@@ -42,6 +45,7 @@ type Channel struct {
 	*channels.BaseChannel
 	token        string
 	dmPolicy     string
+	groupPolicy  string
 	mediaMaxMB   int
 	blockReply   *bool
 	chatBehavior *config.ChatBehaviorConfig
@@ -58,11 +62,16 @@ func New(cfg config.ZaloConfig, msgBus *bus.MessageBus, pairingSvc store.Pairing
 	}
 
 	base := channels.NewBaseChannel("zalo", msgBus, cfg.AllowFrom)
-	base.ValidatePolicy(cfg.DMPolicy, "")
+	base.ValidatePolicy(cfg.DMPolicy, cfg.GroupPolicy)
 
 	dmPolicy := cfg.DMPolicy
 	if dmPolicy == "" {
 		dmPolicy = "pairing" // TS default
+	}
+
+	groupPolicy := cfg.GroupPolicy
+	if groupPolicy == "" {
+		groupPolicy = "pairing" // mirror Telegram: groups must be approved
 	}
 
 	mediaMax := cfg.MediaMaxMB
@@ -74,6 +83,7 @@ func New(cfg config.ZaloConfig, msgBus *bus.MessageBus, pairingSvc store.Pairing
 		BaseChannel:  base,
 		token:        cfg.Token,
 		dmPolicy:     dmPolicy,
+		groupPolicy:  groupPolicy,
 		mediaMaxMB:   mediaMax,
 		blockReply:   cfg.BlockReply,
 		chatBehavior: cfg.ChatBehavior,
@@ -204,13 +214,16 @@ func (c *Channel) handleTextMessage(msg *zaloMessage) {
 		slog.Warn("zalo: dropping text message with empty sender ID", "message_id", msg.MessageID)
 		return
 	}
+	if msg.From.IsBot {
+		return // ignore other bots / our own echoes to prevent loops
+	}
 	chatID := msg.Chat.ID
 	if chatID == "" {
 		chatID = senderID
 	}
 
-	// DM policy enforcement (Zalo is DM-only)
-	if !c.checkDMPolicy(ctx, senderID, chatID) {
+	peerKind, ok := c.authorize(ctx, msg, senderID, chatID)
+	if !ok {
 		return
 	}
 
@@ -218,19 +231,18 @@ func (c *Channel) handleTextMessage(msg *zaloMessage) {
 	if content == "" {
 		content = "[empty message]"
 	}
+	if peerKind == "group" {
+		content = annotateSender(msg, content)
+	}
 
 	slog.Debug("zalo text message received",
 		"sender_id", senderID,
 		"chat_id", chatID,
+		"peer_kind", peerKind,
 		"preview", channels.Truncate(content, 50),
 	)
 
-	metadata := map[string]string{
-		"message_id": msg.MessageID,
-		"platform":   "zalo",
-	}
-
-	c.HandleAuthorizedMessage(senderID, chatID, content, nil, metadata, "direct")
+	c.HandleAuthorizedMessage(senderID, chatID, content, nil, c.buildMetadata(msg, peerKind), peerKind)
 }
 
 func (c *Channel) handleImageMessage(msg *zaloMessage) {
@@ -241,18 +253,25 @@ func (c *Channel) handleImageMessage(msg *zaloMessage) {
 		slog.Warn("zalo: dropping image message with empty sender ID", "message_id", msg.MessageID)
 		return
 	}
+	if msg.From.IsBot {
+		return // ignore other bots / our own echoes to prevent loops
+	}
 	chatID := msg.Chat.ID
 	if chatID == "" {
 		chatID = senderID
 	}
 
-	if !c.checkDMPolicy(ctx, senderID, chatID) {
+	peerKind, ok := c.authorize(ctx, msg, senderID, chatID)
+	if !ok {
 		return
 	}
 
 	content := msg.Caption
 	if content == "" {
 		content = "[image]"
+	}
+	if peerKind == "group" {
+		content = annotateSender(msg, content)
 	}
 
 	// Download photo from Zalo CDN to local temp file (CDN URLs are auth-restricted/expiring)
@@ -283,15 +302,50 @@ func (c *Channel) handleImageMessage(msg *zaloMessage) {
 		"has_media", len(media) > 0,
 	)
 
+	c.HandleAuthorizedMessage(senderID, chatID, content, media, c.buildMetadata(msg, peerKind), peerKind)
+}
+
+// --- Routing helpers ---
+
+// authorize resolves the peer kind ("direct"/"group") and enforces the matching
+// access policy. Returns ok=false when the message must be dropped (policy reject
+// or pending pairing). For groups the bot only ever receives messages that
+// @mention or reply to it, so the platform has already gated relevance.
+func (c *Channel) authorize(ctx context.Context, msg *zaloMessage, senderID, chatID string) (string, bool) {
+	if strings.EqualFold(msg.Chat.Type, "GROUP") {
+		return "group", c.checkGroupPolicy(ctx, senderID, chatID)
+	}
+	return "direct", c.checkDMPolicy(ctx, senderID, chatID)
+}
+
+// buildMetadata assembles inbound message metadata, adding group fields for groups.
+func (c *Channel) buildMetadata(msg *zaloMessage, peerKind string) map[string]string {
 	metadata := map[string]string{
 		"message_id": msg.MessageID,
 		"platform":   "zalo",
 	}
-
-	c.HandleAuthorizedMessage(senderID, chatID, content, media, metadata, "direct")
+	if peerKind == "group" {
+		metadata["group_id"] = msg.Chat.ID
+		metadata["display_name"] = channels.SanitizeDisplayName(senderName(msg))
+	}
+	return metadata
 }
 
-// --- DM Policy ---
+// senderName returns a human-readable sender label, falling back to the ID.
+func senderName(msg *zaloMessage) string {
+	if msg.From.Username != "" {
+		return msg.From.Username
+	}
+	return msg.From.ID
+}
+
+// annotateSender prefixes group messages with the sender's name so the agent
+// can distinguish participants (matches Telegram/zalo_personal group formatting).
+func annotateSender(msg *zaloMessage, content string) string {
+	return fmt.Sprintf("[From: %s]\n%s", senderName(msg), content)
+}
+
+// --- Policy ---
 
 func (c *Channel) checkDMPolicy(ctx context.Context, senderID, chatID string) bool {
 	result := c.CheckDMPolicy(ctx, senderID, c.dmPolicy)
@@ -303,6 +357,23 @@ func (c *Channel) checkDMPolicy(ctx context.Context, senderID, chatID string) bo
 		return false
 	default:
 		slog.Debug("zalo message rejected by policy", "sender_id", senderID, "policy", c.dmPolicy)
+		return false
+	}
+}
+
+// checkGroupPolicy enforces the group access policy. Pairing is keyed on the
+// group ("group:<id>") so a single approval authorizes the whole group rather
+// than each individual member.
+func (c *Channel) checkGroupPolicy(ctx context.Context, senderID, chatID string) bool {
+	result := c.CheckGroupPolicy(ctx, senderID, chatID, c.groupPolicy)
+	switch result {
+	case channels.PolicyAllow:
+		return true
+	case channels.PolicyNeedsPairing:
+		c.sendPairingReply(ctx, "group:"+chatID, chatID)
+		return false
+	default:
+		slog.Debug("zalo group message rejected by policy", "group_id", chatID, "policy", c.groupPolicy)
 		return false
 	}
 }
@@ -425,6 +496,7 @@ type zaloMessage struct {
 type zaloFrom struct {
 	ID       string `json:"id"`
 	Username string `json:"display_name"`
+	IsBot    bool   `json:"is_bot"`
 }
 
 type zaloChat struct {

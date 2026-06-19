@@ -441,6 +441,69 @@ func TestHandleTextMessage_EmptySenderDropped(t *testing.T) {
 	})
 }
 
+// TestHandleTextMessage_GroupRoutesAsGroup verifies a GROUP chat_type message
+// is routed with peerKind="group", annotated with the sender name, and carries
+// the group_id metadata. Group policy is "open" so it passes without pairing.
+func TestHandleTextMessage_GroupRoutesAsGroup(t *testing.T) {
+	mb := bus.New()
+	ch, err := New(config.ZaloConfig{Token: "t", GroupPolicy: "open"}, mb, nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ch.handleTextMessage(&zaloMessage{
+		MessageID: "m-grp",
+		Text:      "hello team",
+		From:      zaloFrom{ID: "u1", Username: "Alice"},
+		Chat:      zaloChat{ID: "g-123", Type: "GROUP"},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	msg, ok := mb.ConsumeInbound(ctx)
+	if !ok {
+		t.Fatal("expected an inbound message for group chat, got none")
+	}
+	if msg.PeerKind != "group" {
+		t.Errorf("PeerKind = %q, want group", msg.PeerKind)
+	}
+	if msg.ChatID != "g-123" {
+		t.Errorf("ChatID = %q, want g-123", msg.ChatID)
+	}
+	if msg.SenderID != "u1" {
+		t.Errorf("SenderID = %q, want u1", msg.SenderID)
+	}
+	if !strings.Contains(msg.Content, "[From: Alice]") {
+		t.Errorf("Content = %q, want sender annotation", msg.Content)
+	}
+	if msg.Metadata["group_id"] != "g-123" {
+		t.Errorf("metadata[group_id] = %q, want g-123", msg.Metadata["group_id"])
+	}
+}
+
+// TestHandleTextMessage_IgnoresBotSender verifies messages flagged is_bot=true
+// (other bots or our own echoes) are dropped to prevent loops.
+func TestHandleTextMessage_IgnoresBotSender(t *testing.T) {
+	mb := bus.New()
+	ch, err := New(config.ZaloConfig{Token: "t", DMPolicy: "open"}, mb, nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	ch.handleTextMessage(&zaloMessage{
+		MessageID: "m-bot",
+		Text:      "I am a bot",
+		From:      zaloFrom{ID: "bot-9", IsBot: true},
+		Chat:      zaloChat{ID: "bot-9"},
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	if _, ok := mb.ConsumeInbound(ctx); ok {
+		t.Fatal("expected no inbound message from a bot sender")
+	}
+}
+
 // TestHandleImageMessage_EmptySenderDropped mirrors the text variant guard.
 func TestHandleImageMessage_EmptySenderDropped(t *testing.T) {
 	mb := bus.New()
