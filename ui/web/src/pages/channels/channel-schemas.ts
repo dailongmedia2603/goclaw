@@ -247,6 +247,7 @@ export const configSchema: Record<string, FieldDef[]> = {
     { key: "dm_policy", label: "DM Policy", type: "select", options: dmPolicyOptions, defaultValue: "allowlist" },
     { key: "group_policy", label: "Group Policy", type: "select", options: groupPolicyOptions, defaultValue: "allowlist" },
     { key: "require_mention", label: "Require @mention in groups", type: "boolean", defaultValue: true },
+    { key: "proxy", label: "Proxy", type: "text", placeholder: "host:port:user:pass or socks5://host:port", help: "Route HTTP + WebSocket traffic through a proxy to avoid account bans. Formats: host:port, host:port:user:pass, or a full URL (http/https/socks5)." },
     { key: "allow_from", label: "Allowed Users", type: "tags", help: "Zalo user IDs or group IDs" },
     ...chatBehaviorOverrideFields,
   ],

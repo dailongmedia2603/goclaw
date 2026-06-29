@@ -17,6 +17,16 @@ import (
 func (c *Channel) authenticate(ctx context.Context) (*protocol.Session, error) {
 	sess := protocol.NewSession()
 
+	// Route HTTP + WebSocket traffic through the configured proxy (if any) so the
+	// session's outbound IP is the proxy's, not the host's. Reduces ban risk for
+	// the unofficial Zalo Personal integration.
+	if c.config.Proxy != "" {
+		if err := sess.SetProxy(c.config.Proxy); err != nil {
+			return nil, fmt.Errorf("zalo_personal proxy: %w", err)
+		}
+		slog.Info("zalo_personal: routing through proxy", "proxy", protocol.MaskProxyForLog(c.config.Proxy))
+	}
+
 	// 1. Preloaded credentials (from DB via factory).
 	if c.preloadedCreds != nil {
 		slog.Info("zalo_personal: attempting login with preloaded credentials")

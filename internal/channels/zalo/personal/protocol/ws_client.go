@@ -22,9 +22,24 @@ type WSClient struct {
 // DialWS connects to a WebSocket endpoint using gorilla/websocket.
 // Manually injects cookies from the jar using https:// scheme to bypass
 // Go's cookiejar domain-matching limitations with wss:// URLs and host-only cookies.
-func DialWS(ctx context.Context, wsURL string, headers http.Header, jar http.CookieJar) (*WSClient, error) {
+//
+// proxyRaw, when non-empty, routes the dial through an HTTP CONNECT or SOCKS5
+// proxy so the WebSocket presence connection exits via the proxy IP rather than
+// the host IP (same spec format as Session.SetProxy).
+func DialWS(ctx context.Context, wsURL string, headers http.Header, jar http.CookieJar, proxyRaw string) (*WSClient, error) {
 	dialer := websocket.Dialer{
 		EnableCompression: true,
+	}
+	if proxyRaw != "" {
+		pu, err := ParseProxyURL(proxyRaw)
+		if err != nil {
+			return nil, fmt.Errorf("zalo_personal: ws proxy: %w", err)
+		}
+		if pu != nil {
+			if err := applyProxyToWSDialer(&dialer, pu); err != nil {
+				return nil, fmt.Errorf("zalo_personal: ws proxy: %w", err)
+			}
+		}
 	}
 	// Don't pass jar to gorilla — we inject cookies manually below.
 	// This avoids issues with host-only cookies not matching WS subdomains.

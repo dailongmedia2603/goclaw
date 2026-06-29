@@ -295,6 +295,7 @@ type ZaloPersonalConfig struct {
 	CredentialsPath string              `json:"credentials_path,omitempty"` // path to saved cookies JSON
 	BlockReply      *bool               `json:"block_reply,omitempty"`      // override gateway block_reply (nil = inherit)
 	ChatBehavior    *ChatBehaviorConfig `json:"chat_behavior,omitempty"`    // override gateway chat behavior (nil = inherit)
+	Proxy           string              `json:"proxy,omitempty"`            // route HTTP+WS traffic through proxy; host:port[:user:pass] or full URL (http/https/socks5)
 }
 
 type FeishuConfig struct {

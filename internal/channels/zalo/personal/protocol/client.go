@@ -31,6 +31,30 @@ type Session struct {
 	Settings  *Settings
 	CookieJar http.CookieJar
 	Client    *http.Client
+
+	// Proxy is the raw proxy spec (host:port[:user:pass] or a full URL) that all
+	// HTTP and WebSocket traffic for this session is routed through. Empty = direct.
+	Proxy string
+}
+
+// SetProxy routes all HTTP (and, via Session.Proxy, WebSocket) traffic for this
+// session through the given proxy. Accepts host:port, host:port:user:pass, or a
+// full proxy URL (http://, https://, socks5://). A blank spec is a no-op.
+func (s *Session) SetProxy(raw string) error {
+	pu, err := ParseProxyURL(raw)
+	if err != nil {
+		return err
+	}
+	if pu == nil {
+		return nil
+	}
+	tr, err := proxyHTTPTransport(pu)
+	if err != nil {
+		return err
+	}
+	s.Client.Transport = tr
+	s.Proxy = raw
+	return nil
 }
 
 // NewSession creates a fresh unauthenticated session.

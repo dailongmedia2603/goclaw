@@ -120,7 +120,7 @@ func (ln *Listener) Start(ctx context.Context) error {
 	h.Set("Pragma", "no-cache")
 	h.Set("User-Agent", ln.sess.UserAgent)
 
-	client, err := DialWS(lctx, ln.wsURL, h, ln.sess.CookieJar)
+	client, err := DialWS(lctx, ln.wsURL, h, ln.sess.CookieJar, ln.sess.Proxy)
 	if err != nil {
 		cancel()
 		return err
