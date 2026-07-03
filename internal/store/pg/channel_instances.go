@@ -218,6 +218,16 @@ func (s *PGChannelInstanceStore) Update(ctx context.Context, id uuid.UUID, updat
 		}
 		updates["credentials"] = credsBytes
 	}
+
+	// Route config-resident fields into the config JSONB. These keys are
+	// accepted by the API (channelInstanceAllowedFields) but have no dedicated
+	// column — writing them as columns fails ("column does not exist") and
+	// aborts the entire update, which is why top-level allow_from/group_policy
+	// edits from the UI never persisted.
+	if err := mergeConfigNestedFields(ctx, s.db, id, updates); err != nil {
+		return err
+	}
+
 	updates["updated_at"] = time.Now()
 	if store.IsCrossTenant(ctx) {
 		return execMapUpdate(ctx, s.db, "channel_instances", id, updates)
@@ -249,6 +259,81 @@ func (s *PGChannelInstanceStore) loadExistingCreds(ctx context.Context, id uuid.
 		return make(map[string]any), nil
 	}
 	return m, nil
+}
+
+// configNestedFields are API-updatable channel fields stored inside the config
+// JSONB rather than in dedicated columns.
+var configNestedFields = []string{"allow_from", "group_policy", "webhook_secret", "metadata"}
+
+// mergeConfigNestedFields folds any config-resident keys present in updates into
+// the config JSONB (loading the current config when the update doesn't already
+// carry an explicit config object), then removes the individual keys so they are
+// not emitted as non-existent columns.
+func mergeConfigNestedFields(ctx context.Context, db *sql.DB, id uuid.UUID, updates map[string]any) error {
+	nested := make(map[string]any)
+	for _, k := range configNestedFields {
+		if v, ok := updates[k]; ok {
+			nested[k] = v
+			delete(updates, k)
+		}
+	}
+	if len(nested) == 0 {
+		return nil
+	}
+
+	var cfg map[string]any
+	if raw, ok := updates["config"]; ok {
+		cfg = toStringMap(raw)
+	} else {
+		existing, err := loadExistingConfig(ctx, db, id)
+		if err != nil {
+			return fmt.Errorf("load existing config for merge: %w", err)
+		}
+		cfg = existing
+	}
+	if cfg == nil {
+		cfg = make(map[string]any)
+	}
+	maps.Copy(cfg, nested)
+	updates["config"] = cfg
+	return nil
+}
+
+// loadExistingConfig reads the current config JSONB for merging.
+func loadExistingConfig(ctx context.Context, db *sql.DB, id uuid.UUID) (map[string]any, error) {
+	var raw []byte
+	err := db.QueryRowContext(ctx, "SELECT config FROM channel_instances WHERE id = $1", id).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) || len(raw) == 0 {
+		return make(map[string]any), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return make(map[string]any), nil
+	}
+	return m, nil
+}
+
+// toStringMap coerces a decoded JSON value (map, []byte, or string) into a
+// map[string]any, returning nil when it can't.
+func toStringMap(v any) map[string]any {
+	switch m := v.(type) {
+	case map[string]any:
+		return m
+	case []byte:
+		var out map[string]any
+		if json.Unmarshal(m, &out) == nil {
+			return out
+		}
+	case string:
+		var out map[string]any
+		if json.Unmarshal([]byte(m), &out) == nil {
+			return out
+		}
+	}
+	return nil
 }
 
 func (s *PGChannelInstanceStore) Delete(ctx context.Context, id uuid.UUID) error {

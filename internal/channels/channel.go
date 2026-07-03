@@ -655,6 +655,22 @@ func (c *BaseChannel) ValidatePolicy(dmPolicy, groupPolicy string) {
 // HandleMessage creates an InboundMessage and publishes it to the bus.
 // This is the standard way for channels to forward received messages.
 // peerKind should be "direct" or "group" (see sessions.PeerDirect, sessions.PeerGroup).
+// isPairedSender reports whether senderID has an approved pairing for this
+// channel. Fail-closed: any lookup error is treated as not-paired.
+func (c *BaseChannel) isPairedSender(senderID string) bool {
+	if c.pairingService == nil {
+		return false
+	}
+	ctx := store.WithTenantID(context.Background(), c.tenantID)
+	paired, err := c.pairingService.IsPaired(ctx, senderID, c.name)
+	if err != nil {
+		slog.Warn("security.pairing_check_failed, denying access (fail-closed)",
+			"sender_id", senderID, "channel", c.name, "error", err)
+		return false
+	}
+	return paired
+}
+
 func (c *BaseChannel) HandleMessage(senderID, chatID, content string, media []string, metadata map[string]string, peerKind string) {
 	c.handleMessage(senderID, chatID, content, media, metadata, peerKind, false)
 }
