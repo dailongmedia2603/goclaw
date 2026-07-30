@@ -68,7 +68,76 @@ type ChannelsConfig struct {
 	Zalo              ZaloConfig               `json:"zalo"`
 	ZaloPersonal      ZaloPersonalConfig       `json:"zalo_personal"`
 	Feishu            FeishuConfig             `json:"feishu"`
+	FBCloak           FBCloakConfig            `json:"fbcloak"`
 	PendingCompaction *PendingCompactionConfig `json:"pending_compaction,omitempty"` // global pending message compaction settings
+}
+
+// FBCloakConfig configures the fbcloak browser-automation re-engagement
+// channel (Standard edition only; gated by edition.FBCloakEnabled). The
+// channel's runtime safety relies on the killswitch — env GOCLAW_FBCLOAK_KILLSWITCH=1
+// short-circuits every entry point at the service guard.
+type FBCloakConfig struct {
+	// ScreenshotDir is the on-disk root where pre/post send screenshots are
+	// written. Empty → resolved at runtime to {dataDir}/fbcloak/screenshots
+	// per-tenant subdirectory. Path is signed via /v1/files/sign before
+	// returning to the UI; never serve raw paths.
+	ScreenshotDir string `json:"screenshot_dir,omitempty"`
+
+	// ScreenshotRetentionDays controls automatic purge. 0 → 30 days default.
+	ScreenshotRetentionDays int `json:"screenshot_retention_days,omitempty"`
+
+	// KillswitchPollSeconds is the interval at which the env-watcher reloads
+	// GOCLAW_FBCLOAK_KILLSWITCH. 0 → 30s default. Set to a negative value to
+	// disable polling (fall back to startup-only read).
+	KillswitchPollSeconds int `json:"killswitch_poll_seconds,omitempty"`
+
+	// MaxConcurrent caps how many job runs may be in-flight across the
+	// process. 0 → 5. Per-credential serialisation is independent of this.
+	MaxConcurrent int `json:"max_concurrent,omitempty"`
+
+	// Orchestrator: Phase 5 Plan-Based Brain Mode. Default disabled — the
+	// 4 cron tickers (Generator, Executor, Replan, Cleanup) only start when
+	// Enabled=true. Provider is resolved via the existing background-provider
+	// chain (background.provider system_config / agent default / first
+	// registered) — fbcloak does not own provider selection.
+	Orchestrator FBCloakOrchestratorConfig `json:"orchestrator,omitempty"`
+}
+
+// FBCloakOrchestratorConfig configures the Phase 5 Plan-Based engagement
+// orchestrator. All zero-values are safe defaults; the only field operators
+// must consciously flip is Enabled.
+type FBCloakOrchestratorConfig struct {
+	// Enabled gates all 4 Phase-5 cron tickers (Generator, Executor, Replan,
+	// Cleanup). Default false — admin flips to true in System Settings only
+	// after verifying provider/cookies via the UI's "Generate now" button.
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Model overrides the LLM model. Empty → provider's DefaultModel().
+	// Honoured only when the resolved background provider supports the model.
+	Model string `json:"model,omitempty"`
+
+	// TickIntervalSec controls how often Generator polls credentials.
+	// 0 → 7 days (DefaultPlanGeneratorTick). Set to 60 in dev to iterate fast.
+	TickIntervalSec int `json:"tick_interval_sec,omitempty"`
+
+	// ExecutorTickMin is the Plan Executor poll interval in minutes.
+	// 0 → 60. Lowering speeds up due-plan delivery at the cost of more PG
+	// reads; raise for very low-volume tenants.
+	ExecutorTickMin int `json:"executor_tick_min,omitempty"`
+
+	// MaxConcurrent caps Generator parallelism. 0 → 5. Independent from
+	// FBCloakConfig.MaxConcurrent (which caps Executor + JobRunner via the
+	// shared semaphore).
+	MaxConcurrent int `json:"max_concurrent,omitempty"`
+
+	// BatchSize is the per-tick chunk Generator processes for each credential.
+	// 0 → 50. Larger batches amortise the system-prompt cache better.
+	BatchSize int `json:"batch_size,omitempty"`
+
+	// MinIdleHours / MaxIdleHours bound the recipient idle window in hours.
+	// 0 → defaults (168h / 4320h, i.e. 7 days / 180 days).
+	MinIdleHours int `json:"min_idle_hours,omitempty"`
+	MaxIdleHours int `json:"max_idle_hours,omitempty"`
 }
 
 type TelegramConfig struct {
@@ -111,6 +180,13 @@ type TelegramConfig struct {
 	AudioGuardFallbackTranscript   string   `json:"audio_guard_fallback_transcript,omitempty"`    // fallback with %s for transcript (e.g. "I heard: \"%s\". Try again!")
 	AudioGuardFallbackNoTranscript string   `json:"audio_guard_fallback_no_transcript,omitempty"` // fallback when no transcript available
 	AudioGuardErrorMarkers         []string `json:"audio_guard_error_markers,omitempty"`          // custom error detection markers (replaces defaults)
+
+	// [fork] Custom pairing text overrides. Placeholders: {code}, {bot_name}.
+	// Empty string → fallback to i18n default (see internal/i18n keys Msg TelegramPairing*).
+	PairingDMText       string `json:"pairing_dm_text,omitempty"`       // DM pairing reply; placeholders {code}, {bot_name}
+	PairingGroupText    string `json:"pairing_group_text,omitempty"`    // group pairing reply; placeholders {code}, {bot_name}
+	PairingApprovedText string `json:"pairing_approved_text,omitempty"` // post-approval notification; placeholder {bot_name}
+	PairingLocale       string `json:"pairing_locale,omitempty"`        // fallback i18n locale when custom text is empty: "en"|"vi"|"zh" (default "en")
 
 	// Per-group (and per-topic) overrides. Key is chat ID string (e.g. "-100123456") or "*" for wildcard.
 	// TS ref: channels.telegram.groups in src/config/types.telegram.ts.
@@ -534,15 +610,74 @@ type WebFetchPolicyConfig struct {
 	BlockedDomains []string `json:"blocked_domains,omitempty"` // always checked regardless of policy
 }
 
+// BrowserProfile configures a single named browser profile.
+type BrowserProfile struct {
+	RemoteURL       string   `json:"remote_url,omitempty"`        // CDP endpoint, e.g. "ws://cloak:9222"
+	Headless        bool     `json:"headless,omitempty"`          // local Chrome headless mode
+	Shared          bool     `json:"shared,omitempty"`            // skip incognito isolation (preserves cookies)
+	Domains         []string `json:"domains,omitempty"`           // auto-route domains: ["shopee.vn", "*.shopee.*"]
+	VNCURL          string   `json:"vnc_url,omitempty"`           // noVNC URL for manual login
+	ActionTimeoutMs int      `json:"action_timeout_ms,omitempty"` // per-action timeout in ms
+	IdleTimeoutMs   int      `json:"idle_timeout_ms,omitempty"`   // idle page auto-close in ms
+	MaxPages        int      `json:"max_pages,omitempty"`         // max open pages per tenant
+}
+
 // BrowserToolConfig controls the browser automation tool.
 type BrowserToolConfig struct {
-	Enabled           bool   `json:"enabled"`                     // enable the browser tool (default false)
-	Headless          bool   `json:"headless,omitempty"`          // run Chrome in headless mode (ignored when RemoteURL is set)
-	RemoteURL         string `json:"remote_url,omitempty"`        // CDP endpoint for remote Chrome sidecar, e.g. "ws://chrome:9222"
-	ActionTimeoutMs   int    `json:"action_timeout_ms,omitempty"` // per-action timeout in ms (default 30000)
-	IdleTimeoutMs     int    `json:"idle_timeout_ms,omitempty"`   // idle page auto-close in ms (default 600000, 0=disabled)
-	MaxPages          int    `json:"max_pages,omitempty"`         // max open pages per tenant (default 5)
-	CookieSyncEnabled bool   `json:"cookie_sync_enabled"`         // apply selected synced cookies to scoped browser sessions
+	Enabled           bool                      `json:"enabled"`                   // enable the browser tool
+	DefaultProfile    string                    `json:"default_profile,omitempty"` // default profile name (default: "default")
+	Profiles          map[string]BrowserProfile `json:"profiles,omitempty"`        // named browser profiles
+	CookieSyncEnabled bool                      `json:"cookie_sync_enabled"`       // apply selected synced cookies to scoped browser sessions
+
+	// Legacy flat fields — used as "default" profile when Profiles is empty (backward compat)
+	Headless        bool   `json:"headless,omitempty"`          // run Chrome in headless mode (ignored when RemoteURL is set)
+	RemoteURL       string `json:"remote_url,omitempty"`        // CDP endpoint for remote Chrome sidecar, e.g. "ws://chrome:9222"
+	ActionTimeoutMs int    `json:"action_timeout_ms,omitempty"` // per-action timeout in ms (default 30000)
+	IdleTimeoutMs   int    `json:"idle_timeout_ms,omitempty"`   // idle page auto-close in ms (default 600000, 0=disabled)
+	MaxPages        int    `json:"max_pages,omitempty"`         // max open pages per tenant (default 5)
+}
+
+// ResolvedProfiles returns the profile map. If no profiles are configured,
+// creates a single "default" profile from the legacy flat fields.
+// When profiles exist but "default" is missing, auto-creates it from flat fields
+// so browser tool always has a fallback profile.
+func (c *BrowserToolConfig) ResolvedProfiles() map[string]BrowserProfile {
+	if len(c.Profiles) == 0 {
+		return map[string]BrowserProfile{
+			"default": {
+				RemoteURL:       c.RemoteURL,
+				Headless:        c.Headless,
+				ActionTimeoutMs: c.ActionTimeoutMs,
+				IdleTimeoutMs:   c.IdleTimeoutMs,
+				MaxPages:        c.MaxPages,
+			},
+		}
+	}
+	// Ensure "default" profile always exists when other profiles are configured.
+	// Uses RemoteURL from flat/env fields, or falls back to headless mode.
+	if _, ok := c.Profiles["default"]; !ok {
+		merged := make(map[string]BrowserProfile, len(c.Profiles)+1)
+		for k, v := range c.Profiles {
+			merged[k] = v
+		}
+		merged["default"] = BrowserProfile{
+			RemoteURL:       c.RemoteURL,
+			Headless:        c.Headless || c.RemoteURL == "",
+			ActionTimeoutMs: c.ActionTimeoutMs,
+			IdleTimeoutMs:   c.IdleTimeoutMs,
+			MaxPages:        c.MaxPages,
+		}
+		return merged
+	}
+	return c.Profiles
+}
+
+// ResolvedDefaultProfile returns the default profile name.
+func (c *BrowserToolConfig) ResolvedDefaultProfile() string {
+	if c.DefaultProfile != "" {
+		return c.DefaultProfile
+	}
+	return "default"
 }
 
 // ToolPolicySpec defines a tool policy at any level (global, per-agent, per-provider).

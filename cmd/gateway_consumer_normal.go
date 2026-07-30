@@ -255,6 +255,13 @@ func processNormalMessage(
 		if msg.SenderID != "" && !bus.IsInternalSender(msg.SenderID) {
 			outMeta["bitrix_address_user_id"] = msg.SenderID
 		}
+
+		// Pass sender info so channels can @mention the sender in group replies.
+		for _, k := range []string{"sender_id", "sender_name"} {
+			if v := msg.Metadata[k]; v != "" {
+				outMeta[k] = v
+			}
+		}
 	}
 
 	// Forward Bitrix24-specific routing keys so Send() can:

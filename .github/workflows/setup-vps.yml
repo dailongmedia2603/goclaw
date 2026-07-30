@@ -1,0 +1,314 @@
+name: Setup New VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'Domain name (e.g. agent.thekp3.com)'
+        required: true
+        default: 'agent.thekp3.com'
+      email:
+        description: 'Email for SSL certificate'
+        required: true
+        default: 'admin@thekp3.com'
+      skip_ssl:
+        description: 'Skip SSL setup (if DNS not ready yet)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Step 1: Install Docker & dependencies"
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          command_timeout: 10m
+          script: |
+            set -e
+            echo "=== Checking Docker ==="
+            if command -v docker &>/dev/null; then
+              echo "Docker already installed: $(docker --version)"
+            else
+              echo "Installing Docker..."
+              apt-get update -qq
+              apt-get install -y -qq ca-certificates curl gnupg
+              curl -fsSL https://get.docker.com | sh
+              systemctl enable docker
+              systemctl start docker
+              echo "Docker installed: $(docker --version)"
+            fi
+
+            if docker compose version &>/dev/null; then
+              echo "Docker Compose available: $(docker compose version)"
+            else
+              echo "ERROR: Docker Compose not found"
+              exit 1
+            fi
+
+            # Install git if needed
+            if ! command -v git &>/dev/null; then
+              apt-get install -y -qq git
+            fi
+
+            echo "=== Step 1 DONE ==="
+
+      - name: "Step 2: Clone repo & generate secrets"
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          command_timeout: 5m
+          script: |
+            set -e
+            echo "=== Cloning repo ==="
+            if [ -d /opt/goclaw/.git ]; then
+              echo "Repo exists, pulling latest..."
+              cd /opt/goclaw && git fetch origin main && git reset --hard origin/main
+            else
+              rm -rf /opt/goclaw
+              git clone https://github.com/dailongmedia2603/goclaw.git /opt/goclaw
+            fi
+
+            cd /opt/goclaw
+
+            echo "=== Generating secrets ==="
+            # Only generate if not exists
+            if [ ! -f .env.local ]; then
+              GATEWAY_TOKEN=$(openssl rand -hex 16)
+              ENCRYPTION_KEY=$(openssl rand -hex 16)
+              PG_PASSWORD=$(openssl rand -hex 12)
+
+              cat > .env.local << EOF
+            GOCLAW_GATEWAY_TOKEN=${GATEWAY_TOKEN}
+            GOCLAW_ENCRYPTION_KEY=${ENCRYPTION_KEY}
+            POSTGRES_PASSWORD=${PG_PASSWORD}
+            EOF
+              echo "Generated .env.local with fresh secrets"
+              echo "GATEWAY_TOKEN=${GATEWAY_TOKEN}"
+            else
+              echo ".env.local already exists, keeping existing secrets"
+              cat .env.local | grep -v KEY | grep -v PASSWORD
+            fi
+
+            echo "=== Creating docker-compose.override.yml ==="
+            cat > docker-compose.override.yml << 'EOF'
+            services:
+              goclaw:
+                deploy:
+                  resources:
+                    limits:
+                      memory: 1G
+                      cpus: '1.0'
+                      pids: 200
+              chrome:
+                shm_size: 1gb
+                deploy:
+                  resources:
+                    limits:
+                      memory: 1G
+                      cpus: '1.0'
+            EOF
+
+            echo "=== Step 2 DONE ==="
+
+      - name: "Step 3: Start Docker containers"
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          command_timeout: 15m
+          script: |
+            set -e
+            cd /opt/goclaw
+
+            echo "=== Loading env ==="
+            set -a && source .env.local && set +a
+
+            echo "=== Building and starting containers ==="
+            docker compose \
+              -f docker-compose.yml \
+              -f docker-compose.postgres.yml \
+              -f docker-compose.selfservice.yml \
+              -f docker-compose.browser.yml \
+              -f docker-compose.override.yml \
+              up -d --build
+
+            echo "=== Waiting for health check ==="
+            sleep 10
+            docker ps --format "table {{.Names}}\t{{.Status}}"
+
+            echo "=== Step 3 DONE ==="
+
+      - name: "Step 4: Run onboard (fresh setup)"
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          command_timeout: 3m
+          script: |
+            set -e
+            cd /opt/goclaw
+
+            echo "=== Running database migrations ==="
+            docker compose \
+              -f docker-compose.yml \
+              -f docker-compose.postgres.yml \
+              -f docker-compose.selfservice.yml \
+              -f docker-compose.browser.yml \
+              -f docker-compose.override.yml \
+              exec goclaw ./goclaw migrate up 2>&1 || echo "Migrations may have already run"
+
+            echo "=== Step 4 DONE ==="
+
+      - name: "Step 5: Setup Nginx + SSL"
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          command_timeout: 5m
+          script: |
+            set -e
+            DOMAIN="${{ inputs.domain }}"
+            EMAIL="${{ inputs.email }}"
+            SKIP_SSL="${{ inputs.skip_ssl }}"
+
+            echo "=== Installing Nginx ==="
+            apt-get install -y -qq nginx
+
+            echo "=== Writing Nginx config for ${DOMAIN} ==="
+            cat > /etc/nginx/sites-available/goclaw << NGINX
+            server {
+                listen 80;
+                server_name ${DOMAIN};
+                client_max_body_size 50M;
+
+                # Web UI
+                location / {
+                    proxy_pass http://127.0.0.1:3000;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade \$http_upgrade;
+                    proxy_set_header Connection "upgrade";
+                    proxy_set_header Host \$host;
+                    proxy_set_header X-Real-IP \$remote_addr;
+                    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto \$scheme;
+                    proxy_read_timeout 86400;
+                    proxy_send_timeout 86400;
+                }
+
+                # GoClaw API + WebSocket (direct)
+                location /api/ {
+                    proxy_pass http://127.0.0.1:18790;
+                    proxy_http_version 1.1;
+                    proxy_set_header Host \$host;
+                    proxy_set_header X-Real-IP \$remote_addr;
+                    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto \$scheme;
+                }
+            }
+            NGINX
+
+            ln -sf /etc/nginx/sites-available/goclaw /etc/nginx/sites-enabled/
+            rm -f /etc/nginx/sites-enabled/default
+            nginx -t && systemctl enable nginx && systemctl reload nginx
+            echo "Nginx configured for ${DOMAIN}"
+
+            if [ "${SKIP_SSL}" = "true" ]; then
+              echo "=== Skipping SSL (--skip_ssl) ==="
+            else
+              echo "=== Installing Certbot + SSL ==="
+              apt-get install -y -qq certbot python3-certbot-nginx
+              certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos -m "${EMAIL}" --redirect
+              echo "SSL certificate installed for ${DOMAIN}"
+            fi
+
+            echo "=== Step 5 DONE ==="
+
+      - name: "Step 6: Firewall + Security"
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          command_timeout: 3m
+          script: |
+            set -e
+            SSH_PORT="${{ secrets.VPS_SSH_PORT }}"
+
+            echo "=== Configuring firewall ==="
+            apt-get install -y -qq ufw
+
+            ufw default deny incoming
+            ufw default allow outgoing
+            ufw allow ${SSH_PORT}/tcp comment "SSH"
+            ufw allow 80/tcp comment "HTTP"
+            ufw allow 443/tcp comment "HTTPS"
+
+            # Block direct access to app ports from outside
+            ufw deny 18790/tcp comment "Block direct API"
+            ufw deny 3000/tcp comment "Block direct UI"
+            ufw deny 9222/tcp comment "Block direct Chrome"
+            ufw deny 5432/tcp comment "Block direct Postgres"
+
+            echo "y" | ufw enable
+            ufw status verbose
+
+            echo "=== Installing fail2ban ==="
+            apt-get install -y -qq fail2ban
+            systemctl enable fail2ban
+            systemctl start fail2ban
+
+            echo "=== Step 6 DONE ==="
+
+      - name: "Step 7: Verify"
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          password: ${{ secrets.VPS_PASSWORD }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          command_timeout: 2m
+          script: |
+            set -e
+            DOMAIN="${{ inputs.domain }}"
+
+            echo "=== Container status ==="
+            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+            echo ""
+            echo "=== Health check ==="
+            curl -sf http://127.0.0.1:18790/health && echo " ← API OK" || echo " ← API FAIL"
+
+            echo ""
+            echo "=== Web UI check ==="
+            curl -sf -o /dev/null -w "%{http_code}" http://127.0.0.1:3000 && echo " ← UI OK" || echo " ← UI FAIL"
+
+            echo ""
+            echo "=== Nginx check ==="
+            curl -sf -o /dev/null -w "%{http_code}" http://127.0.0.1 && echo " ← Nginx OK" || echo " ← Nginx FAIL"
+
+            echo ""
+            echo "=== Gateway token ==="
+            grep GOCLAW_GATEWAY_TOKEN /opt/goclaw/.env.local
+
+            echo ""
+            echo "============================================"
+            echo "  Setup complete!"
+            echo "  Domain: https://${DOMAIN}"
+            echo "  Dashboard: https://${DOMAIN}"
+            echo "============================================"

@@ -171,7 +171,7 @@ All notable changes to GoClaw are documented here. For full documentation, see [
   `display_name` across the inbound → outbound hop so the private-reply
   template variables survive the agent pipeline round-trip.
 
-### Fixed
+### Fixed (v3.12.0)
 
 - **Skill grant tenant isolation.** Agent skill grants now validate both the
   skill and agent tenant scope before insert, revoke, grant listing, or

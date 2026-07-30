@@ -302,6 +302,14 @@ const (
 	MsgTenantMismatch      = "error.tenant_mismatch"       // "tenant user does not belong to this tenant"
 	MsgTenantScopeRequired = "error.tenant_scope_required" // "tenant scope is required for this operation"
 
+	// --- Facebook Messenger (personal) channel ---
+	MsgFBMSidecarUnreachable = "channel.fbm.sidecar_unreachable" // "cannot reach mautrix-meta sidecar at %s"
+	MsgFBMSignatureInvalid   = "channel.fbm.signature_invalid"   // "webhook signature verification failed"
+	MsgFBMSignatureExpired   = "channel.fbm.signature_expired"   // "webhook signature timestamp outside 60s window"
+	MsgFBMSendFailed         = "channel.fbm.send_failed"         // "send to Facebook Messenger failed: %s"
+	MsgFBMCookieExpired      = "channel.fbm.cookie_expired"      // "Facebook cookies expired — please re-authenticate"
+	MsgFBMToSAckRequired     = "channel.fbm.tos_ack_required"    // "you must acknowledge the experimental feature risks before enabling this channel"
+
 	// --- Webhooks ---
 	MsgWebhookAuthFailed                  = "webhook.auth_failed"                    // "webhook authentication failed"
 	MsgWebhookHMACInvalid                 = "webhook.hmac_invalid"                   // "HMAC signature is invalid"
@@ -357,6 +365,39 @@ const (
 	MsgHookBudgetExceeded          = "hook.budget_exceeded"           // "tenant hook token budget exceeded"
 	MsgHookPerTurnCapReached       = "hook.per_turn_cap_reached"      // "hook invocation per-turn cap reached"
 	MsgHookBuiltinReadOnly         = "hook.builtin_readonly"          // "builtin hooks are read-only except for the enabled toggle"
+
+	// --- Telegram pairing (custom text fallback) ---
+	// Format args: DM/Group take (code, bot_name); Approved takes (bot_name).
+	MsgTelegramPairingDM       = "channel.telegram.pairing.dm"
+	MsgTelegramPairingGroup    = "channel.telegram.pairing.group"
+	MsgTelegramPairingApproved = "channel.telegram.pairing.approved"
+
+	// --- FBCloak (browser-automation re-engagement, Standard edition only) ---
+	MsgFBCloakUnavailable          = "fbcloak.unavailable"           // "fbcloak is not available in this edition"
+	MsgFBCloakKillswitch           = "fbcloak.killswitch_active"     // "fbcloak is temporarily disabled (killswitch)"
+	MsgFBCloakInvalidProxy         = "fbcloak.invalid_proxy"         // "proxy URL must use socks5://, socks4://, http://, or https://"
+	MsgFBCloakCookieMissing        = "fbcloak.cookie_missing"        // "required Facebook cookies are missing: %v"
+	MsgFBCloakCheckpoint           = "fbcloak.checkpoint"            // "Facebook account is on a security checkpoint — manual intervention required"
+	MsgFBCloakDisclaimerRequired   = "fbcloak.disclaimer_required"   // "you must acknowledge the disclaimer before enabling jobs"
+	MsgFBCloakOutOfWindow          = "fbcloak.out_of_window"         // "recipient is outside the supported re-engagement window (>6 months)"
+	MsgFBCloakCustomerRepliedRecent = "fbcloak.customer_replied_recent" // "skipped: customer replied more recently than the database snapshot suggests"
+	MsgFBCloakNoConversation        = "fbcloak.no_conversation"         // "no conversation history with this recipient"
+	MsgFBCloakGraphUnavailable      = "fbcloak.graph_unavailable"       // "API path (≤7d) is not configured on this server"
+	MsgFBCloakDisclaimerAcked       = "fbcloak.disclaimer_acked"        // "disclaimer acknowledged"
+
+	// FBCloak Phase 5: engagement plans (Plan-Based Brain Mode).
+	MsgFBCloakPlanGenerated        = "fbcloak.plan_generated"          // "Đã tạo %v kế hoạch chăm sóc"
+	MsgFBCloakPlanCancelled        = "fbcloak.plan_cancelled"          // "Đã hủy kế hoạch"
+	MsgFBCloakPlanGenerating       = "fbcloak.plan_generating"         // "Đang tạo kế hoạch..."
+	MsgFBCloakPlanModelMissing     = "fbcloak.plan_model_missing"      // "No background LLM provider configured"
+	MsgFBCloakPlanLLMError         = "fbcloak.plan_llm_error"          // "LLM error: %v"
+	MsgFBCloakPlanNoSummary        = "fbcloak.plan_no_summary"         // "No fbbackfill data for this recipient"
+	MsgFBCloakPlanSkippedByLLM     = "fbcloak.plan_skipped_by_llm"     // "LLM decided not to send: %v"
+	MsgFBCloakPlanCustomerOptOut   = "fbcloak.plan_customer_opt_out"   // "Customer has opted out"
+	MsgFBCloakPlanInvalidJSON      = "fbcloak.plan_invalid_json"       // "LLM returned invalid JSON"
+	MsgFBCloakPlanScheduleTooFar   = "fbcloak.plan_schedule_too_far"   // "Schedule too far in the future (>90 days)"
+	MsgFBCloakPlanActiveConflict   = "fbcloak.plan_active_conflict"    // "An active plan already exists for this recipient"
+	MsgFBCloakPlanTerminal         = "fbcloak.plan_terminal"           // "Plan is in terminal state, cannot transition"
 
 	// --- Grant env validation ---
 	MsgGrantEnvDeniedKeys   = "error.grant_env_denied_keys"   // "env keys not allowed: %s"

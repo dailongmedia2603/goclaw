@@ -19,10 +19,18 @@ package agent
 import (
 	"log/slog"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/nextlevelbuilder/goclaw/internal/store"
 )
+
+func truncPreview(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "…"
+}
 
 // SanitizeAssistantContent applies the full sanitization pipeline to assistant
 // response text before saving to session and sending to user.
@@ -34,36 +42,71 @@ func SanitizeAssistantContent(content string) string {
 
 	original := content
 
+	logDrain := func(step string, before, after string) {
+		if len(after) < len(before) {
+			slog.Info("sanitize.drain",
+				"step", step,
+				"before_len", len(before),
+				"after_len", len(after),
+				"dropped", len(before)-len(after),
+				"preview_before", truncPreview(before, 200),
+			)
+		}
+	}
+
 	// 1. Strip garbled tool-call XML (DeepSeek, GLM, Minimax)
+	prev := content
 	content = stripGarbledToolXML(content)
+	logDrain("1_garbled_xml", prev, content)
 	if content == "" {
+		slog.Warn("sanitize.empty_after_step", "step", "1_garbled_xml", "original_len", len(original), "preview", truncPreview(original, 300))
 		return ""
 	}
 
 	// 2. Strip downgraded tool call text ([Tool Call: ...], [Tool Result ...])
+	prev = content
 	content = stripDowngradedToolCallText(content)
+	logDrain("2_downgraded_tool", prev, content)
 
 	// 3. Strip thinking/reasoning tags (<think>, <thinking>, <thought>, <antThinking>)
+	prev = content
 	content = stripThinkingTags(content)
+	logDrain("3_thinking_tags", prev, content)
 
 	// 4. Strip <final> tags (keep content inside)
+	prev = content
 	content = stripFinalTags(content)
+	logDrain("4_final_tags", prev, content)
 
 	// 5. Strip echoed [System Message] blocks
+	prev = content
 	content = stripEchoedSystemMessages(content)
+	logDrain("5_system_messages", prev, content)
 
 	// 6. Collapse consecutive duplicate blocks
+	prev = content
 	content = collapseConsecutiveDuplicateBlocks(content)
+	logDrain("6_collapse_dupes", prev, content)
 
 	// 7. Strip MEDIA: paths from LLM output (media delivered separately)
+	prev = content
 	content = stripMediaPaths(content)
+	logDrain("7_media_paths", prev, content)
 
-	// 8. Strip leading blank lines (preserve indentation)
+	// 8. Normalize LaTeX math notation to Unicode (e.g. $\rightarrow$ → →, $\alpha$ → α).
+	content = normalizeLatex(content)
+
+	// 9. Strip leading blank lines (preserve indentation)
 	content = stripLeadingBlankLines(content)
 
 	content = strings.TrimSpace(content)
 
-	if content != original {
+	if content == "" && original != "" {
+		slog.Warn("sanitize.fully_drained",
+			"original_len", len(original),
+			"preview", truncPreview(original, 500),
+		)
+	} else if content != original {
 		slog.Debug("sanitized assistant content",
 			"original_len", len(original),
 			"cleaned_len", len(content),
@@ -486,6 +529,135 @@ func isAlphaNum(r rune) bool {
 
 func isWordChar(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_'
+}
+
+// --- Normalize LaTeX math notation to Unicode ---
+
+// latexMacroMap translates common LaTeX macros (Greek letters, arrows, relations,
+// operators, sets, logic, calculus) into their Unicode equivalents. Extend as needed.
+var latexMacroMap = map[string]string{
+	// Arrows
+	`\rightarrow`:     "→",
+	`\Rightarrow`:     "⇒",
+	`\leftarrow`:      "←",
+	`\Leftarrow`:      "⇐",
+	`\leftrightarrow`: "↔",
+	`\Leftrightarrow`: "⇔",
+	`\to`:             "→",
+	`\gets`:           "←",
+	`\mapsto`:         "↦",
+	`\uparrow`:        "↑",
+	`\downarrow`:      "↓",
+	`\longrightarrow`: "⟶",
+	`\longleftarrow`:  "⟵",
+
+	// Greek lowercase
+	`\alpha`: "α", `\beta`: "β", `\gamma`: "γ", `\delta`: "δ",
+	`\epsilon`: "ε", `\varepsilon`: "ε", `\zeta`: "ζ", `\eta`: "η",
+	`\theta`: "θ", `\vartheta`: "ϑ", `\iota`: "ι", `\kappa`: "κ",
+	`\lambda`: "λ", `\mu`: "μ", `\nu`: "ν", `\xi`: "ξ",
+	`\pi`: "π", `\varpi`: "ϖ", `\rho`: "ρ", `\varrho`: "ϱ",
+	`\sigma`: "σ", `\varsigma`: "ς", `\tau`: "τ", `\upsilon`: "υ",
+	`\phi`: "φ", `\varphi`: "ϕ", `\chi`: "χ", `\psi`: "ψ", `\omega`: "ω",
+
+	// Greek uppercase
+	`\Gamma`: "Γ", `\Delta`: "Δ", `\Theta`: "Θ", `\Lambda`: "Λ",
+	`\Xi`: "Ξ", `\Pi`: "Π", `\Sigma`: "Σ", `\Upsilon`: "Υ",
+	`\Phi`: "Φ", `\Psi`: "Ψ", `\Omega`: "Ω",
+
+	// Operators & relations
+	`\times`: "×", `\div`: "÷", `\pm`: "±", `\mp`: "∓",
+	`\cdot`: "·", `\cdots`: "⋯", `\ldots`: "…", `\dots`: "…",
+	`\leq`: "≤", `\le`: "≤", `\geq`: "≥", `\ge`: "≥",
+	`\neq`: "≠", `\ne`: "≠", `\approx`: "≈", `\equiv`: "≡",
+	`\sim`: "∼", `\simeq`: "≃", `\cong`: "≅", `\propto`: "∝",
+	`\ll`: "≪", `\gg`: "≫",
+
+	// Sets & logic
+	`\in`: "∈", `\notin`: "∉", `\ni`: "∋",
+	`\subset`: "⊂", `\supset`: "⊃", `\subseteq`: "⊆", `\supseteq`: "⊇",
+	`\cup`: "∪", `\cap`: "∩", `\setminus`: "∖",
+	`\emptyset`: "∅", `\varnothing`: "∅",
+	`\forall`: "∀", `\exists`: "∃", `\nexists`: "∄",
+	`\land`: "∧", `\wedge`: "∧", `\lor`: "∨", `\vee`: "∨",
+	`\neg`: "¬", `\lnot`: "¬",
+
+	// Calculus & misc
+	`\infty`: "∞", `\partial`: "∂", `\nabla`: "∇",
+	`\sum`: "∑", `\prod`: "∏", `\int`: "∫", `\oint`: "∮",
+	`\sqrt`: "√",
+}
+
+var (
+	latexMacroPattern        = regexp.MustCompile(`\\[a-zA-Z]+`)
+	latexDisplayMathPattern  = regexp.MustCompile(`(?s)\$\$(.+?)\$\$`)
+	latexInlineMathPattern   = regexp.MustCompile(`\$([^$\n]+?)\$`)
+	latexParenMathPattern    = regexp.MustCompile(`(?s)\\\((.+?)\\\)`)
+	latexBracketMathPattern  = regexp.MustCompile(`(?s)\\\[(.+?)\\\]`)
+	latexProtectCodeBlockRe  = regexp.MustCompile("(?s)```.*?```")
+	latexProtectInlineCodeRe = regexp.MustCompile("`[^`\n]+`")
+	latexProtectPlaceholder  = regexp.MustCompile("\x00LTX(\\d+)\x00")
+)
+
+func replaceLatexMacros(s string) string {
+	return latexMacroPattern.ReplaceAllStringFunc(s, func(m string) string {
+		if repl, ok := latexMacroMap[m]; ok {
+			return repl
+		}
+		return m
+	})
+}
+
+// normalizeLatex strips common LaTeX math delimiters ($...$, $$...$$, \(...\), \[...\])
+// and replaces LaTeX macros inside with Unicode equivalents. For $...$ and $$...$$,
+// the delimiters are only stripped when the content contains at least one backslash —
+// this preserves currency mentions like "$50 and $100" as plain prose.
+func normalizeLatex(content string) string {
+	if !strings.Contains(content, `\`) {
+		return content
+	}
+
+	// Protect fenced + inline code so LaTeX discussions inside code stay literal.
+	var protected []string
+	stash := func(m string) string {
+		idx := len(protected)
+		protected = append(protected, m)
+		return "\x00LTX" + strconv.Itoa(idx) + "\x00"
+	}
+	content = latexProtectCodeBlockRe.ReplaceAllStringFunc(content, stash)
+	content = latexProtectInlineCodeRe.ReplaceAllStringFunc(content, stash)
+
+	content = latexDisplayMathPattern.ReplaceAllStringFunc(content, func(m string) string {
+		inner := m[2 : len(m)-2]
+		if !strings.Contains(inner, `\`) {
+			return m
+		}
+		return replaceLatexMacros(inner)
+	})
+	content = latexInlineMathPattern.ReplaceAllStringFunc(content, func(m string) string {
+		inner := m[1 : len(m)-1]
+		if !strings.Contains(inner, `\`) {
+			return m
+		}
+		return replaceLatexMacros(inner)
+	})
+	content = latexParenMathPattern.ReplaceAllStringFunc(content, func(m string) string {
+		return replaceLatexMacros(m[2 : len(m)-2])
+	})
+	content = latexBracketMathPattern.ReplaceAllStringFunc(content, func(m string) string {
+		return replaceLatexMacros(m[2 : len(m)-2])
+	})
+
+	// Restore protected code blocks.
+	content = latexProtectPlaceholder.ReplaceAllStringFunc(content, func(m string) string {
+		idx, err := strconv.Atoi(m[len("\x00LTX") : len(m)-1])
+		if err != nil || idx < 0 || idx >= len(protected) {
+			return m
+		}
+		return protected[idx]
+	})
+
+	return content
 }
 
 // --- Message Directives ([[name:value]]) ---

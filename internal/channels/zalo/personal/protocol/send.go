@@ -11,7 +11,8 @@ import (
 
 // SendMessage sends a text message to a user or group.
 // threadID: user UID (DM) or group ID (group).
-func SendMessage(ctx context.Context, sess *Session, threadID string, threadType ThreadType, text string) (string, error) {
+// mentions: optional @mention metadata for group messages (nil for DMs or no mentions).
+func SendMessage(ctx context.Context, sess *Session, threadID string, threadType ThreadType, text string, mentions []TMention) (string, error) {
 	if text == "" {
 		return "", fmt.Errorf("zalo_personal: message text cannot be empty")
 	}
@@ -20,7 +21,12 @@ func SendMessage(ctx context.Context, sess *Session, threadID string, threadType
 	apiPath := "/api/message/sms"
 	if threadType == ThreadTypeGroup {
 		serviceKey = "group"
-		apiPath = "/api/group/sendmsg"
+		// Zalo uses a separate endpoint for messages with mentions (per zca-js).
+		if len(mentions) > 0 {
+			apiPath = "/api/group/mention"
+		} else {
+			apiPath = "/api/group/sendmsg"
+		}
 	}
 
 	baseURL := getServiceURL(sess, serviceKey)
@@ -37,6 +43,12 @@ func SendMessage(ctx context.Context, sess *Session, threadID string, threadType
 	if threadType == ThreadTypeGroup {
 		payload["grid"] = threadID
 		payload["visibility"] = 0
+		if len(mentions) > 0 {
+			// Outgoing mentions use field "mentionInfo" as a JSON string (per zca-js).
+			if mentionJSON, err := json.Marshal(mentions); err == nil {
+				payload["mentionInfo"] = string(mentionJSON)
+			}
+		}
 	} else {
 		payload["toid"] = threadID
 		payload["imei"] = sess.IMEI

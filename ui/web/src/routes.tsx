@@ -63,6 +63,9 @@ const MCPPage = lazyWithRetry(() =>
 const TeamsPage = lazyWithRetry(() =>
   import("@/pages/teams/teams-page").then((m) => ({ default: m.TeamsPage })),
 );
+const BrowserPage = lazyWithRetry(() =>
+  import("@/pages/browser/browser-page").then((m) => ({ default: m.BrowserPage })),
+);
 const BuiltinToolsPage = lazyWithRetry(() =>
   import("@/pages/builtin-tools/builtin-tools-page").then((m) => ({ default: m.BuiltinToolsPage })),
 );
@@ -123,6 +126,9 @@ const WorkstationsPage = lazyWithRetry(() =>
 const TenantSelectorPage = lazyWithRetry(() =>
   import("@/pages/login/tenant-selector").then((m) => ({ default: m.TenantSelectorPage })),
 );
+const FBCloakPage = lazyWithRetry(() =>
+  import("@/pages/fbcloak/fbcloak-page").then((m) => ({ default: m.FBCloakPage })),
+);
 
 function PageLoader() {
   return (
@@ -180,6 +186,8 @@ export function AppRoutes() {
           <Route path={ROUTES.CRON_DETAIL} element={<CronPage key="detail" />} />
           <Route path={ROUTES.HOOKS} element={<HooksPage key="list" />} />
           <Route path={ROUTES.HOOK_DETAIL} element={<HooksPage key="detail" />} />
+          <Route path={ROUTES.FBCLOAK} element={<RequireAdmin><FBCloakPage /></RequireAdmin>} />
+          <Route path={ROUTES.FBCLOAK_TAB} element={<RequireAdmin><FBCloakPage /></RequireAdmin>} />
           {/* Admin-only pages */}
           <Route path={ROUTES.CONFIG} element={<RequireCrossTenant><ConfigPage /></RequireCrossTenant>} />
           <Route path={ROUTES.PROVIDERS} element={<RequireAdmin><ProvidersPage key="list" /></RequireAdmin>} />
@@ -192,6 +200,7 @@ export function AppRoutes() {
           <Route path={ROUTES.NODES} element={<RequireAdmin><NodesPage /></RequireAdmin>} />
           <Route path={ROUTES.WORKSTATIONS} element={<RequireAdmin><WorkstationsPage /></RequireAdmin>} />
           <Route path={ROUTES.LOGS} element={<RequireAdmin><LogsPage /></RequireAdmin>} />
+          <Route path={ROUTES.BROWSER} element={<RequireAdmin><BrowserPage /></RequireAdmin>} />
           <Route path={ROUTES.BUILTIN_TOOLS} element={<RequireAdmin><BuiltinToolsPage /></RequireAdmin>} />
           <Route path={ROUTES.MCP} element={<RequireAdmin><MCPPage /></RequireAdmin>} />
           <Route path={ROUTES.TTS} element={<RequireCrossTenant><TtsPage /></RequireCrossTenant>} />

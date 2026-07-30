@@ -116,6 +116,10 @@ func (s *seedStubStore) EnsureUserProfile(_ context.Context, _ uuid.UUID, _ stri
 func (s *seedStubStore) PropagateContextFile(_ context.Context, _ uuid.UUID, _ string) (int, error) {
 	return 0, nil
 }
+func (s *seedStubStore) DeleteUserInstance(_ context.Context, _ uuid.UUID, _ string) error {
+	return nil
+}
+
 // ---- Tests ----
 
 // TestBuildPrefilledUser_SanitizesMarkdownInjection verifies that DisplayName with

@@ -7,7 +7,8 @@ import (
 
 // thinkOpenRe matches opening think tags emitted by various models.
 // Covers: <think>, <thinking>, <thought>, <antThinking>, plus optional attributes.
-var thinkOpenRe = regexp.MustCompile(`(?i)<\s*(?:think(?:ing)?|thought|antthinking)\b[^>]*>`)
+// Also handles malformed tags where ">" is missing (e.g. "<thought\n").
+var thinkOpenRe = regexp.MustCompile(`(?i)<\s*(?:think(?:ing)?|thought|antthinking)\b(?:[^>\n]*>|[ \t]*\n)`)
 
 // thinkCloseRe matches closing think tags.
 var thinkCloseRe = regexp.MustCompile(`(?i)</\s*(?:think(?:ing)?|thought|antthinking)\s*>`)

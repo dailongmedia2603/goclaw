@@ -184,6 +184,7 @@ func (a *adminTenantStore) ListTenants(context.Context) ([]store.TenantData, err
 func (a *adminTenantStore) UpdateTenant(context.Context, uuid.UUID, map[string]any) error {
 	return nil
 }
+func (a *adminTenantStore) DeleteTenant(context.Context, uuid.UUID) error { return nil }
 func (a *adminTenantStore) AddUser(context.Context, uuid.UUID, string, string) error { return nil }
 func (a *adminTenantStore) RemoveUser(context.Context, uuid.UUID, string) error      { return nil }
 func (a *adminTenantStore) ListUsers(context.Context, uuid.UUID) ([]store.TenantUserData, error) {

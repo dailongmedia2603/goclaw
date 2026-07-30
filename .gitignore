@@ -16,6 +16,9 @@ backup/
 /tmp-reset-bot/
 /tmp-probe*/
 
+# Spike / PoC folders (not committed to main — transient experiments)
+spike/
+
 # IDE
 .idea/
 .vscode/
@@ -28,6 +31,17 @@ backup/
 .env*
 !.env.example
 !.env.cloudflared.example
+
+# fbcloak spike artifacts (Phase 0 — never commit cookies)
+cookies.json
+/bin/fbcloak-spike
+docs/research/assets/fbcloak-spike/*.png
+docs/research/assets/fbcloak-spike/*.har
+docs/research/assets/fbcloak-spike/summary.json
+
+# Personal / unrelated assets (not part of GoClaw)
+auto pts/
+lung-mat-knowledge-base.md
 
 app
 browser-poc
@@ -69,6 +83,7 @@ deploy-*.sh
 
 # fork-dev integration worktree (created by scripts/deploy-forkdev.sh)
 .goclaw-forkdev/
+docker-compose.override.yml
 
 docs/technical-diaries
 docs/zuey
@@ -116,3 +131,7 @@ ui/web/nginx.staging.conf
 **/debug-*.log
 /*.sql
 scripts/docker-patch-*.sql
+
+# FBM sidecar build artifacts
+sidecar/mautrix-meta-shim/goclaw-fbm-sidecar
+tests/integration/fbm-mock/fbm-mock

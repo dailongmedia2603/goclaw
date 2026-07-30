@@ -174,6 +174,7 @@ const (
 	MethodTenantsUsersList   = "tenants.users.list"
 	MethodTenantsUsersAdd    = "tenants.users.add"
 	MethodTenantsUsersRemove = "tenants.users.remove"
+	MethodTenantsDelete      = "tenants.delete"
 	MethodTenantsMine        = "tenants.mine"
 )
 
@@ -252,4 +253,38 @@ const (
 	MethodBitrixPortalsCreate        = "bitrix.portals.create"
 	MethodBitrixPortalsGetInstallURL = "bitrix.portals.get_install_url"
 	MethodBitrixPortalsDelete        = "bitrix.portals.delete"
+)
+
+// FBCloak (re-engagement >7d via browser automation, Standard edition only)
+const (
+	// Phase 1 — credentials
+	MethodFBCloakCredentialsList   = "fbcloak.credentials.list"
+	MethodFBCloakCredentialsAdd    = "fbcloak.credentials.add"
+	MethodFBCloakCredentialsTest   = "fbcloak.credentials.test"
+	MethodFBCloakCredentialsDelete = "fbcloak.credentials.delete"
+
+	// Phase 2 — jobs (CRUD + run-now)
+	MethodFBCloakJobsList   = "fbcloak.jobs.list"
+	MethodFBCloakJobsCreate = "fbcloak.jobs.create"
+	MethodFBCloakJobsUpdate = "fbcloak.jobs.update"
+	MethodFBCloakJobsToggle = "fbcloak.jobs.toggle"
+	MethodFBCloakJobsDelete = "fbcloak.jobs.delete"
+	MethodFBCloakJobsRunNow = "fbcloak.jobs.run-now"
+
+	// Phase 3 — send log + screenshots
+	MethodFBCloakLogList       = "fbcloak.log.list"
+	MethodFBCloakLogScreenshot = "fbcloak.log.screenshot"
+
+	// Phase 4 — dual-mode router + disclaimer
+	MethodFBCloakSendProactive    = "fbcloak.send-proactive"
+	MethodFBCloakDisclaimerStatus = "fbcloak.disclaimer.status"
+	MethodFBCloakDisclaimerAck    = "fbcloak.disclaimer.ack"
+
+	// Phase 5 — Plan-based engagement orchestration (Brain Mode).
+	MethodFBCloakPlansList        = "fbcloak.plans.list"
+	MethodFBCloakPlansGet         = "fbcloak.plans.get"
+	MethodFBCloakPlansGenerateNow = "fbcloak.plans.generate-now"
+	MethodFBCloakPlansCancel      = "fbcloak.plans.cancel"
+	MethodFBCloakPlansRunDue      = "fbcloak.plans.run-due"
+	MethodFBCloakPlansStats       = "fbcloak.plans.stats"
 )

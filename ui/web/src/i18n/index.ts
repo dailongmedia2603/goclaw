@@ -37,11 +37,13 @@ import enCliCredentials from "./locales/en/cli-credentials.json";
 import enPackages from "./locales/en/packages.json";
 import enTenants from "./locales/en/tenants.json";
 import enSystemSettings from "./locales/en/system-settings.json";
+import enBrowser from "./locales/en/browser.json";
 import enImportExport from "./locales/en/import-export.json";
 import enV3Capabilities from "./locales/en/v3-capabilities.json";
 import enBackup from "./locales/en/backup.json";
 import enHooks from "./locales/en/hooks.json";
 import enWebhooks from "./locales/en/webhooks.json";
+import enFbcloak from "./locales/en/fbcloak.json";
 import enWorkstations from "./locales/en/workstations.json";
 
 // --- VI namespaces ---
@@ -80,11 +82,13 @@ import viCliCredentials from "./locales/vi/cli-credentials.json";
 import viPackages from "./locales/vi/packages.json";
 import viTenants from "./locales/vi/tenants.json";
 import viSystemSettings from "./locales/vi/system-settings.json";
+import viBrowser from "./locales/vi/browser.json";
 import viImportExport from "./locales/vi/import-export.json";
 import viV3Capabilities from "./locales/vi/v3-capabilities.json";
 import viBackup from "./locales/vi/backup.json";
 import viHooks from "./locales/vi/hooks.json";
 import viWebhooks from "./locales/vi/webhooks.json";
+import viFbcloak from "./locales/vi/fbcloak.json";
 import viWorkstations from "./locales/vi/workstations.json";
 
 // --- KO namespaces ---
@@ -163,11 +167,13 @@ import zhCliCredentials from "./locales/zh/cli-credentials.json";
 import zhPackages from "./locales/zh/packages.json";
 import zhTenants from "./locales/zh/tenants.json";
 import zhSystemSettings from "./locales/zh/system-settings.json";
+import zhBrowser from "./locales/zh/browser.json";
 import zhImportExport from "./locales/zh/import-export.json";
 import zhV3Capabilities from "./locales/zh/v3-capabilities.json";
 import zhBackup from "./locales/zh/backup.json";
 import zhHooks from "./locales/zh/hooks.json";
 import zhWebhooks from "./locales/zh/webhooks.json";
+import zhFbcloak from "./locales/zh/fbcloak.json";
 import zhWorkstations from "./locales/zh/workstations.json";
 
 // --- RU namespaces ---
@@ -232,11 +238,12 @@ const ns = [
   "channels", "providers", "traces", "events",
   "usage", "approvals", "nodes", "logs", "tools", "mcp", "tts",
   "setup", "memory", "vault", "storage", "pending-messages", "contacts", "activity", "api-keys",
-  "cli-credentials", "packages", "tenants", "system-settings", "import-export",
+  "cli-credentials", "packages", "tenants", "system-settings", "browser", "import-export",
   "v3-capabilities",
   "backup",
   "hooks",
   "webhooks",
+  "fbcloak",
   "workstations",
 ] as const;
 
@@ -256,11 +263,13 @@ i18n.use(initReactI18next).init({
       packages: enPackages,
       tenants: enTenants,
       "system-settings": enSystemSettings,
+      browser: enBrowser,
       "import-export": enImportExport,
       "v3-capabilities": enV3Capabilities,
       backup: enBackup,
       hooks: enHooks,
       webhooks: enWebhooks,
+      fbcloak: enFbcloak,
       workstations: enWorkstations,
     },
     vi: {
@@ -277,11 +286,13 @@ i18n.use(initReactI18next).init({
       packages: viPackages,
       tenants: viTenants,
       "system-settings": viSystemSettings,
+      browser: viBrowser,
       "import-export": viImportExport,
       "v3-capabilities": viV3Capabilities,
       backup: viBackup,
       hooks: viHooks,
       webhooks: viWebhooks,
+      fbcloak: viFbcloak,
       workstations: viWorkstations,
     },
     zh: {
@@ -298,11 +309,13 @@ i18n.use(initReactI18next).init({
       packages: zhPackages,
       tenants: zhTenants,
       "system-settings": zhSystemSettings,
+      browser: zhBrowser,
       "import-export": zhImportExport,
       "v3-capabilities": zhV3Capabilities,
       backup: zhBackup,
       hooks: zhHooks,
       webhooks: zhWebhooks,
+      fbcloak: zhFbcloak,
       workstations: zhWorkstations,
     },
     ko: {

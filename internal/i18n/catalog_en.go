@@ -259,6 +259,14 @@ func init() {
 		MsgSTTWhatsappPrivacyWarning: "Enabling STT for WhatsApp breaks end-to-end encryption for voice messages sent to this agent.",
 		MsgVoiceMessageFallback:      "[Voice message]",
 
+		// Facebook Messenger (personal)
+		MsgFBMSidecarUnreachable: "cannot reach mautrix-meta sidecar at %s",
+		MsgFBMSignatureInvalid:   "webhook signature verification failed",
+		MsgFBMSignatureExpired:   "webhook signature timestamp outside 60s window",
+		MsgFBMSendFailed:         "send to Facebook Messenger failed: %s",
+		MsgFBMCookieExpired:      "Facebook cookies expired — please re-authenticate",
+		MsgFBMToSAckRequired:     "you must acknowledge the experimental feature risks before enabling this channel",
+
 		// Workstation
 		MsgWorkstationNotFound:     "workstation not found: %s",
 		MsgWorkstationKeyExists:    "workstation key already in use: %s",
@@ -346,6 +354,36 @@ func init() {
 
 		// Message tool cross-target forward notice
 		MessageCrossTargetForwarded: "📤 Forwarded to %s as requested: %q",
+
+		// Telegram pairing (custom text fallback). Args: (code, bot_name) for DM/Group; (bot_name) for Approved.
+		MsgTelegramPairingDM:       "🔗 This account hasn't been paired yet.\n\nPairing code: %s\n\nShare this code with the bot owner (%s) to get access.",
+		MsgTelegramPairingGroup:    "🔗 This group hasn't been paired yet.\n\nPairing code: %s\n\nShare this code with the bot owner (%s) to get access.",
+		MsgTelegramPairingApproved: "✅ %s access approved. Send a message to start chatting.",
+
+		// FBCloak (browser-automation re-engagement)
+		MsgFBCloakUnavailable:           "this feature is not available in the current edition",
+		MsgFBCloakKillswitch:            "fbcloak is temporarily disabled — administrator has activated the killswitch",
+		MsgFBCloakInvalidProxy:          "proxy URL must start with socks5://, socks4://, http://, or https://",
+		MsgFBCloakCookieMissing:         "required Facebook cookies are missing: %v",
+		MsgFBCloakCheckpoint:            "Facebook account is on a security checkpoint — re-authentication required",
+		MsgFBCloakDisclaimerRequired:    "you must acknowledge the Terms-of-Service disclaimer before enabling fbcloak jobs",
+		MsgFBCloakOutOfWindow:           "recipient is outside the supported re-engagement window",
+		MsgFBCloakCustomerRepliedRecent: "skipped: customer replied more recently than the database snapshot indicates",
+		MsgFBCloakNoConversation:        "no conversation history with this recipient",
+		MsgFBCloakGraphUnavailable:      "API path (≤7d) is not configured on this server",
+		MsgFBCloakDisclaimerAcked:       "disclaimer acknowledged",
+		MsgFBCloakPlanGenerated:         "Generated %v engagement plans",
+		MsgFBCloakPlanCancelled:         "Plan cancelled",
+		MsgFBCloakPlanGenerating:        "Generating plans...",
+		MsgFBCloakPlanModelMissing:      "No background LLM provider configured. Set one in System Settings.",
+		MsgFBCloakPlanLLMError:          "LLM error: %v",
+		MsgFBCloakPlanNoSummary:         "No fbbackfill data for this recipient",
+		MsgFBCloakPlanSkippedByLLM:      "LLM decided not to send: %v",
+		MsgFBCloakPlanCustomerOptOut:    "Customer has opted out",
+		MsgFBCloakPlanInvalidJSON:       "LLM returned invalid JSON",
+		MsgFBCloakPlanScheduleTooFar:    "Schedule too far in the future (>90 days)",
+		MsgFBCloakPlanActiveConflict:    "An active plan already exists for this recipient",
+		MsgFBCloakPlanTerminal:          "Plan is in terminal state, cannot transition",
 
 		// Package update source labels
 		MsgPackagesUpdatesSourceGithub: "GitHub",

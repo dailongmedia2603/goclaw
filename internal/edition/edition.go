@@ -18,6 +18,7 @@ type Edition struct {
 	RBACEnabled           bool           `json:"rbac_enabled"`
 	TeamFullMode          bool           `json:"team_full_mode"`   // false = lite task actions only
 	VectorSearch          bool           `json:"vector_search"`    // false = FTS5 only
+	FBCloakEnabled        bool           `json:"fbcloak_enabled"`  // true = browser-automation re-engagement available
 	SupportsPipNpm        bool           `json:"supports_pip_npm"` // false for Lite desktop
 	SupportsApk           bool           `json:"supports_apk"`     // false for Lite desktop (no apk on macOS/Windows)
 }
@@ -31,6 +32,7 @@ var Standard = Edition{
 	RBACEnabled:    true,
 	TeamFullMode:   true,
 	VectorSearch:   true,
+	FBCloakEnabled: true,
 	SupportsPipNpm: true,
 	SupportsApk:    true,
 }

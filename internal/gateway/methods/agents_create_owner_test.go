@@ -110,6 +110,10 @@ func (s *createCaptureStore) EnsureUserProfile(_ context.Context, _ uuid.UUID, _
 func (s *createCaptureStore) PropagateContextFile(_ context.Context, _ uuid.UUID, _ string) (int, error) {
 	return 0, nil
 }
+func (s *createCaptureStore) DeleteUserInstance(_ context.Context, _ uuid.UUID, _ string) error {
+	return nil
+}
+
 // ---- helpers ----
 
 // minimalConfig returns a config sufficient for handleCreate (provider + model defaults only).

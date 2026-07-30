@@ -1,0 +1,30 @@
+# Example docker-compose for running the fbm-sidecar standalone.
+# In production, each tenant should have its own sidecar instance with a
+# dedicated residential IP — do NOT share egress IP across tenant accounts.
+
+services:
+  fbm-sidecar:
+    build: .
+    image: fbm-sidecar:latest
+    container_name: fbm-sidecar
+    ports:
+      - "127.0.0.1:29320:29320"
+    volumes:
+      - ./data:/data
+    environment:
+      FBM_PORT: 29320
+      FBM_AUTH_TOKEN: ${FBM_AUTH_TOKEN:?required}
+      FBM_HMAC_SECRET: ${FBM_HMAC_SECRET:?required}
+      FBM_WEBHOOK_URL: ${FBM_WEBHOOK_URL:?required}
+      SYNAPSE_ADMIN_TOKEN: ${SYNAPSE_ADMIN_TOKEN:?required}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - >
+          curl -sf -H "Authorization: Bearer $${FBM_AUTH_TOKEN}" http://localhost:29320/healthz || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s

@@ -1,0 +1,55 @@
+# E2E integration stack for facebook_personal channel.
+# Brings up:
+#   postgres  — gateway DB (pg18 + pgvector)
+#   gateway   — GoClaw (PG build)
+#   fbm-mock  — a lightweight Go HTTP server that mocks the sidecar API
+#
+# The mock sidecar lets us exercise the full inbound + outbound path without
+# touching Facebook / Matrix. A separate test suite exercises the real sidecar
+# image against a real test account on a VPS (see Phase 0 PoC docs).
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: goclaw_fbm_test
+    ports:
+      - "127.0.0.1:5434:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  fbm-mock:
+    build:
+      context: ./fbm-mock
+    container_name: fbm-mock
+    ports:
+      - "127.0.0.1:29318:29318"
+    environment:
+      MOCK_AUTH_TOKEN: test-auth-token
+      MOCK_HMAC_SECRET: test-hmac-secret
+      MOCK_WEBHOOK_URL: http://gateway:18790/channels/facebook_personal/test-fbm/webhook
+
+  gateway:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      fbm-mock:
+        condition: service_started
+    environment:
+      GOCLAW_DATABASE_URL: postgres://postgres:test@postgres:5432/goclaw_fbm_test
+      GOCLAW_CONFIG: /app/config.test.yaml
+      GOCLAW_LOG_LEVEL: debug
+    ports:
+      - "127.0.0.1:18791:18790"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:18790/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20

@@ -252,8 +252,16 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 				fullText := rc.streamBuffer
 				currentStream := rc.stream
 				rc.mu.Unlock()
-				if currentStream != nil {
-					currentStream.Update(ctx, fullText)
+
+				// Strip leading "Reasoning:"/"Thinking:" blocks from the
+				// stream display. Gemma-4-31b-it emits chain of thought as
+				// plain text before the answer — without this, the user sees
+				// raw reasoning in the streaming message. The final sanitize
+				// pipeline also strips this at finalize time, but the
+				// streaming message is what the user sees first.
+				displayText := stripStreamReasoningPrefix(fullText)
+				if currentStream != nil && displayText != "" {
+					currentStream.Update(ctx, displayText)
 				}
 			}
 		case protocol.AgentEventRunCompleted:
@@ -359,6 +367,21 @@ func (m *Manager) HandleAgentEvent(eventType, runID string, payload any) {
 		rc.interimDelivered++
 		rc.lastInterimReply = content
 		rc.mu.Unlock()
+
+		// Suppress block replies that are reasoning-only (Gemma leak).
+		// The sanitize pipeline already ran on this content (loop.go:669),
+		// but intermediate block replies during tool iterations may contain
+		// just a reasoning prefix with no answer boundary — the sanitizer
+		// can't strip what has no answer yet. Suppress entirely; the final
+		// Send() will deliver the clean, complete response.
+		//
+		// Also handles <answer> tag extraction: if the model wrapped its
+		// response in <answer> tags but the sanitizer left reasoning around
+		// it, stripStreamReasoningPrefix catches the remaining prefix.
+		content = stripStreamReasoningPrefix(content)
+		if content == "" {
+			return
+		}
 
 		// Build outbound metadata: copy routing fields but strip reply_to_message_id
 		// (block replies are standalone) and placeholder_key (reserve for final message).
@@ -707,6 +730,52 @@ func formatReasoningPreview(thinking string) string {
 	if len(runes) > maxRunes {
 		text = string(runes[:maxRunes-3]) + "..."
 	}
+	return text
+}
+
+// stripStreamReasoningPrefix suppresses streaming display when the response
+// starts with "Reasoning:" or "Thinking:". Returns "" to prevent stream.Update
+// from showing raw chain-of-thought text to the user.
+//
+// The only exception: when a </thought> or </think> closing tag is found, the
+// content AFTER the tag is returned (the actual answer). This handles models
+// that properly close their reasoning blocks during streaming.
+//
+// For all other cases (no closing tag, no marker, multi-paragraph reasoning),
+// the function returns "" — the stream message stays blank (typing indicator
+// remains visible) and the final sanitize pipeline + Send() delivers the clean
+// answer as the definitive message. This eliminates ALL heuristic-based
+// boundary detection (blank lines, answer markers) from the streaming path,
+// which proved unreliable across Gemma's varying output formats.
+func stripStreamReasoningPrefix(text string) string {
+	trimmed := strings.TrimLeft(text, " \t\n\r")
+	if trimmed == "" {
+		return ""
+	}
+	lower := strings.ToLower(trimmed)
+
+	// Complete prefix: "reasoning:" / "thinking:" (with colon) or
+	// "reasoning\n" / "thinking\n" (with newline, no colon) at start.
+	if strings.HasPrefix(lower, "reasoning:") || strings.HasPrefix(lower, "thinking:") ||
+		strings.HasPrefix(lower, "reasoning\n") || strings.HasPrefix(lower, "thinking\n") {
+		// Only un-suppress when we find a structural closing tag.
+		// Everything else → suppress entirely; let the sanitize pipeline handle it.
+		if loc := thinkCloseRe.FindStringIndex(trimmed); loc != nil {
+			after := strings.TrimLeft(trimmed[loc[1]:], " \t\n\r")
+			if after != "" {
+				return after
+			}
+		}
+		return ""
+	}
+
+	// Partial prefix: buffer content could become "reasoning:" or "thinking:".
+	// e.g. first chunk = "Reasoning" (no colon yet). Suppress to avoid flashing.
+	word := strings.TrimRight(lower, " \t\n\r:")
+	if word == "reasoning" || word == "thinking" {
+		return ""
+	}
+
 	return text
 }
 

@@ -121,6 +121,10 @@ func (h *ChannelInstancesHandler) RegisterOrphanCleaner(channelType string, fn O
 
 // RegisterRoutes registers all channel instance routes on the given mux.
 func (h *ChannelInstancesHandler) RegisterRoutes(mux *http.ServeMux) {
+	// Facebook Messenger (Personal) re-auth proxy — mounted on /api/... to match
+	// the fetch path used by the UI cookie wizard.
+	h.RegisterFBMLoginRoute(mux)
+
 	// Channel instance CRUD (reads: viewer+, writes: admin+)
 	mux.HandleFunc("GET /v1/channels/instances", h.auth(h.handleList))
 	mux.HandleFunc("POST /v1/channels/instances", h.adminAuth(h.handleCreate))
@@ -799,7 +803,7 @@ func (h *ChannelInstancesHandler) handleResolveContacts(w http.ResponseWriter, r
 // ui/web/src/constants/channels.ts.
 func isValidChannelType(ct string) bool {
 	switch ct {
-	case "telegram", "discord", "slack", "whatsapp", "zalo_oa", "zalo_personal", "feishu", "facebook", "pancake", "bitrix24":
+	case "telegram", "discord", "slack", "whatsapp", "zalo_oa", "zalo_personal", "feishu", "facebook", "facebook_personal", "pancake", "bitrix24":
 		return true
 	}
 	return false

@@ -774,6 +774,8 @@ type AgentContextStore interface {
 	ListUserContextFilesByName(ctx context.Context, agentID uuid.UUID, fileName string) ([]UserContextFileData, error)
 	SetUserContextFile(ctx context.Context, agentID uuid.UUID, userID, fileName, content string) error
 	DeleteUserContextFile(ctx context.Context, agentID uuid.UUID, userID, fileName string) error
+	// DeleteUserInstance removes a user's profile and all their context files for an agent.
+	DeleteUserInstance(ctx context.Context, agentID uuid.UUID, userID string) error
 	// MigrateUserDataOnMerge moves per-user data from oldUserIDs to newUserID when contacts are merged.
 	// Covers: user_context_files, user_agent_overrides, user_agent_profiles, memory_documents/chunks.
 	// On conflict, keeps the newest by updated_at. Best-effort per table.

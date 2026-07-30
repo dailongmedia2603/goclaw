@@ -281,6 +281,7 @@ func isAdminMethod(method string) bool {
 		// Tenants — write paths.
 		protocol.MethodTenantsCreate,
 		protocol.MethodTenantsUpdate,
+		protocol.MethodTenantsDelete,
 		protocol.MethodTenantsUsersAdd,
 		protocol.MethodTenantsUsersRemove,
 
@@ -314,6 +315,33 @@ func isAdminMethod(method string) bool {
 		protocol.MethodTTSEnable,
 		protocol.MethodTTSDisable,
 		protocol.MethodTTSSetProvider,
+
+		// FBCloak — every RPC is admin-gated per plan
+		// (plans/fbcloak-reengagement/README.md: "Mọi RPC requireTenantAdmin").
+		// Handler-level canSeeAll() check is defense-in-depth on top of this.
+		protocol.MethodFBCloakCredentialsList,
+		protocol.MethodFBCloakCredentialsAdd,
+		protocol.MethodFBCloakCredentialsTest,
+		protocol.MethodFBCloakCredentialsDelete,
+		protocol.MethodFBCloakJobsList,
+		protocol.MethodFBCloakJobsCreate,
+		protocol.MethodFBCloakJobsUpdate,
+		protocol.MethodFBCloakJobsToggle,
+		protocol.MethodFBCloakJobsDelete,
+		protocol.MethodFBCloakJobsRunNow,
+		protocol.MethodFBCloakLogList,
+		protocol.MethodFBCloakLogScreenshot,
+		protocol.MethodFBCloakSendProactive,
+		protocol.MethodFBCloakDisclaimerStatus,
+		protocol.MethodFBCloakDisclaimerAck,
+
+		// FBCloak Phase 5 plan-based orchestrator — admin only.
+		protocol.MethodFBCloakPlansList,
+		protocol.MethodFBCloakPlansGet,
+		protocol.MethodFBCloakPlansGenerateNow,
+		protocol.MethodFBCloakPlansCancel,
+		protocol.MethodFBCloakPlansRunDue,
+		protocol.MethodFBCloakPlansStats,
 
 		// Workstations — credentials + remote exec; create/update/delete and
 		// agent linking + permission mutations are admin-only.
@@ -366,6 +394,17 @@ func isWriteMethod(method string) bool {
 		// Channel pairing starts (QR scan flows).
 		protocol.MethodZaloPersonalQRStart,
 		protocol.MethodWhatsAppQRStart,
+
+		// Facebook Messenger history backfill — mutations (jobs consume LLM
+		// tokens + Graph API quota). Method names are raw strings because
+		// fb_backfill is fork-only and lives outside pkg/protocol; importing
+		// internal/fbbackfill here would invert the dependency graph.
+		// Source of truth: internal/fbbackfill/rpc.go MethodStart/Pause/...
+		"fb_backfill.start",
+		"fb_backfill.pause",
+		"fb_backfill.resume",
+		"fb_backfill.cancel",
+		"fb_backfill.retry",
 
 		// Workstations — connection test invokes SSH side-effects.
 		protocol.MethodWorkstationsTest,
@@ -471,6 +510,11 @@ func isReadMethod(method string) bool {
 
 		// Zalo personal contacts listing
 		protocol.MethodZaloPersonalContacts,
+
+		// Facebook Messenger history backfill — read-only inspectors.
+		// Raw strings (fork-only, see isWriteMethod note above).
+		"fb_backfill.status",
+		"fb_backfill.list",
 
 		// Workstations read
 		protocol.MethodWorkstationsList,

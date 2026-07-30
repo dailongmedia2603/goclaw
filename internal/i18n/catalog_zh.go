@@ -259,6 +259,14 @@ func init() {
 		MsgSTTWhatsappPrivacyWarning: "为 WhatsApp 启用 STT 将破坏发送至此 Agent 的语音消息的端对端加密。",
 		MsgVoiceMessageFallback:      "[语音消息]",
 
+		// Facebook Messenger (personal)
+		MsgFBMSidecarUnreachable: "无法连接 mautrix-meta sidecar: %s",
+		MsgFBMSignatureInvalid:   "webhook 签名验证失败",
+		MsgFBMSignatureExpired:   "webhook 签名时间戳超过 60 秒窗口",
+		MsgFBMSendFailed:         "发送到 Facebook Messenger 失败: %s",
+		MsgFBMCookieExpired:      "Facebook Cookie 已过期 — 请重新认证",
+		MsgFBMToSAckRequired:     "启用此通道前必须确认实验性功能风险",
+
 		// Webhooks
 		MsgWebhookAuthFailed:                  "Webhook 身份验证失败",
 		MsgWebhookHMACInvalid:                 "HMAC 签名无效",
@@ -346,6 +354,36 @@ func init() {
 
 		// Message tool cross-target forward notice
 		MessageCrossTargetForwarded: "📤 已按请求转发至 %s:%q",
+
+		// Telegram pairing (custom text fallback). Args: (code, bot_name) for DM/Group; (bot_name) for Approved.
+		MsgTelegramPairingDM:       "🔗 此账号尚未配对。\n\n配对码:%s\n\n请将此配对码分享给机器人所有者(%s)以获取访问权限。",
+		MsgTelegramPairingGroup:    "🔗 此群组尚未配对。\n\n配对码:%s\n\n请将此配对码分享给机器人所有者(%s)以获取访问权限。",
+		MsgTelegramPairingApproved: "✅ 已批准访问 %s。发送消息即可开始聊天。",
+
+		// FBCloak (基于浏览器自动化的客户重激活)
+		MsgFBCloakUnavailable:           "当前版本不支持此功能",
+		MsgFBCloakKillswitch:            "fbcloak 已临时禁用 — 管理员已触发紧急停止",
+		MsgFBCloakInvalidProxy:          "代理 URL 必须以 socks5://、socks4://、http:// 或 https:// 开头",
+		MsgFBCloakCookieMissing:         "缺少必需的 Facebook cookie:%v",
+		MsgFBCloakCheckpoint:            "Facebook 账号处于安全验证阶段 — 需要重新认证",
+		MsgFBCloakDisclaimerRequired:    "启用 fbcloak 任务前必须确认免责声明",
+		MsgFBCloakOutOfWindow:           "收件人超出支持的重激活窗口",
+		MsgFBCloakCustomerRepliedRecent: "已跳过:客户最近的回复时间晚于数据库快照",
+		MsgFBCloakNoConversation:        "与该收件人无会话历史",
+		MsgFBCloakGraphUnavailable:      "服务器未配置 API (≤7 天) 通道",
+		MsgFBCloakDisclaimerAcked:       "已确认免责声明",
+		MsgFBCloakPlanGenerated:         "已生成 %v 个互动计划",
+		MsgFBCloakPlanCancelled:         "计划已取消",
+		MsgFBCloakPlanGenerating:        "正在生成计划...",
+		MsgFBCloakPlanModelMissing:      "未配置后台 LLM 提供商。请在系统设置中设置。",
+		MsgFBCloakPlanLLMError:          "LLM 错误: %v",
+		MsgFBCloakPlanNoSummary:         "此联系人没有 fbbackfill 数据",
+		MsgFBCloakPlanSkippedByLLM:      "LLM 决定不发送: %v",
+		MsgFBCloakPlanCustomerOptOut:    "客户已退订",
+		MsgFBCloakPlanInvalidJSON:       "LLM 返回的 JSON 无效",
+		MsgFBCloakPlanScheduleTooFar:    "计划时间太远 (>90 天)",
+		MsgFBCloakPlanActiveConflict:    "此收件人已有活跃计划",
+		MsgFBCloakPlanTerminal:          "计划处于终止状态，无法转换",
 
 		// Package update source labels
 		MsgPackagesUpdatesSourceGithub: "GitHub",

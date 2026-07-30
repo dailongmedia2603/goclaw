@@ -24,6 +24,7 @@ type Manager struct {
 	pageLastUsed   map[string]time.Time        // targetID → last access time
 	headless       bool
 	remoteURL      string        // CDP endpoint for remote Chrome (sidecar); skips local launcher
+	shared         bool          // skip incognito isolation, use main browser context (preserves cookies)
 	actionTimeout  time.Duration // per-action context timeout (default 30s)
 	idleTimeout    time.Duration // auto-close pages idle longer than this (default 10m, 0=disabled)
 	maxPages       int           // max open pages per tenant (default 5)
@@ -44,6 +45,12 @@ func WithHeadless(h bool) Option {
 // When set, Start() connects to the remote Chrome instead of launching locally.
 func WithRemoteURL(url string) Option {
 	return func(m *Manager) { m.remoteURL = url }
+}
+
+// WithShared sets shared mode — all tenants use the main browser context.
+// This preserves cookies/sessions from manual login (e.g. for anti-bot sites).
+func WithShared(s bool) Option {
+	return func(m *Manager) { m.shared = s }
 }
 
 // WithLogger sets a custom logger.
@@ -273,6 +280,11 @@ func (m *Manager) tenantBrowserLocked(scopeKey string) (*rod.Browser, error) {
 	if m.browser == nil {
 		return nil, fmt.Errorf("browser not running")
 	}
+	// Shared mode: always use main browser (preserves cookies/session from manual login)
+	if m.shared {
+		return m.browser, nil
+	}
+	// Master tenant or no scope: use main browser.
 	if scopeKey == "" || scopeKey == MasterTenantID {
 		return m.browser, nil
 	}
@@ -288,6 +300,30 @@ func (m *Manager) tenantBrowserLocked(scopeKey string) (*rod.Browser, error) {
 	m.tenantCtxs[scopeKey] = incognito
 	m.logger.Info("created incognito browser context", "scope", scopeKey)
 	return incognito, nil
+}
+
+// NewIncognitoContext starts the manager (idempotent) and returns a fresh
+// incognito browser context owned by the caller. Used by fbcloak which
+// needs per-credential cookie isolation outside the regular tenant
+// pool. The caller is responsible for calling .Close() on the returned
+// browser when done.
+func (m *Manager) NewIncognitoContext(ctx context.Context) (*rod.Browser, error) {
+	if err := m.Start(ctx); err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.browser == nil {
+		return nil, fmt.Errorf("browser not running")
+	}
+	// Rebind to the caller's ctx before calling Incognito.
+	// Start() uses an internal connectCtx (context.WithTimeout 15s) and
+	// `defer connectCancel()` runs when Start returns — so m.browser holds
+	// an already-canceled ctx by the time we reach this line. Calling
+	// m.browser.Incognito() directly therefore fails with "context canceled".
+	// Browser.Context returns a clone over the same CDP connection but
+	// uses ctx for all subsequent operations.
+	return m.browser.Context(ctx).Incognito()
 }
 
 // Status returns current browser status.

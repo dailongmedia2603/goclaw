@@ -73,16 +73,17 @@ const (
 
 // Channel type constants used across channel packages and gateway wiring.
 const (
-	TypeBitrix24     = "bitrix24"
-	TypeDiscord      = "discord"
-	TypeFacebook     = "facebook"
-	TypeFeishu       = "feishu"
-	TypePancake      = "pancake"
-	TypeSlack        = "slack"
-	TypeTelegram     = "telegram"
-	TypeWhatsApp     = "whatsapp"
-	TypeZaloOA       = "zalo_oa"
-	TypeZaloPersonal = "zalo_personal"
+	TypeBitrix24         = "bitrix24"
+	TypeDiscord          = "discord"
+	TypeFacebook         = "facebook"
+	TypeFacebookPersonal = "facebook_personal"
+	TypeFeishu           = "feishu"
+	TypePancake          = "pancake"
+	TypeSlack            = "slack"
+	TypeTelegram         = "telegram"
+	TypeWhatsApp         = "whatsapp"
+	TypeZaloOA           = "zalo_oa"
+	TypeZaloPersonal     = "zalo_personal"
 )
 
 // Channel defines the interface that all channel implementations must satisfy.

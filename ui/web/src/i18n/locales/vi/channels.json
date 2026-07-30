@@ -117,6 +117,8 @@
     "refreshingDiscordMetadata": "Đang làm mới...",
     "discordMetadataRefreshed": "Đã làm mới metadata Discord",
     "discordMetadataRefreshFailed": "Làm mới metadata Discord thất bại",
+    "pairing": "Tin nhắn ghép nối",
+    "pairingDesc": "Tuỳ chỉnh nội dung tin nhắn hiển thị khi người dùng ghép nối với bot. Placeholder: {code}, {bot_name}. Để trống để dùng nội dung mặc định.",
     "reviewDiagnostics": "Xem chẩn đoán mới nhất của channel này trước khi thay đổi cài đặt.",
     "whatHappened": "Điều gì đã xảy ra",
     "recommendedAction": "Hành động được khuyến nghị",
@@ -416,6 +418,22 @@
         "label": "Quyền quản trị Telegram",
         "help": "Chọn các thao tác Telegram mà agent được phép dùng. Nếu chưa chọn quyền nào thì tool không được cấp cho agent."
       }
+    },
+    "pairing_dm_text": {
+      "label": "Tin nhắn ghép nối DM (tuỳ chỉnh)",
+      "help": "Hiển thị khi người lạ nhắn DM cho bot. Placeholder: {code}, {bot_name}. Để trống để dùng nội dung mặc định."
+    },
+    "pairing_group_text": {
+      "label": "Tin nhắn ghép nối nhóm (tuỳ chỉnh)",
+      "help": "Hiển thị khi bot được thêm vào nhóm mới yêu cầu phê duyệt. Placeholder: {code}, {bot_name}."
+    },
+    "pairing_approved_text": {
+      "label": "Tin nhắn đã phê duyệt (tuỳ chỉnh)",
+      "help": "Hiển thị sau khi admin phê duyệt yêu cầu ghép nối. Placeholder: {bot_name}."
+    },
+    "pairing_locale": {
+      "label": "Ngôn ngữ mặc định khi bỏ trống",
+      "help": "Ngôn ngữ dùng cho tin nhắn ghép nối mặc định khi các ô tuỳ chỉnh ở trên để trống."
     },
     "domain": {
       "label": "Tên miền"
@@ -848,5 +866,76 @@
         "urlUnknown": "Không có install URL. Mở UI qua public URL rồi retry từ dropdown."
       }
     }
+  },
+  "facebook_personal": {
+    "label": "Facebook Messenger (Cá nhân)",
+    "warningTitle": "⚠️ Thử nghiệm & Không chính thức",
+    "warningBody": "Kênh này dùng automation không chính thức qua sidecar mautrix-meta. Tài khoản Facebook của bạn có thể bị khóa vĩnh viễn. Không có cam kết SLA. Tự chịu trách nhiệm.",
+    "tosTitle": "Đọc kỹ trước khi bật",
+    "tosRiskBan": "Meta có thể khóa vĩnh viễn tài khoản Facebook của bạn",
+    "tosRiskProtocolBreak": "Facebook thay đổi giao thức có thể làm hỏng dịch vụ chu kỳ 1-7 ngày",
+    "tosRiskNoSla": "Đây là tính năng thử nghiệm — không bảo đảm uptime",
+    "tosRiskLegal": "Automation tin nhắn có thể vi phạm luật chống spam địa phương (EU DMA, GDPR)",
+    "tosAckLabel": "Tôi hiểu rủi ro và chấp nhận hoàn toàn trách nhiệm",
+    "auth": {
+      "title": "Đăng nhập bằng cookies Facebook",
+      "howtoTitle": "Cách lấy cookies:",
+      "howtoStep1": "Mở messenger.com ở chế độ ẩn danh / riêng tư",
+      "howtoStep2": "Đăng nhập bằng tài khoản Facebook của bạn",
+      "howtoStep3": "Mở DevTools → Application/Storage → Cookies → https://www.messenger.com",
+      "howtoStep4": "Copy giá trị của: c_user, xs, datr, sb, fr",
+      "howtoStep5": "Dán từng giá trị vào các ô bên dưới",
+      "cookiesLabel": "Cookies",
+      "submit": "Đăng nhập",
+      "submitting": "Đang đăng nhập...",
+      "genericError": "Đăng nhập thất bại — kiểm tra lại cookies và thử lại",
+      "success": "✅ Đã đăng nhập với tên {{name}}"
+    },
+    "reauth": {
+      "title": "Đăng nhập lại {{name}}",
+      "description": "Phiên đăng nhập Facebook đã hết hạn hoặc bị hủy. Dán cookies mới để kết nối lại."
+    },
+    "status": {
+      "connected": "Đã kết nối",
+      "disconnected": "Mất kết nối",
+      "checkpoint": "Facebook yêu cầu xác minh — vui lòng đăng nhập lại",
+      "sidecarDown": "Không kết nối được sidecar — kiểm tra container mautrix-meta"
+    },
+    "errors": {
+      "sidecarUnreachable": "Không kết nối được sidecar tại {{url}}",
+      "signatureInvalid": "Xác thực chữ ký webhook thất bại",
+      "cookieExpired": "Cookies Facebook đã hết hạn — vui lòng đăng nhập lại",
+      "tosAckRequired": "Bạn phải xác nhận rủi ro tính năng thử nghiệm trước khi lưu"
+    }
+  },
+  "fbBackfill": {
+    "title": "Quét lịch sử hội thoại",
+    "description": "Quét và nhập toàn bộ lịch sử tin nhắn Messenger của Page này. Giúp agent có ngữ cảnh khi khách cũ nhắn lại.",
+    "startButton": "Bắt đầu quét",
+    "pause": "Tạm dừng",
+    "resume": "Tiếp tục",
+    "cancel": "Huỷ",
+    "retry": "Thử lại",
+    "resync": "Quét lại",
+    "backfillOnCreate": "Quét lịch sử hội thoại sau khi tạo",
+    "backfillOnCreateHelp": "Khi bật, hệ thống sẽ tự động quét toàn bộ lịch sử tin nhắn Messenger của Page sau khi kết nối. Có thể mất vài phút đến vài giờ tuỳ số lượng hội thoại.",
+    "status": {
+      "pending": "Đang chờ",
+      "running": "Đang chạy",
+      "paused": "Tạm dừng",
+      "completed": "Hoàn thành",
+      "failed": "Thất bại",
+      "cancelled": "Đã huỷ",
+      "none": "Chưa chạy"
+    },
+    "stats": "{{convosDone}}/{{convosTotal}} hội thoại · {{msgs}} tin nhắn · {{episodics}} tóm tắt",
+    "skippedStats": "{{skipped}} đã bỏ qua (đã tóm tắt)",
+    "errors": {
+      "authExpired": "Page Access Token đã hết hạn. Vui lòng kết nối lại channel.",
+      "rateLimit": "Đạt giới hạn Graph API. Sẽ tự tiếp tục sớm.",
+      "unknown": "Quét thất bại: {{error}}"
+    },
+    "confirmCancel": "Huỷ tiến trình quét đang chạy? Tiến độ được giữ nguyên và bạn có thể Thử lại sau.",
+    "confirmResync": "Quét lại toàn bộ hội thoại? Thao tác này sẽ ghi đè tóm tắt hiện có."
   }
 }

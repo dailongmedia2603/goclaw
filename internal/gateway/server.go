@@ -724,6 +724,11 @@ func (s *Server) SetPackagesHandler(h *httpapi.PackagesHandler) {
 	s.handlers = append(s.handlers, h)
 }
 
+// SetBrowserProfilesHandler sets the browser profiles status handler.
+func (s *Server) SetBrowserProfilesHandler(h *httpapi.BrowserProfilesHandler) {
+	s.handlers = append(s.handlers, h)
+}
+
 // SetGatewayUpgradeHandler sets the host-local gateway upgrade trigger handler.
 func (s *Server) SetGatewayUpgradeHandler(h *httpapi.GatewayUpgradeHandler) {
 	s.handlers = append(s.handlers, h)

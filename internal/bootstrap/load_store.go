@@ -12,6 +12,9 @@ import (
 // LoadFromStore loads agent-level context files from the agent store (DB).
 // Returns files as ContextFile slice ready for system prompt injection.
 // Returns nil if no files found or on error.
+//
+// BOOTSTRAP.md is always filtered out — the onboarding greeting ritual is
+// globally disabled. Legacy rows in the store are ignored without being deleted.
 func LoadFromStore(ctx context.Context, agentStore store.AgentStore, agentID uuid.UUID) []ContextFile {
 	files, err := agentStore.GetAgentContextFiles(ctx, agentID)
 	if err != nil {
@@ -23,6 +26,9 @@ func LoadFromStore(ctx context.Context, agentStore store.AgentStore, agentID uui
 	for _, f := range files {
 		if f.Content == "" {
 			continue
+		}
+		if f.FileName == BootstrapFile {
+			continue // onboarding disabled — ignore legacy rows
 		}
 		contextFiles = append(contextFiles, ContextFile{
 			Path:    f.FileName,

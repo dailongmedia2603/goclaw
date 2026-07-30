@@ -105,7 +105,8 @@
       "subagents": "Agents",
       "skills": "Skills",
       "delegation": "Delegation",
-      "teams": "Teams"
+      "teams": "Teams",
+      "nhanh": "Nhanh.vn"
     },
     "settingsDialog": {
       "title": "Settings — {{name}}",
@@ -281,7 +282,12 @@
       "spawn": "Spawn a subagent to handle a task in the background",
       "skill_search": "Search for available skills by keyword or description to find relevant capabilities",
       "use_skill": "Activate a skill to use its specialized capabilities (tracing marker)",
-      "team_tasks": "View, create, update, and complete tasks on the team task board"
+      "team_tasks": "View, create, update, and complete tasks on the team task board",
+      "nhanh_products": "Search and list products from Nhanh.vn e-commerce platform",
+      "nhanh_orders": "List and search orders from Nhanh.vn",
+      "nhanh_customers": "Search and list customers from Nhanh.vn",
+      "nhanh_inventory": "Check product stock levels across Nhanh.vn warehouses",
+      "nhanh_sync": "Bulk sync products, orders, and customers from Nhanh.vn to Knowledge Graph"
     }
   }
 }

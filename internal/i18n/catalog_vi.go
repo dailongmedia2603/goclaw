@@ -259,6 +259,14 @@ func init() {
 		MsgSTTWhatsappPrivacyWarning: "Bật STT cho WhatsApp sẽ phá vỡ mã hóa đầu cuối cho tin nhắn thoại gửi đến agent này.",
 		MsgVoiceMessageFallback:      "[Tin nhắn thoại]",
 
+		// Facebook Messenger (personal)
+		MsgFBMSidecarUnreachable: "không kết nối được mautrix-meta sidecar tại %s",
+		MsgFBMSignatureInvalid:   "xác thực chữ ký webhook thất bại",
+		MsgFBMSignatureExpired:   "timestamp chữ ký webhook quá 60 giây",
+		MsgFBMSendFailed:         "gửi tới Facebook Messenger thất bại: %s",
+		MsgFBMCookieExpired:      "Cookie Facebook đã hết hạn — vui lòng đăng nhập lại",
+		MsgFBMToSAckRequired:     "bạn phải xác nhận rủi ro tính năng thử nghiệm trước khi bật kênh này",
+
 		// Webhooks
 		MsgWebhookAuthFailed:                  "xác thực webhook thất bại",
 		MsgWebhookHMACInvalid:                 "chữ ký HMAC không hợp lệ",
@@ -346,6 +354,36 @@ func init() {
 
 		// Message tool cross-target forward notice
 		MessageCrossTargetForwarded: "📤 Đã forward sang %s theo yêu cầu: %q",
+
+		// Telegram pairing (custom text fallback). Args: (code, bot_name) cho DM/Group; (bot_name) cho Approved.
+		MsgTelegramPairingDM:       "🔗 Tài khoản này chưa được ghép nối.\n\nMã ghép nối: %s\n\nChia sẻ mã này với chủ bot (%s) để được cấp quyền truy cập.",
+		MsgTelegramPairingGroup:    "🔗 Nhóm này chưa được ghép nối.\n\nMã ghép nối: %s\n\nChia sẻ mã này với chủ bot (%s) để được cấp quyền truy cập.",
+		MsgTelegramPairingApproved: "✅ Đã được phê duyệt truy cập %s. Hãy gửi tin nhắn để bắt đầu trò chuyện.",
+
+		// FBCloak (gửi tin chăm sóc qua browser automation)
+		MsgFBCloakUnavailable:           "tính năng này không khả dụng trong phiên bản hiện tại",
+		MsgFBCloakKillswitch:            "fbcloak tạm thời bị tắt — quản trị viên đã kích hoạt killswitch",
+		MsgFBCloakInvalidProxy:          "URL proxy phải bắt đầu bằng socks5://, socks4://, http://, hoặc https://",
+		MsgFBCloakCookieMissing:         "thiếu cookie Facebook bắt buộc: %v",
+		MsgFBCloakCheckpoint:            "tài khoản Facebook đang ở chế độ kiểm tra an ninh — cần xác thực lại",
+		MsgFBCloakDisclaimerRequired:    "bạn phải xác nhận điều khoản trước khi bật job fbcloak",
+		MsgFBCloakOutOfWindow:           "người nhận nằm ngoài cửa sổ chăm sóc được hỗ trợ",
+		MsgFBCloakCustomerRepliedRecent: "bỏ qua: khách hàng đã trả lời gần đây hơn so với dữ liệu trong DB",
+		MsgFBCloakNoConversation:        "không có lịch sử hội thoại với người nhận này",
+		MsgFBCloakGraphUnavailable:      "đường gửi API (≤7 ngày) chưa được cấu hình trên server",
+		MsgFBCloakDisclaimerAcked:       "đã xác nhận disclaimer",
+		MsgFBCloakPlanGenerated:         "Đã tạo %v kế hoạch chăm sóc",
+		MsgFBCloakPlanCancelled:         "Đã hủy kế hoạch",
+		MsgFBCloakPlanGenerating:        "Đang tạo kế hoạch...",
+		MsgFBCloakPlanModelMissing:      "Chưa cấu hình LLM provider cho background. Vào System Settings để thiết lập.",
+		MsgFBCloakPlanLLMError:          "LLM lỗi: %v",
+		MsgFBCloakPlanNoSummary:         "Chưa có dữ liệu fbbackfill cho khách này",
+		MsgFBCloakPlanSkippedByLLM:      "LLM quyết định không gửi: %v",
+		MsgFBCloakPlanCustomerOptOut:    "Khách đã từ chối nhận tin",
+		MsgFBCloakPlanInvalidJSON:       "LLM trả về JSON không hợp lệ",
+		MsgFBCloakPlanScheduleTooFar:    "Lịch quá xa (>90 ngày)",
+		MsgFBCloakPlanActiveConflict:    "Đã có kế hoạch active cho khách này",
+		MsgFBCloakPlanTerminal:          "Kế hoạch đã ở trạng thái cuối, không thay đổi được",
 
 		// Package update source labels
 		MsgPackagesUpdatesSourceGithub: "GitHub",

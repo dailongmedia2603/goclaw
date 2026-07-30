@@ -24,6 +24,7 @@ export const ROUTES = {
   APPROVALS: "/approvals",
   NODES: "/nodes",
   LOGS: "/logs",
+  BROWSER: "/browser",
   PROVIDERS: "/providers",
   PROVIDER_DETAIL: "/providers/:id",
   TEAMS: "/teams",
@@ -48,6 +49,8 @@ export const ROUTES = {
   HOOKS: "/hooks",
   HOOK_DETAIL: "/hooks/:id",
   WEBHOOKS: "/webhooks",
+  FBCLOAK: "/fbcloak",
+  FBCLOAK_TAB: "/fbcloak/:tab",
   WORKSTATIONS: "/workstations",
   WORKSTATION_DETAIL: "/workstations/:id",
 } as const;

@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/nextlevelbuilder/goclaw/internal/config"
 	"github.com/nextlevelbuilder/goclaw/internal/edition"
 	"github.com/nextlevelbuilder/goclaw/internal/i18n"
@@ -254,10 +256,18 @@ func (h *FilesHandler) requestFileRoots(r *http.Request, signed bool, absPath st
 		}
 	}
 	if edition.Current().RBACEnabled {
-		return []string{
-			config.TenantWorkspace(h.workspace, store.TenantIDFromContext(r.Context()), store.TenantSlugFromContext(r.Context())),
-			config.TenantDataDir(h.dataDir, store.TenantIDFromContext(r.Context()), store.TenantSlugFromContext(r.Context())),
+		tid := store.TenantIDFromContext(r.Context())
+		slug := store.TenantSlugFromContext(r.Context())
+		roots := []string{
+			config.TenantWorkspace(h.workspace, tid, slug),
+			config.TenantDataDir(h.dataDir, tid, slug),
 		}
+		// Allow fbcloak per-tenant screenshot dir which lives outside the
+		// standard tenant data layout (flat by-feature root).
+		if fb := tenantFBCloakScreenshotDir(h.dataDir, tid); fb != "" {
+			roots = append(roots, fb)
+		}
+		return roots
 	}
 	return []string{h.workspace, h.dataDir}
 }
@@ -346,6 +356,19 @@ func (h *FilesHandler) tenantWorkspace(r *http.Request) string {
 	tid := store.TenantIDFromContext(r.Context())
 	slug := store.TenantSlugFromContext(r.Context())
 	return config.TenantWorkspace(h.workspace, tid, slug)
+}
+
+// tenantFBCloakScreenshotDir returns the per-tenant screenshot directory
+// fbcloak writes to (`<dataDir>/fbcloak/screenshots/<tenantID>/`). It is
+// outside the standard tenant data dir layout because the writer chose a
+// flat by-feature root; this helper exists so the file handler still
+// enforces tenant isolation when serving those PNGs. Returns "" when
+// dataDir is empty (path validation upstream rejects "" prefixes).
+func tenantFBCloakScreenshotDir(dataDir string, tenantID uuid.UUID) string {
+	if dataDir == "" || tenantID == uuid.Nil {
+		return ""
+	}
+	return filepath.Join(dataDir, "fbcloak", "screenshots", tenantID.String())
 }
 
 // findInWorkspace searches the workspace directory tree for a file by basename.

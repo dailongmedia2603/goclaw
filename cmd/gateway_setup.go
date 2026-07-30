@@ -33,7 +33,7 @@ import (
 
 // setupToolRegistry creates the tool registry and registers all tools.
 // Returns the registry, exec approval manager, MCP manager, sandbox manager,
-// browser manager (caller must defer Close), web fetch tool, TTS tool,
+// browser profile registry (caller must defer Close), web fetch tool, TTS tool,
 // permission policy engine, tool policy engine, data directory, and resolved agent defaults.
 func setupToolRegistry(
 	cfg *config.Config,
@@ -44,7 +44,7 @@ func setupToolRegistry(
 	execApprovalMgr *tools.ExecApprovalManager,
 	mcpMgr *mcpbridge.Manager,
 	sandboxMgr sandbox.Manager,
-	browserMgr *browser.Manager,
+	browserRegistry *browser.ProfileRegistry,
 	webFetchTool *tools.WebFetchTool,
 	ttsTool *tools.TtsTool,
 	audioMgr *audio.Manager,
@@ -93,30 +93,72 @@ func setupToolRegistry(
 	toolsReg.Register(tools.NewKnowledgeGraphSearchTool())
 	slog.Info("memory + knowledge graph tools registered (PG-backed)")
 
-	// Browser automation tool
+	// Nhanh.vn e-commerce tools
+	toolsReg.Register(tools.NewNhanhProductsTool())
+	toolsReg.Register(tools.NewNhanhOrdersTool())
+	toolsReg.Register(tools.NewNhanhCustomersTool())
+	toolsReg.Register(tools.NewNhanhInventoryTool())
+	toolsReg.Register(tools.NewNhanhSyncTool())
+	slog.Info("nhanh.vn tools registered")
+
+	// Browser automation tool (multi-profile)
 	if cfg.Tools.Browser.Enabled {
-		var opts []browser.Option
-		if cfg.Tools.Browser.RemoteURL != "" {
-			opts = append(opts, browser.WithRemoteURL(cfg.Tools.Browser.RemoteURL))
-			slog.Info("browser tool enabled", "remote", cfg.Tools.Browser.RemoteURL)
-		} else {
-			opts = append(opts, browser.WithHeadless(cfg.Tools.Browser.Headless))
-			slog.Info("browser tool enabled", "headless", cfg.Tools.Browser.Headless)
+		profiles := cfg.Tools.Browser.ResolvedProfiles()
+		defaultName := cfg.Tools.Browser.ResolvedDefaultProfile()
+
+		// Ensure "default" profile has a remote URL when none is configured.
+		// In Docker, the chrome sidecar is always at ws://chrome:9222.
+		if dp, ok := profiles["default"]; ok && dp.RemoteURL == "" {
+			if envURL := os.Getenv("GOCLAW_BROWSER_REMOTE_URL"); envURL != "" {
+				dp.RemoteURL = envURL
+			} else if _, err := os.Stat("/.dockerenv"); err == nil {
+				// Inside Docker container — use chrome sidecar hostname
+				dp.RemoteURL = "ws://chrome:9222"
+			}
+			profiles["default"] = dp
 		}
-		if cfg.Tools.Browser.ActionTimeoutMs > 0 {
-			opts = append(opts, browser.WithActionTimeout(time.Duration(cfg.Tools.Browser.ActionTimeoutMs)*time.Millisecond))
+
+		registry := browser.NewProfileRegistry(defaultName)
+
+		for name, pc := range profiles {
+			var opts []browser.Option
+			if pc.RemoteURL != "" {
+				opts = append(opts, browser.WithRemoteURL(pc.RemoteURL))
+			} else {
+				opts = append(opts, browser.WithHeadless(pc.Headless))
+			}
+			if pc.Shared {
+				opts = append(opts, browser.WithShared(true))
+			}
+			if pc.ActionTimeoutMs > 0 {
+				opts = append(opts, browser.WithActionTimeout(time.Duration(pc.ActionTimeoutMs)*time.Millisecond))
+			}
+			if pc.IdleTimeoutMs > 0 {
+				opts = append(opts, browser.WithIdleTimeout(time.Duration(pc.IdleTimeoutMs)*time.Millisecond))
+			} else if pc.IdleTimeoutMs < 0 {
+				opts = append(opts, browser.WithIdleTimeout(0))
+			}
+			if pc.MaxPages > 0 {
+				opts = append(opts, browser.WithMaxPages(pc.MaxPages))
+			}
+
+			mgr := browser.New(opts...)
+			registry.Register(&browser.Profile{
+				Name:    name,
+				Manager: mgr,
+				Shared:  pc.Shared,
+				Domains: pc.Domains,
+				VNCURL:  pc.VNCURL,
+			})
+			slog.Info("browser profile registered",
+				"name", name,
+				"remote", pc.RemoteURL,
+				"shared", pc.Shared,
+				"domains", pc.Domains)
 		}
-		if cfg.Tools.Browser.IdleTimeoutMs > 0 {
-			opts = append(opts, browser.WithIdleTimeout(time.Duration(cfg.Tools.Browser.IdleTimeoutMs)*time.Millisecond))
-		} else if cfg.Tools.Browser.IdleTimeoutMs < 0 {
-			// Explicitly disable idle reaper with negative value
-			opts = append(opts, browser.WithIdleTimeout(0))
-		}
-		if cfg.Tools.Browser.MaxPages > 0 {
-			opts = append(opts, browser.WithMaxPages(cfg.Tools.Browser.MaxPages))
-		}
-		browserMgr = browser.New(opts...)
-		toolsReg.Register(browser.NewBrowserTool(browserMgr))
+
+		browserRegistry = registry
+		toolsReg.Register(browser.NewBrowserTool(registry))
 	}
 
 	// Web tools (web_fetch; web_search is registered in wireExtraTools after stores are ready)

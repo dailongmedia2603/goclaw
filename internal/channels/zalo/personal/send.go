@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
+	"unicode/utf8"
+
 	"github.com/nextlevelbuilder/goclaw/internal/bus"
-	"github.com/nextlevelbuilder/goclaw/internal/channels"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/typing"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/zalo"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/zalo/personal/protocol"
@@ -51,9 +53,28 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 		}
 	}
 
+	// Build auto-mention for group replies: @tag the sender at the start of the reply.
+	var mentions []protocol.TMention
+	if threadType == protocol.ThreadTypeGroup && msg.Content != "" && msg.Metadata != nil {
+		if senderID := msg.Metadata["sender_id"]; senderID != "" {
+			senderName := msg.Metadata["sender_name"]
+			if senderName == "" {
+				senderName = senderID
+			}
+			mentionText := "@" + senderName
+			mentions = []protocol.TMention{{
+				UID:  senderID,
+				Pos:  0,
+				Len:  utf8.RuneCountInString(mentionText),
+				Type: protocol.MentionEach,
+			}}
+			msg.Content = mentionText + " " + msg.Content
+		}
+	}
+
 	// Send text content (if any remains after media).
 	if msg.Content != "" {
-		return c.sendChunkedText(ctx, sess, msg.ChatID, threadType, msg.Content)
+		return c.sendChunkedText(ctx, sess, msg.ChatID, threadType, msg.Content, mentions)
 	}
 	return nil
 }
@@ -84,9 +105,29 @@ func (c *Channel) sendFile(ctx context.Context, sess *protocol.Session, chatID s
 	return err
 }
 
-func (c *Channel) sendChunkedText(ctx context.Context, sess *protocol.Session, chatID string, threadType protocol.ThreadType, text string) error {
-	for _, chunk := range channels.ChunkMarkdown(text, maxTextLength) {
-		if _, err := protocol.SendMessage(ctx, sess, chatID, threadType, chunk); err != nil {
+func (c *Channel) sendChunkedText(ctx context.Context, sess *protocol.Session, chatID string, threadType protocol.ThreadType, text string, mentions []protocol.TMention) error {
+	first := true
+	for len(text) > 0 {
+		chunk := text
+		if len(chunk) > maxTextLength {
+			cutAt := maxTextLength
+			if idx := strings.LastIndex(text[:maxTextLength], "\n"); idx > maxTextLength/2 {
+				cutAt = idx + 1
+			}
+			chunk = text[:cutAt]
+			text = text[cutAt:]
+		} else {
+			text = ""
+		}
+
+		// Attach mentions only to the first chunk (which contains the @name prefix).
+		var chunkMentions []protocol.TMention
+		if first && len(mentions) > 0 {
+			chunkMentions = mentions
+			first = false
+		}
+
+		if _, err := protocol.SendMessage(ctx, sess, chatID, threadType, chunk, chunkMentions); err != nil {
 			return err
 		}
 	}

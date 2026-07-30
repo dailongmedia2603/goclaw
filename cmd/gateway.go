@@ -24,6 +24,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/channels/bitrix24"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/discord"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/facebook"
+	"github.com/nextlevelbuilder/goclaw/internal/channels/facebookmessenger"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/feishu"
 	"github.com/nextlevelbuilder/goclaw/internal/channels/pancake"
 	slackchannel "github.com/nextlevelbuilder/goclaw/internal/channels/slack"
@@ -35,6 +36,7 @@ import (
 	"github.com/nextlevelbuilder/goclaw/internal/consolidation"
 	"github.com/nextlevelbuilder/goclaw/internal/edition"
 	"github.com/nextlevelbuilder/goclaw/internal/eventbus"
+	"github.com/nextlevelbuilder/goclaw/internal/fbbackfill"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway"
 	"github.com/nextlevelbuilder/goclaw/internal/gateway/methods"
 	"github.com/nextlevelbuilder/goclaw/internal/hooks"
@@ -753,6 +755,10 @@ func runGateway() {
 	server.SetRuntimeLogsHandler(httpapi.NewRuntimeLogsHandler(logTee))
 	pairingMethods, heartbeatMethods, chatMethods, cfgPermsMethods := registerAllMethods(server, agentRouter, pgStores.Sessions, pgStores.Tracing, pgStores.RunTimeline, pgStores.Cron, pgStores.Pairing, cfg, cfgPath, workspace, dataDir, msgBus, execApprovalMgr, pgStores.Agents, pgStores.Skills, pgStores.ConfigSecrets, pgStores.Teams, pgStores.AgentLinks, contextFileInterceptor, logTee, pgStores.Heartbeats, pgStores.ConfigPermissions, pgStores.SystemConfigs, pgStores.Tenants, pgStores.SkillTenantCfgs, audioMgr, usageCapSvc, providerRegistry, teamWorkEmbedder)
 
+	// FBCloak (browser-automation re-engagement) — Standard edition only.
+	// No-op stub on sqliteonly Lite builds (see gateway_fbcloak_lite.go).
+	wireFBCloak(server, pgStores, cfg, domainBus, providerRegistry)
+
 	// Phase 3: Agent hooks RPC methods (hooks.list/create/update/delete/toggle/test/history).
 	if hs, ok := pgStores.Hooks.(hooks.HookStore); ok && hs != nil {
 		hm := methods.NewHookMethods(hs, edition.Current())
@@ -900,6 +906,9 @@ func runGateway() {
 		instanceLoader.RegisterFactory(channels.TypeWhatsApp, whatsapp.FactoryWithDBAudio(pgStores.DB, pgStores.PendingMessages, "pgx", audioMgr, pgStores.BuiltinTools))
 		instanceLoader.RegisterFactory(channels.TypeSlack, slackchannel.FactoryWithPendingStore(pgStores.PendingMessages))
 		instanceLoader.RegisterFactory(channels.TypeFacebook, facebook.Factory)
+		if facebookmessenger.EditionAllowed() {
+			instanceLoader.RegisterFactory(channels.TypeFacebookPersonal, facebookmessenger.Factory)
+		}
 		instanceLoader.RegisterFactory(channels.TypePancake, pancake.Factory)
 		// Bitrix24: factory needs the portal store + encKey injected so each
 		// Channel can resolve its portal on Start(). The encKey here mirrors
@@ -944,7 +953,7 @@ func runGateway() {
 				// no-op until `goclaw migrate up` runs migration 000058.
 				if strings.Contains(err.Error(), "bitrix_portals") &&
 					(strings.Contains(err.Error(), "does not exist") || strings.Contains(err.Error(), "no such table")) {
-					slog.Warn("bitrix24 bootstrap skipped — bitrix_portals table missing; run `goclaw migrate up` (migration 000068) to enable Bitrix24 channels",
+					slog.Warn("bitrix24 bootstrap skipped — bitrix_portals table missing; run `goclaw migrate up` (migration 000071) to enable Bitrix24 channels",
 						"err", err)
 				} else {
 					slog.Warn("bitrix24 bootstrap failed", "err", err)
@@ -1054,6 +1063,28 @@ func runGateway() {
 	// API key management RPC
 	if pgStores.APIKeys != nil {
 		methods.NewAPIKeysMethods(pgStores.APIKeys).Register(server.Router())
+	}
+
+	// [fork] Facebook Messenger history backfill — fork-only feature.
+	// Upstream-safety: see docs/fork/fb-backfill-fork-contract.md.
+	if pgStores.ChannelInstances != nil && pgStores.Episodic != nil {
+		_ = fbbackfill.Register(context.Background(), &fbbackfill.Deps{
+			Instances:     pgStores.ChannelInstances,
+			EpisodicStore: pgStores.Episodic,
+			LLMResolver:   fbbackfill.NewProviderRegistryResolver(providerRegistry, pgStores.SystemConfigs),
+			RegisterRPC: func(method string, h fbbackfill.HandlerFunc) {
+				server.Router().Register(method, func(ctx context.Context, c *gateway.Client, req *protocol.RequestFrame) {
+					h(ctx, c, req)
+				})
+			},
+			Broadcast: func(tenantID string, ev *protocol.EventFrame) {
+				for _, c := range server.ClientList() {
+					if c.TenantID().String() == tenantID {
+						c.SendEvent(*ev)
+					}
+				}
+			},
+		})
 	}
 
 	// Tenant management RPC + HTTP

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -454,6 +455,9 @@ func apkViaHelper(ctx context.Context, action, pkg string) (bool, string) {
 // Uses pipBinary so test fixtures can redirect pip3 invocations.
 func cleanCaches(ctx context.Context) {
 	exec.CommandContext(ctx, pipBinary, "cache", "purge").Run() //nolint:errcheck
+	if runtime.GOOS == "windows" {
+		return
+	}
 	// Remove npm temp dirs using native Go (avoid sh -c shell glob + symlink risk).
 	// Matches only direct entries in /tmp; skips symlinks to prevent attacker-pointed rm.
 	matches, _ := filepath.Glob("/tmp/npm-*")

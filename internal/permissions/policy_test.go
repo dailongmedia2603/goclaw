@@ -346,6 +346,78 @@ func TestMethodRole_ApprovalsList_IsViewer(t *testing.T) {
 	}
 }
 
+// --- fb_backfill (fork-only): method names live in internal/fbbackfill/rpc.go
+// instead of pkg/protocol/methods.go, so the drift-coverage test below cannot
+// see them. Pin classification explicitly so an upstream rebase or a refactor
+// that drops the entries from policy.go is caught here.
+
+func TestMethodRole_FBBackfill(t *testing.T) {
+	writes := []string{
+		"fb_backfill.start",
+		"fb_backfill.pause",
+		"fb_backfill.resume",
+		"fb_backfill.cancel",
+		"fb_backfill.retry",
+	}
+	for _, m := range writes {
+		if got := MethodRole(m); got != RoleOperator {
+			t.Fatalf("%s must be RoleOperator; got %q", m, got)
+		}
+	}
+	reads := []string{
+		"fb_backfill.status",
+		"fb_backfill.list",
+	}
+	for _, m := range reads {
+		if got := MethodRole(m); got != RoleViewer {
+			t.Fatalf("%s must be RoleViewer; got %q", m, got)
+		}
+	}
+}
+
+func TestMethodRole_FBCloak(t *testing.T) {
+	// Plan principle: every FBCloak RPC is admin-gated. Handler-level
+	// canSeeAll() check is defense-in-depth on top of policy classification.
+	adminMethods := []string{
+		protocol.MethodFBCloakCredentialsList,
+		protocol.MethodFBCloakCredentialsAdd,
+		protocol.MethodFBCloakCredentialsTest,
+		protocol.MethodFBCloakCredentialsDelete,
+		protocol.MethodFBCloakJobsList,
+		protocol.MethodFBCloakJobsCreate,
+		protocol.MethodFBCloakJobsUpdate,
+		protocol.MethodFBCloakJobsToggle,
+		protocol.MethodFBCloakJobsDelete,
+		protocol.MethodFBCloakJobsRunNow,
+		protocol.MethodFBCloakLogList,
+		protocol.MethodFBCloakLogScreenshot,
+		protocol.MethodFBCloakSendProactive,
+		protocol.MethodFBCloakDisclaimerStatus,
+		protocol.MethodFBCloakDisclaimerAck,
+	}
+	for _, m := range adminMethods {
+		if got := MethodRole(m); got != RoleAdmin {
+			t.Fatalf("%s must be RoleAdmin; got %q", m, got)
+		}
+	}
+}
+
+func TestMethodRole_FBCloakPlans(t *testing.T) {
+	adminMethods := []string{
+		protocol.MethodFBCloakPlansList,
+		protocol.MethodFBCloakPlansGet,
+		protocol.MethodFBCloakPlansGenerateNow,
+		protocol.MethodFBCloakPlansCancel,
+		protocol.MethodFBCloakPlansRunDue,
+		protocol.MethodFBCloakPlansStats,
+	}
+	for _, m := range adminMethods {
+		if got := MethodRole(m); got != RoleAdmin {
+			t.Fatalf("%s must be RoleAdmin; got %q", m, got)
+		}
+	}
+}
+
 // --- Drift coverage: parses pkg/protocol/methods.go at test time, enumerates
 // every const Method* = "...", and asserts none resolve to RoleNone. New RPCs
 // added without a matching allowlist entry will be caught here before shipping
