@@ -30,15 +30,7 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 		ctrl.(*typing.Controller).Stop()
 	}
 
-	threadType := protocol.ThreadTypeUser
-	if c.IsGroupApproved(msg.ChatID) {
-		threadType = protocol.ThreadTypeGroup
-	} else if msg.Metadata != nil {
-		if _, ok := msg.Metadata["group_id"]; ok {
-			threadType = protocol.ThreadTypeGroup
-			c.MarkGroupApproved(msg.ChatID)
-		}
-	}
+	threadType := c.resolveThreadType(msg.ChatID, msg.Metadata)
 
 	// Send media attachments.
 	for _, media := range msg.Media {
@@ -77,6 +69,20 @@ func (c *Channel) Send(ctx context.Context, msg bus.OutboundMessage) error {
 		return c.sendChunkedText(ctx, sess, msg.ChatID, threadType, msg.Content, mentions)
 	}
 	return nil
+}
+
+// resolveThreadType decides whether chatID is a group or a user thread.
+// Groups seen via outbound "group_id" metadata are remembered as known only —
+// sending to a group must not grant it a pairing approval.
+func (c *Channel) resolveThreadType(chatID string, metadata map[string]string) protocol.ThreadType {
+	if c.IsGroupApproved(chatID) || c.isKnownGroup(chatID) {
+		return protocol.ThreadTypeGroup
+	}
+	if _, ok := metadata["group_id"]; ok {
+		c.markKnownGroup(chatID)
+		return protocol.ThreadTypeGroup
+	}
+	return protocol.ThreadTypeUser
 }
 
 // sendImage uploads and sends an image file to a Zalo thread.

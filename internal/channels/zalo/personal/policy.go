@@ -32,6 +32,12 @@ func (c *Channel) checkDMPolicy(ctx context.Context, senderID, chatID string) bo
 // checkGroupPolicy enforces group access policy (allowlist/pairing).
 // Returns false if the group is blocked by policy; does NOT check @mention gating.
 func (c *Channel) checkGroupPolicy(ctx context.Context, senderID, groupID string) bool {
+	// allow_from may list group IDs as well as user IDs: an allowlisted group is open to all its members.
+	// The "group:<id>" form shown on the pairing page is accepted too.
+	if c.config.GroupPolicy == "allowlist" && c.HasAllowList() &&
+		(c.IsAllowed(groupID) || c.IsAllowed("group:"+groupID)) {
+		return true
+	}
 	result := c.CheckGroupPolicy(ctx, senderID, groupID, c.config.GroupPolicy)
 	switch result {
 	case channels.PolicyAllow:

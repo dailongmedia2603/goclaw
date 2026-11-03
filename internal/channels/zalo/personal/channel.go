@@ -23,6 +23,7 @@ type Channel struct {
 	*channels.BaseChannel
 	config      config.ZaloPersonalConfig
 	typingCtrls sync.Map // threadID → *typing.Controller
+	knownGroups sync.Map // groupID → true (thread-type lookup only; NOT a pairing approval)
 	replyCache  *replycontext.Cache
 
 	mu       sync.RWMutex // protects sess and listener
@@ -97,16 +98,17 @@ func (c *Channel) getListener() *protocol.Listener {
 // chat ID the message tool actually requires, instead of guessing/passing
 // the display name as target.
 //
-// Also warms the approvedGroups cache (BaseChannel.MarkGroupApproved) for
-// every returned group ID. Send() uses that cache to decide whether a
-// target is a group (ThreadTypeGroup) or a user (ThreadTypeUser) when the
-// outbound message carries no explicit "group_id" metadata — which is
-// exactly the case for a message-tool forward whose ORIGIN session isn't
-// itself a group (e.g. forwarding from a DM into a group): the cache is
-// otherwise only populated by inbound group traffic under the "pairing"
-// group policy, so under "allowlist" (this deployment's default) a
-// same-session-never-messaged-before group would default to ThreadTypeUser
-// and the send would go nowhere, with no error surfaced anywhere.
+// Also warms the knownGroups cache for every returned group ID. Send() uses
+// that cache to decide whether a target is a group (ThreadTypeGroup) or a
+// user (ThreadTypeUser) when the outbound message carries no explicit
+// "group_id" metadata — which is exactly the case for a message-tool forward
+// whose ORIGIN session isn't itself a group (e.g. forwarding from a DM into a
+// group). Without it a never-messaged-before group would default to
+// ThreadTypeUser and the send would go nowhere, with no error surfaced.
+//
+// knownGroups is deliberately separate from BaseChannel.approvedGroups:
+// belonging to a group must not count as a pairing approval, otherwise the
+// "pairing" group policy is bypassed for every group the account is in.
 func (c *Channel) ListGroups(ctx context.Context) ([]channels.GroupInfo, error) {
 	sess := c.session()
 	if sess == nil {
@@ -119,9 +121,16 @@ func (c *Channel) ListGroups(ctx context.Context) ([]channels.GroupInfo, error) 
 	out := make([]channels.GroupInfo, len(groups))
 	for i, g := range groups {
 		out[i] = channels.GroupInfo{GroupID: g.GroupID, Name: g.Name, TotalMember: g.TotalMember}
-		c.MarkGroupApproved(g.GroupID)
+		c.markKnownGroup(g.GroupID)
 	}
 	return out, nil
+}
+
+func (c *Channel) markKnownGroup(groupID string) { c.knownGroups.Store(groupID, true) }
+
+func (c *Channel) isKnownGroup(groupID string) bool {
+	_, ok := c.knownGroups.Load(groupID)
+	return ok
 }
 
 // Start authenticates and begins listening for Zalo messages.
@@ -156,15 +165,15 @@ func (c *Channel) Start(ctx context.Context) error {
 
 	c.SetRunning(true)
 	go c.listenLoop(ctx)
-	// Best-effort: warm the approvedGroups cache so a forward TO a group works
+	// Best-effort: warm the knownGroups cache so a forward TO a group works
 	// correctly even if its origin session was never itself a group (see
-	// ListGroups doc comment). approvedGroups is in-memory only and wiped on
+	// ListGroups doc comment). knownGroups is in-memory only and wiped on
 	// every restart, so this must run again on every Start, not just once
 	// per account lifetime. Failure here (e.g. transient API error) is not
 	// fatal — the cache just stays cold until the next successful listing.
 	go func() {
 		if _, err := c.ListGroups(ctx); err != nil {
-			slog.Warn("zalo_personal: failed to warm group approval cache on start", "error", err)
+			slog.Warn("zalo_personal: failed to warm known-group cache on start", "error", err)
 		}
 	}()
 
